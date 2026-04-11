@@ -3,13 +3,6 @@
   "files.eol": "\n",
   "explorer.compactFolders": false,
 
-  "search.exclude": {
-    "**/node_modules": true
-  },
-  "files.exclude": {
-    "**/node_modules": true
-  },
-
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "editor.tabSize": 2,
