@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '@/styles/theme';
-import Button from '@/components/Button';
+import { Button } from '@/components/Button';
 
 interface EmptyStateProps {
   icon: string;
@@ -11,13 +11,7 @@ interface EmptyStateProps {
   onAction?: () => void;
 }
 
-export default function EmptyState({
-  icon,
-  title,
-  description,
-  actionLabel,
-  onAction,
-}: EmptyStateProps) {
+export function EmptyState({ icon, title, description, actionLabel, onAction }: EmptyStateProps) {
   return (
     <View style={styles.container}>
       <MaterialCommunityIcons name={icon as any} size={64} color={colors.textDisabled} />

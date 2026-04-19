@@ -3,11 +3,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '@/styles/theme';
 
-import HomeScreen from '@/screens/Home';
-import TasksScreen from '@/screens/Tasks';
-import FocusScreen from '@/screens/Focus';
-import GoalsScreen from '@/screens/Goals';
-import SettingsScreen from '@/screens/Settings';
+import { HomeScreen } from '@/screens/Home';
+import { TasksScreen } from '@/screens/Tasks';
+import { FocusScreen } from '@/screens/Focus';
+import { GoalsScreen } from '@/screens/Goals';
+import { SettingsScreen } from '@/screens/Settings';
 
 export type BottomTabParamList = {
   Home: undefined;
@@ -19,7 +19,7 @@ export type BottomTabParamList = {
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
-export default function BottomTabNavigator() {
+export function BottomTabNavigator() {
   const insets = useSafeAreaInsets();
 
   return (

@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { globalStyles } from '@/styles/global';
 import { colors } from '@/styles/theme';
 import { runMigrations } from '@/database/migrations';
-import Navigation from '@/navigation';
+import { Navigation } from '@/navigation';
 
 export default function App() {
   const [dbReady, setDbReady] = useState(false);

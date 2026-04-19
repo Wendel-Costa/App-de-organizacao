@@ -8,7 +8,7 @@ interface CardProps {
   elevated?: boolean;
 }
 
-export default function Card({ children, style, elevated = false }: CardProps) {
+export function Card({ children, style, elevated = false }: CardProps) {
   return <View style={[styles.card, elevated && shadow.sm, style]}>{children}</View>;
 }
 

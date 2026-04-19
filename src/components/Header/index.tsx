@@ -13,19 +13,23 @@ interface HeaderProps {
   };
 }
 
-export default function Header({ title, subtitle, onBack, rightAction }: HeaderProps) {
+export function Header({ title, subtitle, onBack, rightAction }: HeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.row}>
-        {onBack && (
-          <TouchableOpacity onPress={onBack} style={styles.backButton} activeOpacity={0.7}>
+        {/* Botão esquerdo */}
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.sideButton} activeOpacity={0.7}>
             <MaterialCommunityIcons name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
+        ) : (
+          <View style={styles.sideButton} />
         )}
 
-        <View style={styles.titleContainer}>
+        {/* Título centralizado com position absolute */}
+        <View style={styles.titleWrapper} pointerEvents="none">
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
@@ -36,10 +40,11 @@ export default function Header({ title, subtitle, onBack, rightAction }: HeaderP
           )}
         </View>
 
+        {/* Botão direito */}
         {rightAction ? (
           <TouchableOpacity
             onPress={rightAction.onPress}
-            style={styles.rightButton}
+            style={styles.sideButton}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons
@@ -49,7 +54,7 @@ export default function Header({ title, subtitle, onBack, rightAction }: HeaderP
             />
           </TouchableOpacity>
         ) : (
-          <View style={styles.rightButton} />
+          <View style={styles.sideButton} />
         )}
       </View>
     </View>
@@ -68,15 +73,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    height: 44,
   },
-  backButton: {
+  sideButton: {
     width: 40,
     height: 40,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  titleContainer: {
-    flex: 1,
+  titleWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     alignItems: 'center',
   },
   title: {
@@ -87,11 +95,5 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.textSecondary,
     marginTop: 2,
-  },
-  rightButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
   },
 });

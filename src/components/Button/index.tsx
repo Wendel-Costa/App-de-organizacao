@@ -22,7 +22,7 @@ interface ButtonProps {
   style?: ViewStyle;
 }
 
-export default function Button({
+export function Button({
   label,
   onPress,
   variant = 'primary',

@@ -1,8 +1,8 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { colors } from '@/styles/theme';
-import BottomTabNavigator from './BottomTabNavigator';
+import { BottomTabNavigator } from './BottomTabNavigator';
 
-export default function Navigation() {
+export function Navigation() {
   return (
     <NavigationContainer
       theme={{
