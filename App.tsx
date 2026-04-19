@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { globalStyles } from '@/styles/global';
 import { colors } from '@/styles/theme';
 import { runMigrations } from '@/database/migrations';
@@ -19,17 +20,21 @@ export default function App() {
   if (!dbReady) {
     return (
       <GestureHandlerRootView style={globalStyles.flex}>
-        <View style={globalStyles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <SafeAreaProvider>
+          <View style={globalStyles.center}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
   return (
     <GestureHandlerRootView style={globalStyles.flex}>
-      <Navigation />
-      <StatusBar style="auto" backgroundColor={colors.background} />
+      <SafeAreaProvider>
+        <Navigation />
+        <StatusBar style="auto" backgroundColor={colors.background} />
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

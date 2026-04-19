@@ -1,5 +1,6 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '@/styles/theme';
 
 import HomeScreen from '@/screens/Home';
@@ -19,6 +20,8 @@ export type BottomTabParamList = {
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export default function BottomTabNavigator() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -29,8 +32,8 @@ export default function BottomTabNavigator() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom + 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -49,7 +52,6 @@ export default function BottomTabNavigator() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Tasks"
         component={TasksScreen}
@@ -60,7 +62,6 @@ export default function BottomTabNavigator() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Focus"
         component={FocusScreen}
@@ -71,7 +72,6 @@ export default function BottomTabNavigator() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Goals"
         component={GoalsScreen}
@@ -82,7 +82,6 @@ export default function BottomTabNavigator() {
           ),
         }}
       />
-
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}
