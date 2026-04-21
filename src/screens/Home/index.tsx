@@ -1,48 +1,101 @@
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
-import { spacing } from '@/styles/theme';
+import { colors, spacing, radius, typography } from '@/styles/theme';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { EmptyState } from '@/components/EmptyState';
-import { Text } from 'react-native';
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function getFormattedDate() {
+  return new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
 
 export function HomeScreen() {
   return (
     <View style={globalStyles.screen}>
-      <Header
-        title="FocoMais"
-        subtitle="Bom dia! Vamos focar 🟡"
-        rightAction={{
-          icon: 'bell-outline',
-          onPress: () => {},
-        }}
-      />
+      <Header title="FocoMais" rightAction={{ icon: 'bell-outline', onPress: () => {} }} />
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Card elevated style={styles.card}>
-          <Text style={globalStyles.textH3}>Componentes funcionando!</Text>
-          <Text style={[globalStyles.textSm, globalStyles.mt_sm]}>
-            Header, Card e Button prontos.
-          </Text>
+        <View style={styles.greeting}>
+          <Text style={styles.greetingText}>{getGreeting()} 👋</Text>
+          <Text style={styles.dateText}>{getFormattedDate()}</Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <SummaryCard
+            icon="check-circle-outline"
+            label="Tarefas"
+            value="0/0"
+            color={colors.mint}
+          />
+          <SummaryCard icon="timer-outline" label="Foco hoje" value="0h" color={colors.sky} />
+          <SummaryCard icon="flag-outline" label="Metas" value="0" color={colors.peach} />
+        </View>
+
+        <Text style={styles.sectionTitle}>Iniciar foco</Text>
+        <Card elevated style={styles.focusCard}>
+          <View style={globalStyles.rowBetween}>
+            <View>
+              <Text style={styles.focusTitle}>Modo livre</Text>
+              <Text style={styles.focusSubtitle}>Sem tempo definido</Text>
+            </View>
+            <TouchableOpacity style={styles.focusButton} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="play" size={28} color={colors.textOnPrimary} />
+            </TouchableOpacity>
+          </View>
         </Card>
 
-        <Button label="Botão primário" onPress={() => {}} fullWidth style={styles.button} />
-        <Button
-          label="Botão secundário"
-          onPress={() => {}}
-          variant="secondary"
-          fullWidth
-          style={styles.button}
-        />
+        <Card style={styles.focusCard}>
+          <View style={globalStyles.rowBetween}>
+            <View>
+              <Text style={styles.focusTitle}>Pomodoro</Text>
+              <Text style={styles.focusSubtitle}>25 min foco · 5 min pausa</Text>
+            </View>
+            <TouchableOpacity style={styles.focusButton} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="play" size={28} color={colors.textOnPrimary} />
+            </TouchableOpacity>
+          </View>
+        </Card>
 
-        <EmptyState
-          icon="check-circle-outline"
-          title="Nenhuma tarefa ainda"
-          description="Adicione sua primeira tarefa para começar"
-          actionLabel="Criar tarefa"
-          onAction={() => {}}
-        />
+        <Text style={styles.sectionTitle}>Tarefas de hoje</Text>
+        <Card style={styles.emptyCard}>
+          <View style={styles.emptyContent}>
+            <MaterialCommunityIcons name="playlist-check" size={40} color={colors.textDisabled} />
+            <Text style={styles.emptyText}>Nenhuma tarefa para hoje</Text>
+            <TouchableOpacity style={styles.addButton} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="plus" size={16} color={colors.primaryDark} />
+              <Text style={styles.addButtonText}>Adicionar tarefa</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
       </ScrollView>
+    </View>
+  );
+}
+
+interface SummaryCardProps {
+  icon: string;
+  label: string;
+  value: string;
+  color: string;
+}
+
+function SummaryCard({ icon, label, value, color }: SummaryCardProps) {
+  return (
+    <View style={[styles.summaryCard, { borderTopColor: color }]}>
+      <MaterialCommunityIcons name={icon as any} size={22} color={color} />
+      <Text style={styles.summaryValue}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
     </View>
   );
 }
@@ -50,11 +103,100 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
+    paddingBottom: spacing.xxl,
   },
-  card: {
-    marginBottom: spacing.md,
+
+  greeting: {
+    marginBottom: spacing.lg,
   },
-  button: {
+  greetingText: {
+    ...typography.h2,
+    color: colors.textPrimary,
+  },
+  dateText: {
+    ...typography.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    alignItems: 'center',
+    gap: 4,
+    borderTopWidth: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  summaryValue: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  summaryLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+  },
+
+  sectionTitle: {
+    ...typography.label,
+    color: colors.textSecondary,
     marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+
+  focusCard: {
+    marginBottom: spacing.sm,
+  },
+  focusTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  focusSubtitle: {
+    ...typography.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  focusButton: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyCard: {
+    marginBottom: spacing.lg,
+  },
+  emptyContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  emptyText: {
+    ...typography.body,
+    color: colors.textDisabled,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+  addButtonText: {
+    ...typography.label,
+    color: colors.primaryDark,
   },
 });
