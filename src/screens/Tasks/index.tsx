@@ -13,9 +13,11 @@ import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/EmptyState';
+import { CreateTaskScreen } from './CreateTask';
 import type { Task } from '@/types/task.types';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
+type Screen = 'list' | 'create';
 
 const filters: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
@@ -31,6 +33,7 @@ function getTodayString() {
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const [filter, setFilter] = useState<Filter>('all');
+  const [screen, setScreen] = useState<Screen>('list');
 
   useEffect(() => {
     fetchTasks();
@@ -50,9 +53,15 @@ export function TasksScreen() {
     // em breve
   }
 
+  if (screen === 'create') {
+    return (
+      <CreateTaskScreen onBack={() => setScreen('list')} onSuccess={() => setScreen('list')} />
+    );
+  }
+
   return (
     <View style={globalStyles.screen}>
-      <Header title="Tarefas" rightAction={{ icon: 'plus', onPress: () => {} }} />
+      <Header title="Tarefas" rightAction={{ icon: 'plus', onPress: () => setScreen('create') }} />
 
       <View style={styles.filtersWrapper}>
         <View style={styles.filters}>
