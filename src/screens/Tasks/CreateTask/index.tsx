@@ -14,6 +14,7 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { DatePicker } from '@/components/DatePicker';
 import type { TaskType, Priority, RecurrenceDay, SubTask } from '@/types/task.types';
 
 const RECURRENCE_DAYS: { key: RecurrenceDay; label: string }[] = [
@@ -45,8 +46,8 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
   const [description, setDescription] = useState('');
   const [type, setType] = useState<TaskType>('anytime');
   const [priority, setPriority] = useState<Priority | undefined>();
-  const [scheduledDate, setScheduledDate] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [scheduledDate, setScheduledDate] = useState<string | undefined>();
+  const [dueDate, setDueDate] = useState<string | undefined>();
   const [recurrenceDays, setRecurrenceDays] = useState<RecurrenceDay[]>([]);
   const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -98,12 +99,12 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
         priority,
         completed: false,
         scheduledDate: type === 'scheduled' ? scheduledDate : undefined,
-        dueDate: dueDate || undefined,
+        dueDate,
         recurrenceDays: type === 'recurring' ? recurrenceDays : undefined,
         subtasks: subtasks.map((s, i) => ({ ...s, id: String(i) })),
       });
       onSuccess();
-    } catch (e) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível salvar a tarefa.');
     } finally {
       setLoading(false);
@@ -169,18 +170,13 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
         </View>
 
         {type === 'scheduled' && (
-          <>
-            <Text style={styles.label}>Data agendada *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor={colors.textDisabled}
-              value={scheduledDate}
-              onChangeText={setScheduledDate}
-              keyboardType="numeric"
-              maxLength={10}
-            />
-          </>
+          <DatePicker
+            label="Data agendada *"
+            value={scheduledDate}
+            onChange={setScheduledDate}
+            placeholder="Selecionar data"
+            minimumDate={new Date()}
+          />
         )}
 
         {type === 'recurring' && (
@@ -231,15 +227,11 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
           ))}
         </View>
 
-        <Text style={styles.label}>Data limite</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="AAAA-MM-DD (opcional)"
-          placeholderTextColor={colors.textDisabled}
+        <DatePicker
+          label="Data limite"
           value={dueDate}
-          onChangeText={setDueDate}
-          keyboardType="numeric"
-          maxLength={10}
+          onChange={setDueDate}
+          placeholder="Selecionar data limite (opcional)"
         />
 
         <Text style={styles.label}>Subtarefas</Text>

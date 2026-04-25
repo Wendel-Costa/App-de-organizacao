@@ -1,9 +1,13 @@
+import { useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
+import { useTaskStore } from '@/store/taskStore';
+import { filterTasksForToday } from '@/services/recurrence.service';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
+import { TaskItem } from '@/components/TaskItem';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -21,6 +25,17 @@ function getFormattedDate() {
 }
 
 export function HomeScreen() {
+  const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const todayTasks = filterTasksForToday(tasks);
+  const pending = todayTasks.filter((t) => !t.completed);
+  const completed = todayTasks.filter((t) => t.completed);
+  const focusToday = 0; // em breve
+
   return (
     <View style={globalStyles.screen}>
       <Header title="FocoMais" rightAction={{ icon: 'bell-outline', onPress: () => {} }} />
@@ -35,11 +50,21 @@ export function HomeScreen() {
           <SummaryCard
             icon="check-circle-outline"
             label="Tarefas"
-            value="0/0"
+            value={`${completed.length}/${todayTasks.length}`}
             color={colors.mint}
           />
-          <SummaryCard icon="timer-outline" label="Foco hoje" value="0h" color={colors.sky} />
-          <SummaryCard icon="flag-outline" label="Metas" value="0" color={colors.peach} />
+          <SummaryCard
+            icon="timer-outline"
+            label="Foco hoje"
+            value={`${focusToday}h`}
+            color={colors.sky}
+          />
+          <SummaryCard
+            icon="flag-outline"
+            label="Pendentes"
+            value={String(pending.length)}
+            color={colors.peach}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>Iniciar foco</Text>
@@ -67,17 +92,28 @@ export function HomeScreen() {
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>Tarefas de hoje</Text>
-        <Card style={styles.emptyCard}>
-          <View style={styles.emptyContent}>
-            <MaterialCommunityIcons name="playlist-check" size={40} color={colors.textDisabled} />
-            <Text style={styles.emptyText}>Nenhuma tarefa para hoje</Text>
-            <TouchableOpacity style={styles.addButton} activeOpacity={0.8}>
-              <MaterialCommunityIcons name="plus" size={16} color={colors.primaryDark} />
-              <Text style={styles.addButtonText}>Adicionar tarefa</Text>
-            </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Tarefas de hoje ({pending.length} pendentes)</Text>
+
+        {todayTasks.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <View style={styles.emptyContent}>
+              <MaterialCommunityIcons name="playlist-check" size={40} color={colors.textDisabled} />
+              <Text style={styles.emptyText}>Nenhuma tarefa para hoje</Text>
+            </View>
+          </Card>
+        ) : (
+          <View style={styles.taskList}>
+            {[...pending, ...completed].map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={toggleComplete}
+                onPress={() => {}}
+                onDelete={removeTask}
+              />
+            ))}
           </View>
-        </Card>
+        )}
       </ScrollView>
     </View>
   );
@@ -186,17 +222,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textDisabled,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
-  },
-  addButtonText: {
-    ...typography.label,
-    color: colors.primaryDark,
+  taskList: {
+    gap: spacing.sm,
   },
 });
