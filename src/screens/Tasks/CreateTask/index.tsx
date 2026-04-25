@@ -232,6 +232,11 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
           value={dueDate}
           onChange={setDueDate}
           placeholder="Selecionar data limite (opcional)"
+          minimumDate={
+            type === 'scheduled' && scheduledDate
+              ? new Date(scheduledDate + 'T12:00:00')
+              : new Date()
+          }
         />
 
         <Text style={styles.label}>Subtarefas</Text>
