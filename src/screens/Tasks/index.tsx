@@ -14,10 +14,11 @@ import { TaskItem } from '@/components/TaskItem';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
-import type { Task } from '@/types/task.types';
+import { TaskDetailScreen } from './TaskDetail';
+import type { RecurrenceDay, Task } from '@/types/task.types';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
-type Screen = 'list' | 'create';
+type Screen = 'list' | 'create' | 'detail';
 
 const filters: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
@@ -30,17 +31,32 @@ function getTodayString() {
   return new Date().toISOString().split('T')[0];
 }
 
+function getTodayWeekday() {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return days[new Date().getDay()];
+}
+
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
   const filtered = tasks.filter((t) => {
-    if (filter === 'today') return t.scheduledDate === getTodayString();
+    if (filter === 'today') {
+      if (t.type === 'scheduled') return t.scheduledDate === getTodayString();
+      if (t.type === 'recurring') {
+        const today = getTodayWeekday();
+        return (
+          t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today as RecurrenceDay)
+        );
+      }
+      return false;
+    }
     if (filter === 'anytime') return t.type === 'anytime';
     if (filter === 'recurring') return t.type === 'recurring';
     return true;
@@ -49,13 +65,24 @@ export function TasksScreen() {
   const pending = filtered.filter((t) => !t.completed);
   const completed = filtered.filter((t) => t.completed);
 
-  function handlePress(_task: Task) {
-    // em breve
+  function handlePress(task: Task) {
+    setSelectedTask(task);
+    setScreen('detail');
   }
 
   if (screen === 'create') {
     return (
       <CreateTaskScreen onBack={() => setScreen('list')} onSuccess={() => setScreen('list')} />
+    );
+  }
+
+  if (screen === 'detail' && selectedTask) {
+    return (
+      <TaskDetailScreen
+        task={selectedTask}
+        onBack={() => setScreen('list')}
+        onDeleted={() => setScreen('list')}
+      />
     );
   }
 
