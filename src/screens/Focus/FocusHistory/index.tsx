@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -7,6 +7,8 @@ import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { TimelineBar } from '@/components/TimelineBar';
+import { ManualRegisterScreen } from '../ActiveFocus/ManualRegister';
 
 interface FocusHistoryScreenProps {
   onBack: () => void;
@@ -21,10 +23,25 @@ function formatDuration(minutes: number): string {
 
 export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
   const { sessions, fetchSessions, removeSession } = useFocusStore();
+  const [showManual, setShowManual] = useState(false);
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  if (showManual) {
+    return (
+      <ManualRegisterScreen
+        onBack={() => setShowManual(false)}
+        onSuccess={() => {
+          setShowManual(false);
+          fetchSessions();
+        }}
+      />
+    );
+  }
 
   function handleDelete(id: string) {
     Alert.alert('Excluir sessão', 'Deseja excluir este registro?', [
@@ -37,13 +54,19 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
 
   return (
     <View style={globalStyles.screen}>
-      <Header title="Histórico de foco" onBack={onBack} />
+      <Header
+        title="Histórico de foco"
+        onBack={onBack}
+        rightAction={{ icon: 'plus', onPress: () => setShowManual(true) }}
+      />
 
       {sessions.length === 0 ? (
         <EmptyState
           icon="timer-outline"
           title="Nenhuma sessão ainda"
-          description="Complete uma sessão de foco para ver o histórico"
+          description="Complete uma sessão ou registre manualmente"
+          actionLabel="Registrar manualmente"
+          onAction={() => setShowManual(true)}
         />
       ) : (
         <FlatList
@@ -52,26 +75,34 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Card style={styles.summaryCard}>
-              <View style={globalStyles.rowBetween}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryValue}>{sessions.length}</Text>
-                  <Text style={styles.summaryLabel}>Sessões</Text>
+            <>
+              <Card style={styles.summaryCard}>
+                <View style={globalStyles.rowBetween}>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>{sessions.length}</Text>
+                    <Text style={styles.summaryLabel}>Sessões</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>{formatDuration(totalMinutes)}</Text>
+                    <Text style={styles.summaryLabel}>Total</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryValue}>
+                      {formatDuration(Math.round(totalMinutes / sessions.length))}
+                    </Text>
+                    <Text style={styles.summaryLabel}>Média</Text>
+                  </View>
                 </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryValue}>{formatDuration(totalMinutes)}</Text>
-                  <Text style={styles.summaryLabel}>Total</Text>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryValue}>
-                    {formatDuration(Math.round(totalMinutes / sessions.length))}
-                  </Text>
-                  <Text style={styles.summaryLabel}>Média</Text>
-                </View>
-              </View>
-            </Card>
+              </Card>
+
+              <Card style={styles.timelineCard}>
+                <TimelineBar sessions={sessions} date={todayStr} />
+              </Card>
+
+              <Text style={styles.sectionTitle}>Todas as sessões</Text>
+            </>
           }
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item }) => (
@@ -92,6 +123,11 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                       })}{' '}
                       ·{' '}
                       {new Date(item.startTime).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {' — '}
+                      {new Date(item.endTime).toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -128,7 +164,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   summaryCard: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   summaryItem: {
     flex: 1,
@@ -147,6 +183,16 @@ const styles = StyleSheet.create({
     width: 1,
     height: 36,
     backgroundColor: colors.border,
+  },
+  timelineCard: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.label,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: spacing.sm,
   },
   sessionCard: {
     paddingVertical: spacing.sm,
