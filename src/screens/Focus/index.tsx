@@ -4,10 +4,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useFocusStore } from '@/store/focusStore';
-import { useTimer } from '@/hooks/useTimer';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { TextInputModal } from '@/components/TextInputModal';
 import { ActiveFocusScreen } from './ActiveFocus';
 import { FocusHistoryScreen } from './FocusHistory';
 
@@ -15,6 +15,8 @@ type Screen = 'home' | 'active' | 'history';
 
 export function FocusScreen() {
   const [screen, setScreen] = useState<Screen>('home');
+  const [showThemeModal, setShowThemeModal] = useState(false);
+
   const {
     themes,
     fetchThemes,
@@ -41,26 +43,20 @@ export function FocusScreen() {
     return <FocusHistoryScreen onBack={() => setScreen('home')} />;
   }
 
-  function handleAddTheme() {
-    Alert.prompt(
-      'Novo tema',
-      'Nome do tema de foco:',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Criar',
-          onPress: (name?: string | null) => {
-            if (name?.trim()) addTheme(name.trim());
-          },
-        },
-      ],
-      'plain-text',
-    );
-  }
-
   return (
     <View style={globalStyles.screen}>
       <Header title="Foco" rightAction={{ icon: 'history', onPress: () => setScreen('history') }} />
+
+      <TextInputModal
+        visible={showThemeModal}
+        title="Novo tema de foco"
+        placeholder="Ex: Matemática, Leitura..."
+        onConfirm={(name) => {
+          addTheme(name);
+          setShowThemeModal(false);
+        }}
+        onCancel={() => setShowThemeModal(false)}
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Modo</Text>
@@ -190,7 +186,7 @@ export function FocusScreen() {
 
           <TouchableOpacity
             style={styles.themeAddButton}
-            onPress={handleAddTheme}
+            onPress={() => setShowThemeModal(true)}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="plus" size={18} color={colors.primaryDark} />
