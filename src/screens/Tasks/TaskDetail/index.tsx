@@ -4,23 +4,15 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
+import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import type { Task } from '@/types/task.types';
 
-const typeLabel = {
-  anytime: 'Livre',
-  scheduled: 'Agendada',
-  recurring: 'Recorrente',
-};
-
-const typeIcon = {
-  anytime: 'infinity',
-  scheduled: 'calendar',
-  recurring: 'repeat',
-};
+const typeLabel = { anytime: 'Livre', scheduled: 'Agendada', recurring: 'Recorrente' };
+const typeIcon = { anytime: 'infinity', scheduled: 'calendar', recurring: 'repeat' };
 
 const recurrenceLabel: Record<string, string> = {
   monday: 'Segunda',
@@ -37,11 +29,17 @@ interface TaskDetailScreenProps {
   task: Task;
   onBack: () => void;
   onDeleted: () => void;
+  onEdit: () => void;
 }
 
-export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenProps) {
+export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetailScreenProps) {
   const { toggleComplete, toggleSubtask, removeTask } = useTaskStore();
+  const { themes } = useFocusStore();
   const [localTask, setLocalTask] = useState<Task>(task);
+
+  const themeName = localTask.themeId
+    ? themes.find((t) => t.id === localTask.themeId)?.name
+    : undefined;
 
   async function handleToggleComplete() {
     const updated = !localTask.completed;
@@ -58,21 +56,17 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
   }
 
   function handleDelete() {
-    Alert.alert(
-      'Excluir tarefa',
-      'Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            await removeTask(localTask.id);
-            onDeleted();
-          },
+    Alert.alert('Excluir tarefa', 'Tem certeza que deseja excluir esta tarefa?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          await removeTask(localTask.id);
+          onDeleted();
         },
-      ],
-    );
+      },
+    ]);
   }
 
   const completedSubtasks = localTask.subtasks?.filter((s) => s.completed).length ?? 0;
@@ -84,27 +78,25 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
       <Header
         title="Detalhes"
         onBack={onBack}
-        rightAction={{ icon: 'trash-can-outline', onPress: handleDelete }}
+        rightAction={{ icon: 'pencil-outline', onPress: onEdit }}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card elevated style={styles.mainCard}>
-          <View style={globalStyles.rowBetween}>
-            <TouchableOpacity
-              onPress={handleToggleComplete}
-              style={styles.checkRow}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name={localTask.completed ? 'check-circle' : 'circle-outline'}
-                size={28}
-                color={localTask.completed ? colors.success : colors.textDisabled}
-              />
-              <Text style={[styles.title, localTask.completed && styles.titleCompleted]}>
-                {localTask.title}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={handleToggleComplete}
+            style={styles.checkRow}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name={localTask.completed ? 'check-circle' : 'circle-outline'}
+              size={28}
+              color={localTask.completed ? colors.success : colors.textDisabled}
+            />
+            <Text style={[styles.title, localTask.completed && styles.titleCompleted]}>
+              {localTask.title}
+            </Text>
+          </TouchableOpacity>
 
           {localTask.description && <Text style={styles.description}>{localTask.description}</Text>}
         </Card>
@@ -120,6 +112,8 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
               <PriorityBadge priority={localTask.priority} />
             </View>
           )}
+
+          {themeName && <InfoRow icon="timer-outline" label="Tema de foco" value={themeName} />}
 
           {localTask.scheduledDate && (
             <InfoRow
@@ -154,16 +148,12 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
 
         {totalSubtasks > 0 && (
           <>
-            <View style={styles.subtaskHeader}>
-              <Text style={styles.sectionTitle}>
-                Subtarefas ({completedSubtasks}/{totalSubtasks})
-              </Text>
-            </View>
-
+            <Text style={styles.sectionTitle}>
+              Subtarefas ({completedSubtasks}/{totalSubtasks})
+            </Text>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
-
             <Card style={styles.subtasksCard}>
               {localTask.subtasks?.map((sub) => (
                 <TouchableOpacity
@@ -195,6 +185,14 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
         />
 
         <Button
+          label="Editar tarefa"
+          onPress={onEdit}
+          variant="secondary"
+          fullWidth
+          style={styles.actionButton}
+        />
+
+        <Button
           label="Excluir tarefa"
           onPress={handleDelete}
           variant="danger"
@@ -206,13 +204,7 @@ export function TaskDetailScreen({ task, onBack, onDeleted }: TaskDetailScreenPr
   );
 }
 
-interface InfoRowProps {
-  icon: string;
-  label: string;
-  value: string;
-}
-
-function InfoRow({ icon, label, value }: InfoRowProps) {
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <MaterialCommunityIcons name={icon as any} size={18} color={colors.textSecondary} />
@@ -287,11 +279,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  subtaskHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   progressBar: {
     height: 4,
     backgroundColor: colors.border,

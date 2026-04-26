@@ -22,13 +22,13 @@ function formatDuration(minutes: number): string {
 }
 
 export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
-  const { sessions, fetchSessions, removeSession } = useFocusStore();
+  const { sessions, themes, fetchSessions, fetchThemes, removeSession } = useFocusStore();
   const [showManual, setShowManual] = useState(false);
-
-  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchSessions();
+    fetchThemes();
   }, []);
 
   if (showManual) {
@@ -50,7 +50,13 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
     ]);
   }
 
-  const totalMinutes = sessions.reduce((acc, s) => acc + s.duration, 0);
+  const daySessions = sessions.filter((s) => {
+    const sessionDate = new Date(s.startTime).toISOString().split('T')[0];
+    return sessionDate === selectedDate;
+  });
+
+  const totalMinutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
+  const allTotalMinutes = sessions.reduce((acc, s) => acc + s.duration, 0);
 
   return (
     <View style={globalStyles.screen}>
@@ -70,7 +76,7 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
         />
       ) : (
         <FlatList
-          data={sessions}
+          data={daySessions}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -80,30 +86,34 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                 <View style={globalStyles.rowBetween}>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryValue}>{sessions.length}</Text>
-                    <Text style={styles.summaryLabel}>Sessões</Text>
+                    <Text style={styles.summaryLabel}>Total sessões</Text>
                   </View>
                   <View style={styles.summaryDivider} />
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryValue}>{formatDuration(totalMinutes)}</Text>
-                    <Text style={styles.summaryLabel}>Total</Text>
-                  </View>
-                  <View style={styles.summaryDivider} />
-                  <View style={styles.summaryItem}>
-                    <Text style={styles.summaryValue}>
-                      {formatDuration(Math.round(totalMinutes / sessions.length))}
-                    </Text>
-                    <Text style={styles.summaryLabel}>Média</Text>
+                    <Text style={styles.summaryValue}>{formatDuration(allTotalMinutes)}</Text>
+                    <Text style={styles.summaryLabel}>Tempo total</Text>
                   </View>
                 </View>
               </Card>
 
               <Card style={styles.timelineCard}>
-                <TimelineBar sessions={sessions} date={todayStr} />
+                <TimelineBar
+                  sessions={sessions}
+                  themes={themes}
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                />
               </Card>
 
-              <Text style={styles.sectionTitle}>Todas as sessões</Text>
+              <View style={styles.dayHeader}>
+                <Text style={styles.sectionTitle}>Sessões do dia</Text>
+                {daySessions.length > 0 && (
+                  <Text style={styles.dayTotal}>{formatDuration(totalMinutes)}</Text>
+                )}
+              </View>
             </>
           }
+          ListEmptyComponent={<Text style={styles.emptyDayText}>Nenhuma sessão neste dia</Text>}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderItem={({ item }) => (
             <Card style={styles.sessionCard}>
@@ -117,11 +127,6 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                   <View>
                     <Text style={styles.sessionTheme}>{item.themeName ?? 'Foco geral'}</Text>
                     <Text style={styles.sessionTime}>
-                      {new Date(item.startTime).toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'short',
-                      })}{' '}
-                      ·{' '}
                       {new Date(item.startTime).toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -187,12 +192,27 @@ const styles = StyleSheet.create({
   timelineCard: {
     marginBottom: spacing.md,
   },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
   sectionTitle: {
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: spacing.sm,
+  },
+  dayTotal: {
+    ...typography.label,
+    color: colors.primaryDark,
+  },
+  emptyDayText: {
+    ...typography.sm,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    paddingVertical: spacing.lg,
   },
   sessionCard: {
     paddingVertical: spacing.sm,
@@ -212,7 +232,6 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.textSecondary,
     marginTop: 2,
-    textTransform: 'capitalize',
   },
   sessionRight: {
     flexDirection: 'row',

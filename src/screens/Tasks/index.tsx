@@ -10,15 +10,16 @@ import {
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
+import { useFocusStore } from '@/store/focusStore';
 import { TaskItem } from '@/components/TaskItem';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
-import type { RecurrenceDay, Task } from '@/types/task.types';
+import type { Task, RecurrenceDay } from '@/types/task.types';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
-type Screen = 'list' | 'create' | 'detail';
+type Screen = 'list' | 'create' | 'detail' | 'edit';
 
 const filters: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
@@ -31,19 +32,29 @@ function getTodayString() {
   return new Date().toISOString().split('T')[0];
 }
 
-function getTodayWeekday() {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function getTodayWeekday(): RecurrenceDay {
+  const days: RecurrenceDay[] = [
+    'sunday',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+  ];
   return days[new Date().getDay()];
 }
 
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
+  const { fetchThemes } = useFocusStore();
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     fetchTasks();
+    fetchThemes();
   }, []);
 
   const filtered = tasks.filter((t) => {
@@ -51,9 +62,7 @@ export function TasksScreen() {
       if (t.type === 'scheduled') return t.scheduledDate === getTodayString();
       if (t.type === 'recurring') {
         const today = getTodayWeekday();
-        return (
-          t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today as RecurrenceDay)
-        );
+        return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
       }
       return false;
     }
@@ -72,16 +81,36 @@ export function TasksScreen() {
 
   if (screen === 'create') {
     return (
-      <CreateTaskScreen onBack={() => setScreen('list')} onSuccess={() => setScreen('list')} />
+      <CreateTaskScreen
+        onBack={() => setScreen('list')}
+        onSuccess={() => {
+          fetchTasks();
+          setScreen('list');
+        }}
+      />
+    );
+  }
+
+  if (screen === 'edit' && selectedTask) {
+    return (
+      <CreateTaskScreen
+        initialTask={selectedTask}
+        onBack={() => setScreen('detail')}
+        onSuccess={() => {
+          fetchTasks();
+          setScreen('list');
+        }}
+      />
     );
   }
 
   if (screen === 'detail' && selectedTask) {
     return (
       <TaskDetailScreen
-        task={selectedTask}
+        task={tasks.find((t) => t.id === selectedTask.id) ?? selectedTask}
         onBack={() => setScreen('list')}
         onDeleted={() => setScreen('list')}
+        onEdit={() => setScreen('edit')}
       />
     );
   }
@@ -125,13 +154,12 @@ export function TasksScreen() {
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListHeaderComponent={
-            completed.length > 0 && pending.length > 0 ? (
+            pending.length > 0 && completed.length > 0 ? (
               <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
             ) : null
           }
           renderItem={({ item, index }) => {
             const showCompletedHeader = index === pending.length && completed.length > 0;
-
             return (
               <>
                 {showCompletedHeader && (

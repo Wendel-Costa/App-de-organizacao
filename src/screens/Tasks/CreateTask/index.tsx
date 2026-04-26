@@ -12,10 +12,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
+import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
-import type { TaskType, Priority, RecurrenceDay, SubTask } from '@/types/task.types';
+import type { Task, TaskType, Priority, RecurrenceDay, SubTask } from '@/types/task.types';
 
 const RECURRENCE_DAYS: { key: RecurrenceDay; label: string }[] = [
   { key: 'monday', label: 'Seg' },
@@ -37,20 +38,30 @@ const PRIORITIES: { key: Priority; label: string; color: string }[] = [
 interface CreateTaskScreenProps {
   onBack: () => void;
   onSuccess: () => void;
+  initialTask?: Task;
 }
 
-export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
-  const { addTask } = useTaskStore();
+export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskScreenProps) {
+  const isEditing = !!initialTask;
+  const { addTask, editTask } = useTaskStore();
+  const { themes } = useFocusStore();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState<TaskType>('anytime');
-  const [priority, setPriority] = useState<Priority | undefined>();
-  const [scheduledDate, setScheduledDate] = useState<string | undefined>();
-  const [dueDate, setDueDate] = useState<string | undefined>();
-  const [recurrenceDays, setRecurrenceDays] = useState<RecurrenceDay[]>([]);
-  const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>([]);
+  const [title, setTitle] = useState(initialTask?.title ?? '');
+  const [description, setDescription] = useState(initialTask?.description ?? '');
+  const [type, setType] = useState<TaskType>(initialTask?.type ?? 'anytime');
+  const [priority, setPriority] = useState<Priority | undefined>(initialTask?.priority);
+  const [scheduledDate, setScheduledDate] = useState<string | undefined>(
+    initialTask?.scheduledDate,
+  );
+  const [dueDate, setDueDate] = useState<string | undefined>(initialTask?.dueDate);
+  const [recurrenceDays, setRecurrenceDays] = useState<RecurrenceDay[]>(
+    initialTask?.recurrenceDays ?? [],
+  );
+  const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>(
+    initialTask?.subtasks?.map((s) => ({ title: s.title, completed: s.completed })) ?? [],
+  );
   const [newSubtask, setNewSubtask] = useState('');
+  const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
   const [loading, setLoading] = useState(false);
 
   function toggleRecurrenceDay(day: RecurrenceDay) {
@@ -92,17 +103,24 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
 
     setLoading(true);
     try {
-      await addTask({
+      const data = {
         title: title.trim(),
         description: description.trim() || undefined,
         type,
         priority,
-        completed: false,
+        completed: initialTask?.completed ?? false,
         scheduledDate: type === 'scheduled' ? scheduledDate : undefined,
         dueDate,
         recurrenceDays: type === 'recurring' ? recurrenceDays : undefined,
         subtasks: subtasks.map((s, i) => ({ ...s, id: String(i) })),
-      });
+        themeId: selectedThemeId,
+      };
+
+      if (isEditing && initialTask) {
+        await editTask(initialTask.id, data);
+      } else {
+        await addTask(data);
+      }
       onSuccess();
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar a tarefa.');
@@ -113,7 +131,7 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
 
   return (
     <View style={globalStyles.screen}>
-      <Header title="Nova tarefa" onBack={onBack} />
+      <Header title={isEditing ? 'Editar tarefa' : 'Nova tarefa'} onBack={onBack} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -202,7 +220,7 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
           </>
         )}
 
-        <Text style={styles.label}>Prioridade</Text>
+        <Text style={styles.label}>Prioridade (opcional)</Text>
         <View style={styles.priorityRow}>
           {PRIORITIES.map((p) => (
             <TouchableOpacity
@@ -228,16 +246,47 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
         </View>
 
         <DatePicker
-          label="Data limite"
+          label="Data limite (opcional)"
           value={dueDate}
           onChange={setDueDate}
-          placeholder="Selecionar data limite (opcional)"
+          placeholder="Selecionar data limite"
           minimumDate={
             type === 'scheduled' && scheduledDate
               ? new Date(scheduledDate + 'T12:00:00')
               : new Date()
           }
         />
+
+        {themes.length > 0 && (
+          <>
+            <Text style={styles.label}>Tema de foco (opcional)</Text>
+            <View style={styles.themesRow}>
+              <TouchableOpacity
+                style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
+                onPress={() => setSelectedThemeId(undefined)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+                  Nenhum
+                </Text>
+              </TouchableOpacity>
+              {themes.map((t) => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
+                  onPress={() => setSelectedThemeId(t.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[styles.themeLabel, selectedThemeId === t.id && styles.themeLabelActive]}
+                  >
+                    {t.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
 
         <Text style={styles.label}>Subtarefas</Text>
         <View style={styles.subtaskInput}>
@@ -273,7 +322,7 @@ export function CreateTaskScreen({ onBack, onSuccess }: CreateTaskScreenProps) {
         ))}
 
         <Button
-          label="Salvar tarefa"
+          label={isEditing ? 'Salvar alterações' : 'Salvar tarefa'}
           onPress={handleSave}
           fullWidth
           loading={loading}
@@ -379,7 +428,30 @@ const styles = StyleSheet.create({
   priorityLabel: {
     ...typography.label,
   },
-
+  themesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  themeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  themeLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  themeLabelActive: {
+    color: colors.textOnPrimary,
+  },
   subtaskInput: {
     flexDirection: 'row',
     alignItems: 'center',
