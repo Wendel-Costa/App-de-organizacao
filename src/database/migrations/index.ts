@@ -19,6 +19,10 @@ export async function runMigrations() {
     )
   `);
 
+  try {
+    await db.run(sql`ALTER TABLE tasks ADD COLUMN theme_id TEXT`);
+  } catch {}
+
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS subtasks (
       id TEXT PRIMARY KEY,

@@ -13,6 +13,7 @@ export const tasks = sqliteTable('tasks', {
   dueDate: text('due_date'),
   recurrenceDays: text('recurrence_days'),
   goalId: text('goal_id'),
+  themeId: text('theme_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

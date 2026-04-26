@@ -1,7 +1,7 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '../index';
 import { tasks, subtasks } from '../schema';
-import type { Task, SubTask } from '@/types/task.types';
+import type { Task } from '@/types/task.types';
 
 function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -13,29 +13,6 @@ function now() {
 
 export async function getAllTasks(): Promise<Task[]> {
   const rows = await db.select().from(tasks);
-
-  return Promise.all(
-    rows.map(async (row) => {
-      const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, row.id));
-      return rowToTask(row, subs);
-    }),
-  );
-}
-
-export async function getTasksForDate(date: string): Promise<Task[]> {
-  const rows = await db.select().from(tasks).where(eq(tasks.scheduledDate, date));
-
-  return Promise.all(
-    rows.map(async (row) => {
-      const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, row.id));
-      return rowToTask(row, subs);
-    }),
-  );
-}
-
-export async function getAnytimeTasks(): Promise<Task[]> {
-  const rows = await db.select().from(tasks).where(eq(tasks.type, 'anytime'));
-
   return Promise.all(
     rows.map(async (row) => {
       const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, row.id));
@@ -61,6 +38,7 @@ export async function createTask(
     dueDate: data.dueDate,
     recurrenceDays: data.recurrenceDays ? JSON.stringify(data.recurrenceDays) : null,
     goalId: data.goalId,
+    themeId: data.themeId,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -96,9 +74,26 @@ export async function updateTask(id: string, data: Partial<Task>): Promise<void>
       dueDate: data.dueDate,
       recurrenceDays: data.recurrenceDays ? JSON.stringify(data.recurrenceDays) : undefined,
       goalId: data.goalId,
+      themeId: data.themeId,
       updatedAt: now(),
     })
     .where(eq(tasks.id, id));
+
+  if (data.subtasks !== undefined) {
+    await db.delete(subtasks).where(eq(subtasks.taskId, id));
+    if (data.subtasks.length > 0) {
+      await Promise.all(
+        data.subtasks.map((sub) =>
+          db.insert(subtasks).values({
+            id: generateId(),
+            taskId: id,
+            title: sub.title,
+            completed: sub.completed ? 1 : 0,
+          }),
+        ),
+      );
+    }
+  }
 }
 
 export async function toggleTaskComplete(id: string, completed: boolean): Promise<void> {
@@ -132,6 +127,7 @@ function rowToTask(row: typeof tasks.$inferSelect, subs: (typeof subtasks.$infer
     dueDate: row.dueDate ?? undefined,
     recurrenceDays: row.recurrenceDays ? JSON.parse(row.recurrenceDays) : undefined,
     goalId: row.goalId ?? undefined,
+    themeId: row.themeId ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     subtasks: subs.map((s) => ({

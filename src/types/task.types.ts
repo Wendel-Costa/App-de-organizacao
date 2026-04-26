@@ -30,6 +30,7 @@ export interface Task {
   recurrenceDays?: RecurrenceDay[];
   subtasks?: SubTask[];
   goalId?: string;
+  themeId?: string;
   createdAt: string;
   updatedAt: string;
 }
