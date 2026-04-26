@@ -1,9 +1,19 @@
-import { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTimer } from '@/hooks/useTimer';
+import { useTaskStore } from '@/store/taskStore';
+import { isTaskActiveToday } from '@/services/recurrence.service';
 
 interface ActiveFocusScreenProps {
   onStop: () => void;
@@ -34,9 +44,18 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
     stopFocus,
   } = useTimer();
 
+  const { tasks, fetchTasks, toggleComplete, addTask } = useTaskStore();
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+
   useEffect(() => {
     startFocus();
+    fetchTasks();
   }, []);
+
+  const themeTasks = selectedTheme
+    ? tasks.filter((t) => t.themeId === selectedTheme.id && isTaskActiveToday(t))
+    : [];
 
   async function handleStop() {
     Alert.alert('Encerrar sessão', 'Deseja encerrar e salvar a sessão de foco?', [
@@ -51,17 +70,31 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
     ]);
   }
 
+  async function handleQuickAdd() {
+    if (!quickTaskTitle.trim()) return;
+    await addTask({
+      title: quickTaskTitle.trim(),
+      type: 'anytime',
+      completed: false,
+      themeId: selectedTheme?.id,
+    });
+    setQuickTaskTitle('');
+    setShowQuickAdd(false);
+  }
+
   const totalPomodoroSeconds = isOnBreak ? pomodoroBreakMinutes * 60 : pomodoroWorkMinutes * 60;
 
   const cycleElapsed = mode === 'pomodoro' ? elapsedSeconds % totalPomodoroSeconds : elapsedSeconds;
 
   const progress = mode === 'pomodoro' ? cycleElapsed / totalPomodoroSeconds : 0;
-
   const accentColor = isOnBreak ? colors.mint : colors.primary;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Tema */}
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.themeRow}>
         <MaterialCommunityIcons name="circle" size={10} color={accentColor} />
         <Text style={styles.themeText}>
@@ -85,10 +118,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
             <View
               style={[
                 styles.progressFill,
-                {
-                  width: `${progress * 100}%`,
-                  backgroundColor: accentColor,
-                },
+                { width: `${progress * 100}%`, backgroundColor: accentColor },
               ]}
             />
           </View>
@@ -129,18 +159,82 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
       <Text style={styles.hint}>
         {status === 'running' ? 'Sessão em andamento' : 'Sessão pausada'}
       </Text>
-    </View>
+
+      {selectedTheme && (
+        <View style={styles.tasksSection}>
+          <View style={styles.tasksSectionHeader}>
+            <Text style={styles.tasksSectionTitle}>Tarefas · {selectedTheme.name}</Text>
+            <TouchableOpacity
+              onPress={() => setShowQuickAdd(!showQuickAdd)}
+              style={styles.addTaskButton}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="plus" size={18} color={colors.primaryDark} />
+            </TouchableOpacity>
+          </View>
+
+          {showQuickAdd && (
+            <View style={styles.quickAddRow}>
+              <TextInput
+                style={styles.quickAddInput}
+                placeholder="Nova tarefa..."
+                placeholderTextColor={colors.textDisabled}
+                value={quickTaskTitle}
+                onChangeText={setQuickTaskTitle}
+                onSubmitEditing={handleQuickAdd}
+                returnKeyType="done"
+                autoFocus
+              />
+              <TouchableOpacity
+                onPress={handleQuickAdd}
+                style={styles.quickAddConfirm}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="check" size={18} color={colors.textOnPrimary} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {themeTasks.length === 0 && !showQuickAdd ? (
+            <Text style={styles.noTasksText}>Nenhuma tarefa para hoje neste tema</Text>
+          ) : (
+            themeTasks.map((task) => (
+              <TouchableOpacity
+                key={task.id}
+                style={styles.taskRow}
+                onPress={() => toggleComplete(task.id, !task.completed)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={task.completed ? 'check-circle' : 'circle-outline'}
+                  size={22}
+                  color={task.completed ? colors.success : colors.textDisabled}
+                />
+                <Text
+                  style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}
+                  numberOfLines={2}
+                >
+                  {task.title}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
     alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    gap: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
   },
   themeRow: {
     flexDirection: 'row',
@@ -219,5 +313,79 @@ const styles = StyleSheet.create({
   hint: {
     ...typography.sm,
     color: colors.textDisabled,
+  },
+
+  tasksSection: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  tasksSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tasksSectionTitle: {
+    ...typography.label,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  addTaskButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAddRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickAddInput: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  quickAddConfirm: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noTasksText: {
+    ...typography.sm,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  taskTitle: {
+    flex: 1,
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: colors.textSecondary,
   },
 });
