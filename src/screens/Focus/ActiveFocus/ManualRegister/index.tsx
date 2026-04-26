@@ -7,6 +7,7 @@ import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
+import { TimePicker } from '@/components/TimePicker';
 
 interface ManualRegisterScreenProps {
   onBack: () => void;
@@ -72,6 +73,10 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
     }
   }
 
+  const duration = date
+    ? diffInMinutes(timeStringToDate(date, startTime), timeStringToDate(date, endTime))
+    : 0;
+
   return (
     <View style={globalStyles.screen}>
       <Header title="Registro manual" onBack={onBack} />
@@ -81,120 +86,69 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Data */}
         <DatePicker label="Data" value={date} onChange={setDate} placeholder="Selecionar data" />
 
-        <Text style={styles.label}>Horário de início</Text>
         <View style={styles.timeRow}>
-          {[
-            '06:00',
-            '07:00',
-            '08:00',
-            '09:00',
-            '10:00',
-            '12:00',
-            '14:00',
-            '16:00',
-            '18:00',
-            '20:00',
-            '22:00',
-          ].map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.timeChip, startTime === t && styles.timeChipActive]}
-              onPress={() => setStartTime(t)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.timeChipLabel, startTime === t && styles.timeChipLabelActive]}>
-                {t}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.timeFlex}>
+            <TimePicker label="Início" value={startTime} onChange={setStartTime} />
+          </View>
+          <View style={styles.timeSeparator}>
+            <MaterialCommunityIcons name="arrow-right" size={20} color={colors.textDisabled} />
+          </View>
+          <View style={styles.timeFlex}>
+            <TimePicker label="Término" value={endTime} onChange={setEndTime} />
+          </View>
         </View>
 
-        <Text style={styles.label}>Horário de término</Text>
-        <View style={styles.timeRow}>
-          {[
-            '07:00',
-            '08:00',
-            '09:00',
-            '10:00',
-            '11:00',
-            '13:00',
-            '15:00',
-            '17:00',
-            '19:00',
-            '21:00',
-            '23:00',
-          ].map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.timeChip, endTime === t && styles.timeChipActive]}
-              onPress={() => setEndTime(t)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.timeChipLabel, endTime === t && styles.timeChipLabelActive]}>
-                {t}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {date && startTime && endTime && (
+        {duration > 0 ? (
           <View style={styles.durationBadge}>
             <MaterialCommunityIcons name="timer-outline" size={16} color={colors.primaryDark} />
             <Text style={styles.durationText}>
-              {(() => {
-                const d = diffInMinutes(
-                  timeStringToDate(date, startTime),
-                  timeStringToDate(date, endTime),
-                );
-                if (d <= 0) return 'Horário inválido';
-                if (d < 60) return `${d} minutos`;
-                const h = Math.floor(d / 60);
-                const m = d % 60;
-                return m > 0 ? `${h}h ${m}min` : `${h}h`;
-              })()}
+              {duration < 60
+                ? `${duration} minutos`
+                : `${Math.floor(duration / 60)}h${duration % 60 > 0 ? ` ${duration % 60}min` : ''}`}
             </Text>
           </View>
-        )}
+        ) : date ? (
+          <View style={styles.durationBadge}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.error} />
+            <Text style={[styles.durationText, { color: colors.error }]}>Horário inválido</Text>
+          </View>
+        ) : null}
 
-        {themes.length > 0 && (
-          <>
-            <Text style={styles.label}>Tema (opcional)</Text>
-            <View style={styles.themesRow}>
-              <TouchableOpacity
-                style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
-                onPress={() => setSelectedThemeId(undefined)}
-                activeOpacity={0.7}
+        <Text style={styles.label}>Tema (opcional)</Text>
+        <View style={styles.themesRow}>
+          <TouchableOpacity
+            style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
+            onPress={() => setSelectedThemeId(undefined)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+              Geral
+            </Text>
+          </TouchableOpacity>
+          {themes.map((t) => (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
+              onPress={() => setSelectedThemeId(t.id)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[styles.themeLabel, selectedThemeId === t.id && styles.themeLabelActive]}
               >
-                <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
-                  Geral
-                </Text>
-              </TouchableOpacity>
-              {themes.map((t) => (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
-                  onPress={() => setSelectedThemeId(t.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[styles.themeLabel, selectedThemeId === t.id && styles.themeLabelActive]}
-                  >
-                    {t.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
+                {t.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Button
           label="Salvar registro"
           onPress={handleSave}
           fullWidth
           loading={loading}
+          disabled={duration <= 0}
           style={styles.saveButton}
         />
       </ScrollView>
@@ -206,42 +160,28 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
+    gap: spacing.md,
   },
   label: {
     ...typography.label,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
-    marginTop: spacing.md,
   },
   timeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+    alignItems: 'flex-end',
+    gap: spacing.sm,
   },
-  timeChip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
+  timeFlex: {
+    flex: 1,
   },
-  timeChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
-  },
-  timeChipLabel: {
-    ...typography.label,
-    color: colors.textSecondary,
-  },
-  timeChipLabelActive: {
-    color: colors.textOnPrimary,
+  timeSeparator: {
+    paddingBottom: spacing.sm,
   },
   durationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    marginTop: spacing.md,
     backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -277,6 +217,6 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
   },
   saveButton: {
-    marginTop: spacing.xl,
+    marginTop: spacing.sm,
   },
 });
