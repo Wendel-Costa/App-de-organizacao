@@ -49,7 +49,6 @@ export function ProgressRing({
         );
       })}
 
-      {/* Texto central */}
       <View style={styles.center}>
         <Text style={[styles.percentage, { fontSize: size * 0.22 }]}>{percentage}%</Text>
         {label && (
