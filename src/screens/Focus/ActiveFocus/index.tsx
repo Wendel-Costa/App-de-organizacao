@@ -54,7 +54,11 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
   }, []);
 
   const themeTasks = selectedTheme
-    ? tasks.filter((t) => t.themeId === selectedTheme.id && isTaskActiveToday(t))
+    ? tasks.filter((t) => {
+        if (t.themeId !== selectedTheme.id) return false;
+        if (t.type === 'anytime') return true;
+        return isTaskActiveToday(t);
+      })
     : [];
 
   async function handleStop() {
