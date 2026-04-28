@@ -8,6 +8,7 @@ import { filterTasksForToday } from '@/services/recurrence.service';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
+import { useGoalStore } from '@/store/goalStore';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -30,6 +31,16 @@ export function HomeScreen() {
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  const { goals, fetchGoals } = useGoalStore();
+
+  useEffect(() => {
+    fetchTasks();
+    fetchGoals();
+  }, []);
+
+  const today = new Date().toISOString().split('T')[0];
+  const activeGoals = goals.filter((g) => g.startDate <= today && g.endDate >= today);
 
   const todayTasks = filterTasksForToday(tasks);
   const pending = todayTasks.filter((t) => !t.completed);
@@ -61,8 +72,8 @@ export function HomeScreen() {
           />
           <SummaryCard
             icon="flag-outline"
-            label="Pendentes"
-            value={String(pending.length)}
+            label="Metas ativas"
+            value={String(activeGoals.length)}
             color={colors.peach}
           />
         </View>
