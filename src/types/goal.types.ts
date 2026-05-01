@@ -1,9 +1,24 @@
+import type { RecurrenceDay } from './task.types';
+
+export type GoalTaskRecurrenceType =
+  | 'none'
+  | 'daily'
+  | 'times_per_week'
+  | 'times_per_month'
+  | 'specific_days';
+
 export interface GoalTask {
   id: string;
   goalId: string;
   title: string;
-  targetCount: number; // quantas vezes preciso fazer no período
-  completedCount: number; //quantas vezes já fiz
+  targetCount: number;
+  completedCount: number;
+  completedToday: boolean;
+  completionsThisWeek: number;
+  completionsThisMonth: number;
+  recurrenceType: GoalTaskRecurrenceType;
+  recurrenceCount: number;
+  recurrenceDays: RecurrenceDay[];
 }
 
 export interface Goal {
@@ -16,4 +31,11 @@ export interface Goal {
   color?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LocalGoalTask {
+  title: string;
+  recurrenceType: GoalTaskRecurrenceType;
+  recurrenceCount: number;
+  recurrenceDays: RecurrenceDay[];
 }

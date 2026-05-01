@@ -64,7 +64,16 @@ export const goalTasks = sqliteTable('goal_tasks', {
   goalId: text('goal_id').notNull(),
   title: text('title').notNull(),
   targetCount: int('target_count').notNull(),
-  completedCount: int('completed_count').notNull().default(0),
+  recurrenceType: text('recurrence_type').notNull().default('none'),
+  recurrenceCount: int('recurrence_count').notNull().default(1),
+  recurrenceDays: text('recurrence_days'),
+});
+
+export const goalTaskCompletions = sqliteTable('goal_task_completions', {
+  id: text('id').primaryKey(),
+  goalTaskId: text('goal_task_id').notNull(),
+  completedDate: text('completed_date').notNull(), // YYYY-MM-DD
+  createdAt: text('created_at').notNull(),
 });
 
 //recompensas
