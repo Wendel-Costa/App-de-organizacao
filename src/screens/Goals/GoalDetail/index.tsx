@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  TextInput,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
@@ -9,7 +17,45 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { ProgressRing } from '@/components/ProgressRing';
 import { TextInputModal } from '@/components/TextInputModal';
-import type { Goal } from '@/types/goal.types';
+import type { Goal, GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
+import type { RecurrenceDay } from '@/types/task.types';
+
+const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
+  { key: 'daily', label: 'Diário' },
+  { key: 'times_per_week', label: 'Por semana' },
+  { key: 'times_per_month', label: 'Por mês' },
+  { key: 'specific_days', label: 'Dias espec.' },
+  { key: 'none', label: 'Total' },
+];
+
+const WEEKDAYS: { key: RecurrenceDay; label: string }[] = [
+  { key: 'monday', label: 'Seg' },
+  { key: 'tuesday', label: 'Ter' },
+  { key: 'wednesday', label: 'Qua' },
+  { key: 'thursday', label: 'Qui' },
+  { key: 'friday', label: 'Sex' },
+  { key: 'saturday', label: 'Sáb' },
+  { key: 'sunday', label: 'Dom' },
+];
+
+function recurrenceLabel(
+  type: GoalTaskRecurrenceType,
+  count: number,
+  days: RecurrenceDay[],
+): string {
+  switch (type) {
+    case 'daily':
+      return 'Todos os dias';
+    case 'times_per_week':
+      return `${count}x por semana`;
+    case 'times_per_month':
+      return `${count}x por mês`;
+    case 'specific_days':
+      return days.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).join(', ');
+    case 'none':
+      return `${count}x no período total`;
+  }
+}
 
 function calcProgress(goal: Goal): number {
   if (goal.tasks.length === 0) return 0;
@@ -25,15 +71,43 @@ interface GoalDetailScreenProps {
 }
 
 export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenProps) {
-  const { addTask, incrementTask, decrementTask, removeTask, removeGoal } = useGoalStore();
+  const { addTask, removeTask, removeGoal, completeTask, uncompleteTask } = useGoalStore();
+
   const [showAddTask, setShowAddTask] = useState(false);
-  const [targetCount, setTargetCount] = useState(30);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskRecType, setTaskRecType] = useState<GoalTaskRecurrenceType>('daily');
+  const [taskRecCount, setTaskRecCount] = useState(1);
+  const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
+  const [showForm, setShowForm] = useState(false);
 
   const progress = calcProgress(goal);
   const accentColor = goal.color ?? colors.primary;
 
+  function toggleDay(day: RecurrenceDay) {
+    setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  }
+
+  async function handleAddTask() {
+    if (!taskTitle.trim()) {
+      Alert.alert('Atenção', 'Dê um nome ao hábito/tarefa.');
+      return;
+    }
+    const local: LocalGoalTask = {
+      title: taskTitle.trim(),
+      recurrenceType: taskRecType,
+      recurrenceCount: taskRecCount,
+      recurrenceDays: taskRecDays,
+    };
+    await addTask(goal.id, goal.startDate, goal.endDate, local);
+    setTaskTitle('');
+    setTaskRecType('daily');
+    setTaskRecCount(1);
+    setTaskRecDays([]);
+    setShowForm(false);
+  }
+
   function handleDelete() {
-    Alert.alert('Excluir meta', 'Deseja excluir esta meta e todas as suas tarefas?', [
+    Alert.alert('Excluir meta', 'Deseja excluir esta meta?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',
@@ -47,7 +121,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
   }
 
   function handleRemoveTask(taskId: string) {
-    Alert.alert('Remover tarefa', 'Deseja remover esta tarefa da meta?', [
+    Alert.alert('Remover', 'Remover esta tarefa da meta?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Remover', style: 'destructive', onPress: () => removeTask(goal.id, taskId) },
     ]);
@@ -59,18 +133,6 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
         title="Detalhe da meta"
         onBack={onBack}
         rightAction={{ icon: 'trash-can-outline', onPress: handleDelete }}
-      />
-
-      <TextInputModal
-        visible={showAddTask}
-        title="Nova tarefa da meta"
-        placeholder="Ex: Ver videoaula"
-        confirmLabel="Adicionar"
-        onConfirm={async (title) => {
-          await addTask({ goalId: goal.id, title, targetCount });
-          setShowAddTask(false);
-        }}
-        onCancel={() => setShowAddTask(false)}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -97,52 +159,143 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
           </View>
         </Card>
 
-        <Card style={styles.configCard}>
-          <Text style={styles.configLabel}>Meta padrão por tarefa nova</Text>
-          <View style={styles.counter}>
-            <TouchableOpacity
-              onPress={() => setTargetCount((p) => Math.max(1, p - 1))}
-              style={styles.counterBtn}
-            >
-              <MaterialCommunityIcons name="minus" size={18} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.counterValue}>{targetCount}x</Text>
-            <TouchableOpacity
-              onPress={() => setTargetCount((p) => Math.min(365, p + 1))}
-              style={styles.counterBtn}
-            >
-              <MaterialCommunityIcons name="plus" size={18} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-        </Card>
-
-        <View style={styles.taskHeader}>
-          <Text style={styles.sectionTitle}>Tarefas ({goal.tasks.length})</Text>
+        <View style={styles.taskSectionHeader}>
+          <Text style={styles.sectionTitle}>Hábitos e tarefas ({goal.tasks.length})</Text>
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: accentColor + '22' }]}
-            onPress={() => setShowAddTask(true)}
+            onPress={() => setShowForm(!showForm)}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="plus" size={18} color={accentColor} />
-            <Text style={[styles.addBtnLabel, { color: accentColor }]}>Adicionar</Text>
+            <MaterialCommunityIcons
+              name={showForm ? 'close' : 'plus'}
+              size={16}
+              color={accentColor}
+            />
+            <Text style={[styles.addBtnLabel, { color: accentColor }]}>
+              {showForm ? 'Cancelar' : 'Adicionar'}
+            </Text>
           </TouchableOpacity>
         </View>
+
+        {showForm && (
+          <Card style={styles.addForm}>
+            <TextInputModal visible={false} title="" onConfirm={() => {}} onCancel={() => {}} />
+            <Text style={styles.formLabel}>Nome</Text>
+            <View style={styles.inlineInput}>
+              <TextInput
+                style={styles.inlineTextInput}
+                placeholder="Nome do hábito/tarefa..."
+                placeholderTextColor={colors.textDisabled}
+                value={taskTitle}
+                onChangeText={setTaskTitle}
+              />
+            </View>
+
+            <Text style={styles.formLabel}>Frequência</Text>
+            <View style={styles.recTypeRow}>
+              {RECURRENCE_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.recChip, taskRecType === opt.key && styles.recChipActive]}
+                  onPress={() => setTaskRecType(opt.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.recChipLabel,
+                      taskRecType === opt.key && styles.recChipLabelActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {(taskRecType === 'times_per_week' ||
+              taskRecType === 'times_per_month' ||
+              taskRecType === 'none') && (
+              <View style={styles.counterInline}>
+                <Text style={styles.formLabel}>
+                  {taskRecType === 'times_per_week' && 'Vezes/semana'}
+                  {taskRecType === 'times_per_month' && 'Vezes/mês'}
+                  {taskRecType === 'none' && 'Total no período'}
+                </Text>
+                <View style={styles.counter}>
+                  <TouchableOpacity
+                    style={styles.counterBtn}
+                    onPress={() => setTaskRecCount((p) => Math.max(1, p - 1))}
+                  >
+                    <MaterialCommunityIcons name="minus" size={16} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={styles.counterValue}>{taskRecCount}</Text>
+                  <TouchableOpacity
+                    style={styles.counterBtn}
+                    onPress={() => setTaskRecCount((p) => p + 1)}
+                  >
+                    <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {taskRecType === 'specific_days' && (
+              <>
+                <Text style={styles.formLabel}>Dias</Text>
+                <View style={styles.daysRow}>
+                  {WEEKDAYS.map((d) => (
+                    <TouchableOpacity
+                      key={d.key}
+                      style={[styles.dayChip, taskRecDays.includes(d.key) && styles.dayChipActive]}
+                      onPress={() => toggleDay(d.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.dayChipLabel,
+                          taskRecDays.includes(d.key) && styles.dayChipLabelActive,
+                        ]}
+                      >
+                        {d.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <Button
+              label="Adicionar"
+              onPress={handleAddTask}
+              variant="secondary"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
+            />
+          </Card>
+        )}
 
         {goal.tasks.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>
-              Nenhuma tarefa ainda. Adicione tarefas para acompanhar o progresso desta meta.
+              Nenhum hábito/tarefa ainda. Adicione o que precisa fazer para cumprir esta meta.
             </Text>
           </Card>
         ) : (
           goal.tasks.map((task) => {
-            const taskProgress = task.completedCount / task.targetCount;
+            const taskProgress = task.targetCount > 0 ? task.completedCount / task.targetCount : 0;
             return (
               <Card key={task.id} style={styles.taskCard}>
                 <View style={globalStyles.rowBetween}>
-                  <Text style={styles.taskTitle} numberOfLines={2}>
-                    {task.title}
-                  </Text>
+                  <View style={styles.taskLeft}>
+                    <Text style={styles.taskTitle}>{task.title}</Text>
+                    <Text style={styles.taskRec}>
+                      {recurrenceLabel(
+                        task.recurrenceType,
+                        task.recurrenceCount,
+                        task.recurrenceDays,
+                      )}
+                    </Text>
+                  </View>
                   <TouchableOpacity
                     onPress={() => handleRemoveTask(task.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -165,36 +318,34 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
 
                 <View style={globalStyles.rowBetween}>
                   <Text style={styles.taskProgress}>
-                    {task.completedCount}/{task.targetCount} vezes
-                    {' · '}
-                    {Math.round(taskProgress * 100)}%
+                    {task.completedCount}/{task.targetCount} · {Math.round(taskProgress * 100)}%
+                    {task.completedToday ? ' · ✓ hoje' : ''}
                   </Text>
 
                   <View style={styles.taskControls}>
                     <TouchableOpacity
                       style={styles.controlBtn}
-                      onPress={() => decrementTask(goal.id, task.id)}
+                      onPress={() => uncompleteTask(goal.id, task.id)}
                       disabled={task.completedCount === 0}
                       activeOpacity={0.7}
                     >
                       <MaterialCommunityIcons
                         name="minus"
-                        size={16}
+                        size={14}
                         color={task.completedCount === 0 ? colors.textDisabled : colors.textPrimary}
                       />
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[
                         styles.controlBtn,
                         styles.controlBtnPrimary,
                         { backgroundColor: accentColor },
                       ]}
-                      onPress={() => incrementTask(goal.id, task.id)}
+                      onPress={() => completeTask(goal.id, task.id)}
                       disabled={task.completedCount >= task.targetCount}
                       activeOpacity={0.7}
                     >
-                      <MaterialCommunityIcons name="plus" size={16} color={colors.textOnPrimary} />
+                      <MaterialCommunityIcons name="plus" size={14} color={colors.textOnPrimary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -223,7 +374,6 @@ const styles = StyleSheet.create({
   },
   headerCard: {
     borderTopWidth: 4,
-    borderTopColor: colors.primary,
   },
   headerLeft: {
     flex: 1,
@@ -244,48 +394,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     textTransform: 'capitalize',
   },
-  configCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  configLabel: {
-    ...typography.sm,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  counter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  counterBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  counterValue: {
-    ...typography.label,
-    color: colors.textPrimary,
-    minWidth: 32,
-    textAlign: 'center',
-  },
-  taskHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-  },
   sectionTitle: {
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+  taskSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
   },
   addBtn: {
     flexDirection: 'row',
@@ -297,6 +416,103 @@ const styles = StyleSheet.create({
   },
   addBtnLabel: {
     ...typography.label,
+  },
+  addForm: {
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  formLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  inlineInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+  },
+  inlineTextInput: {
+    paddingVertical: spacing.sm,
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  recTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  recChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  recChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  recChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  recChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  counterInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  counter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  counterBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  counterValue: {
+    ...typography.label,
+    color: colors.textPrimary,
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  dayChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dayChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  dayChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  dayChipLabelActive: {
+    color: colors.textOnPrimary,
   },
   emptyCard: {
     padding: spacing.lg,
@@ -310,14 +526,21 @@ const styles = StyleSheet.create({
   taskCard: {
     gap: spacing.sm,
   },
+  taskLeft: {
+    flex: 1,
+    gap: 2,
+  },
   taskTitle: {
     ...typography.body,
     color: colors.textPrimary,
-    flex: 1,
     fontWeight: '600',
   },
+  taskRec: {
+    ...typography.xs,
+    color: colors.textSecondary,
+  },
   progressTrack: {
-    height: 6,
+    height: 5,
     backgroundColor: colors.border,
     borderRadius: radius.full,
     overflow: 'hidden',
@@ -335,8 +558,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   controlBtn: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
     borderRadius: radius.full,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
