@@ -55,6 +55,7 @@ export const goals = sqliteTable('goals', {
   startDate: text('start_date').notNull(),
   endDate: text('end_date').notNull(),
   color: text('color'),
+  tolerance: real('tolerance').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

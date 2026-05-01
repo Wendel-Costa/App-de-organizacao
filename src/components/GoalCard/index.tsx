@@ -2,18 +2,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { ProgressRing } from '@/components/ProgressRing';
+import { calcGoalProgress } from '@/services/goals.service';
 import type { Goal } from '@/types/goal.types';
 
 interface GoalCardProps {
   goal: Goal;
   onPress: (goal: Goal) => void;
-}
-
-function calcProgress(goal: Goal): number {
-  if (goal.tasks.length === 0) return 0;
-  const total = goal.tasks.reduce((acc, t) => acc + t.targetCount, 0);
-  const completed = goal.tasks.reduce((acc, t) => acc + t.completedCount, 0);
-  return total > 0 ? completed / total : 0;
 }
 
 function getDaysRemaining(endDate: string): number {
@@ -23,7 +17,7 @@ function getDaysRemaining(endDate: string): number {
 }
 
 export function GoalCard({ goal, onPress }: GoalCardProps) {
-  const progress = calcProgress(goal);
+  const progress = calcGoalProgress(goal);
   const daysLeft = getDaysRemaining(goal.endDate);
   const accentColor = goal.color ?? colors.primary;
   const isExpired = daysLeft < 0;
@@ -75,8 +69,8 @@ export function GoalCard({ goal, onPress }: GoalCardProps) {
         </View>
 
         <Text style={styles.taskCount}>
-          {goal.tasks.length} tarefa(s) · {goal.tasks.reduce((a, t) => a + t.completedCount, 0)}/
-          {goal.tasks.reduce((a, t) => a + t.targetCount, 0)} concluídas
+          {goal.tasks.length} tarefa(s)
+          {goal.tolerance > 0 && ` · ${Math.round(goal.tolerance * 100)}% de margem`}
         </Text>
       </View>
 

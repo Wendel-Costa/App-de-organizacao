@@ -63,6 +63,9 @@ export async function runMigrations() {
   try {
     db.run(sql`ALTER TABLE goal_tasks ADD COLUMN recurrence_days TEXT`);
   } catch {}
+  try {
+    db.run(sql`ALTER TABLE goals ADD COLUMN tolerance REAL NOT NULL DEFAULT 0`);
+  } catch {}
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS goal_task_completions (

@@ -140,6 +140,7 @@ export async function createGoal(
     startDate: data.startDate,
     endDate: data.endDate,
     color: data.color,
+    tolerance: data.tolerance ?? 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -336,6 +337,7 @@ function rowToGoal(row: typeof goals.$inferSelect, tasks: GoalTask[]): Goal {
     startDate: row.startDate,
     endDate: row.endDate,
     color: row.color ?? undefined,
+    tolerance: row.tolerance ?? 0,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     tasks,

@@ -17,6 +17,7 @@ import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
 import type { GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
+import { TOLERANCE_OPTIONS, toleranceLabel } from '@/services/goals.service';
 
 const COLORS = [
   '#F5C518',
@@ -68,6 +69,7 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
   const [taskRecType, setTaskRecType] = useState<GoalTaskRecurrenceType>('daily');
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
+  const [tolerance, setTolerance] = useState(0);
 
   function toggleDay(day: RecurrenceDay) {
     setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -127,6 +129,7 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           startDate,
           endDate,
           color,
+          tolerance,
         },
         localTasks,
       );
@@ -323,19 +326,6 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
               </>
             )}
 
-            {startDate && endDate && (
-              <View style={styles.previewBadge}>
-                <MaterialCommunityIcons
-                  name="information-outline"
-                  size={14}
-                  color={colors.primaryDark}
-                />
-                <Text style={styles.previewText}>
-                  Meta calculada automaticamente com base nas datas
-                </Text>
-              </View>
-            )}
-
             <Button
               label="Adicionar hábito/tarefa"
               onPress={handleAddTask}
@@ -373,6 +363,35 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
             </Text>
           </View>
         )}
+
+        <Text style={styles.label}>Margem de erro</Text>
+        <Text style={styles.toleranceHint}>
+          Com margem, você atinge 100% mesmo sem completar todas as tarefas.
+        </Text>
+        <View style={styles.toleranceRow}>
+          {TOLERANCE_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.toleranceChip, tolerance === opt.value && styles.toleranceChipActive]}
+              onPress={() => setTolerance(opt.value)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.toleranceLabel,
+                  tolerance === opt.value && styles.toleranceLabelActive,
+                ]}
+              >
+                {opt.label}
+              </Text>
+              <Text
+                style={[styles.toleranceSub, tolerance === opt.value && styles.toleranceSubActive]}
+              >
+                {opt.description}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Button
           label="Criar meta"
@@ -543,15 +562,6 @@ const styles = StyleSheet.create({
   dayChipLabelActive: {
     color: colors.textOnPrimary,
   },
-  previewBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.primaryLight,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    marginTop: spacing.sm,
-  },
   previewText: {
     ...typography.xs,
     color: colors.primaryDark,
@@ -605,5 +615,45 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: spacing.lg,
+  },
+
+  toleranceHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginBottom: spacing.sm,
+  },
+  toleranceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  toleranceChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  toleranceChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  toleranceLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  toleranceLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  toleranceSub: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginTop: 2,
+  },
+  toleranceSubActive: {
+    color: colors.textOnPrimary,
   },
 });

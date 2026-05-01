@@ -29,6 +29,7 @@ export interface Goal {
   endDate: string;
   tasks: GoalTask[];
   color?: string;
+  tolerance: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -19,6 +19,7 @@ import { ProgressRing } from '@/components/ProgressRing';
 import { TextInputModal } from '@/components/TextInputModal';
 import type { Goal, GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
+import { calcGoalProgress, calcTaskProgress, toleranceLabel } from '@/services/goals.service';
 
 const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
   { key: 'daily', label: 'Diário' },
@@ -80,7 +81,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [showForm, setShowForm] = useState(false);
 
-  const progress = calcProgress(goal);
+  const progress = calcGoalProgress(goal);
   const accentColor = goal.color ?? colors.primary;
 
   function toggleDay(day: RecurrenceDay) {
@@ -154,6 +155,16 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
                   year: 'numeric',
                 })}
               </Text>
+              {goal.tolerance > 0 && (
+                <View style={styles.toleranceBadge}>
+                  <MaterialCommunityIcons
+                    name="shield-check-outline"
+                    size={12}
+                    color={colors.success}
+                  />
+                  <Text style={styles.toleranceBadgeText}>{toleranceLabel(goal.tolerance)}</Text>
+                </View>
+              )}
             </View>
             <ProgressRing progress={progress} size={80} color={accentColor} />
           </View>
@@ -282,7 +293,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
           </Card>
         ) : (
           goal.tasks.map((task) => {
-            const taskProgress = task.targetCount > 0 ? task.completedCount / task.targetCount : 0;
+            const taskProgress = calcTaskProgress(task, goal.tolerance);
             return (
               <Card key={task.id} style={styles.taskCard}>
                 <View style={globalStyles.rowBetween}>
@@ -320,6 +331,8 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
                   <Text style={styles.taskProgress}>
                     {task.completedCount}/{task.targetCount} · {Math.round(taskProgress * 100)}%
                     {task.completedToday ? ' · ✓ hoje' : ''}
+                    {goal.tolerance > 0 &&
+                      ` (meta: ${Math.ceil(task.targetCount * (1 - goal.tolerance))})`}
                   </Text>
 
                   <View style={styles.taskControls}>
@@ -572,5 +585,22 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginTop: spacing.md,
+  },
+
+  toleranceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    backgroundColor: colors.mint + '44',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    alignSelf: 'flex-start',
+  },
+  toleranceBadgeText: {
+    ...typography.xs,
+    color: colors.success,
+    fontWeight: '600',
   },
 });
