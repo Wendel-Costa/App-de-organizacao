@@ -6,13 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  SectionList,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
+import { useGoalStore } from '@/store/goalStore';
 import { TaskItem } from '@/components/TaskItem';
 import { Header } from '@/components/Header';
+import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
@@ -48,6 +52,8 @@ function getTodayWeekday(): RecurrenceDay {
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const { fetchThemes } = useFocusStore();
+  const { goals, todayGoalTasks, fetchGoals, completeTask, uncompleteTask } = useGoalStore();
+
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -55,6 +61,7 @@ export function TasksScreen() {
   useEffect(() => {
     fetchTasks();
     fetchThemes();
+    fetchGoals();
   }, []);
 
   const filtered = tasks.filter((t) => {
@@ -73,6 +80,8 @@ export function TasksScreen() {
 
   const pending = filtered.filter((t) => !t.completed);
   const completed = filtered.filter((t) => t.completed);
+
+  const dueTodayGoalTasks = filter === 'today' ? todayGoalTasks.filter((t) => t.isDue) : [];
 
   function handlePress(task: Task) {
     setSelectedTask(task);
@@ -140,12 +149,6 @@ export function TasksScreen() {
         <View style={globalStyles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="playlist-check"
-          title="Nenhuma tarefa aqui"
-          description="Toque no + para adicionar uma nova tarefa"
-        />
       ) : (
         <FlatList
           data={[...pending, ...completed]}
@@ -154,8 +157,68 @@ export function TasksScreen() {
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListHeaderComponent={
-            pending.length > 0 && completed.length > 0 ? (
-              <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
+            <>
+              {dueTodayGoalTasks.length > 0 && (
+                <View style={styles.goalTasksSection}>
+                  <Text style={styles.sectionLabel}>Hábitos de metas</Text>
+                  {dueTodayGoalTasks.map(({ task, goalTitle, goalColor }) => {
+                    const accent = goalColor ?? colors.primary;
+                    return (
+                      <Card
+                        key={task.id}
+                        style={[styles.goalTaskCard, { borderLeftColor: accent }]}
+                      >
+                        <View style={globalStyles.rowBetween}>
+                          <View style={styles.goalTaskLeft}>
+                            <Text style={styles.goalTaskGoal}>{goalTitle}</Text>
+                            <Text style={styles.goalTaskTitle}>{task.title}</Text>
+                          </View>
+                          <View style={styles.goalTaskActions}>
+                            {task.completedToday && (
+                              <TouchableOpacity
+                                style={styles.undoBtn}
+                                onPress={() => uncompleteTask(task.goalId, task.id)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <MaterialCommunityIcons
+                                  name="undo"
+                                  size={14}
+                                  color={colors.textDisabled}
+                                />
+                              </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                              style={[styles.doneBtn, { backgroundColor: accent }]}
+                              onPress={() => completeTask(task.goalId, task.id)}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialCommunityIcons
+                                name={task.completedToday ? 'check' : 'plus'}
+                                size={16}
+                                color={colors.textOnPrimary}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </Card>
+                    );
+                  })}
+                </View>
+              )}
+
+              {filtered.length > 0 &&
+                (pending.length > 0 && completed.length > 0 ? (
+                  <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
+                ) : null)}
+            </>
+          }
+          ListEmptyComponent={
+            dueTodayGoalTasks.length === 0 ? (
+              <EmptyState
+                icon="playlist-check"
+                title="Nenhuma tarefa aqui"
+                description="Toque no + para adicionar uma nova tarefa"
+              />
             ) : null
           }
           renderItem={({ item, index }) => {
@@ -223,5 +286,51 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: spacing.sm,
+  },
+
+  goalTasksSection: {
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  goalTaskCard: {
+    borderLeftWidth: 3,
+    paddingVertical: spacing.sm,
+  },
+  goalTaskLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  goalTaskGoal: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  goalTaskTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  goalTaskActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  undoBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  doneBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
