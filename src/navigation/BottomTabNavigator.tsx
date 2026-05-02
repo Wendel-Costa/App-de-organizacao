@@ -2,19 +2,18 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '@/styles/theme';
-
 import { HomeScreen } from '@/screens/Home';
 import { TasksScreen } from '@/screens/Tasks';
 import { FocusScreen } from '@/screens/Focus';
 import { GoalsScreen } from '@/screens/Goals';
-import { SettingsScreen } from '@/screens/Settings';
+import { RewardsScreen } from '@/screens/Rewards';
 
 export type BottomTabParamList = {
   Home: undefined;
   Tasks: undefined;
   Focus: undefined;
   Goals: undefined;
-  Settings: undefined;
+  Rewards: undefined;
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
@@ -83,12 +82,12 @@ export function BottomTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
+        name="Rewards"
+        component={RewardsScreen}
         options={{
-          title: 'Config',
+          title: 'Conquistas',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="cog-outline" color={color} size={size} />
+            <MaterialCommunityIcons name="trophy-outline" color={color} size={size} />
           ),
         }}
       />

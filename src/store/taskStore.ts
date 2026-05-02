@@ -8,6 +8,8 @@ import {
   toggleTaskComplete,
   toggleSubtaskComplete,
 } from '@/database/queries/tasks.queries';
+import { useRewardStore } from './rewardStore';
+import { useFocusStore } from './focusStore';
 
 interface TaskState {
   tasks: Task[];
@@ -55,6 +57,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, completed } : t)),
     }));
+    if (completed) {
+      const { sessions } = useFocusStore.getState();
+      const { checkAndUnlock } = useRewardStore.getState();
+      const updatedTasks = useTaskStore.getState().tasks;
+      checkAndUnlock(sessions, updatedTasks);
+    }
   },
 
   toggleSubtask: async (taskId, subtaskId, completed) => {

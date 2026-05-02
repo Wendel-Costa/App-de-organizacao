@@ -48,8 +48,11 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
       return;
     }
 
-    if (duration > 480) {
-      Alert.alert('Atenção', 'A sessão não pode ser maior que 8 horas.');
+    if (duration > 720) {
+      Alert.alert(
+        'Atenção',
+        'A sessão não pode ser maior que 12 horas, tente estudar durante um período humanamente aceitável',
+      );
       return;
     }
 
