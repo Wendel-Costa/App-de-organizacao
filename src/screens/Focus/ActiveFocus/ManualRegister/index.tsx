@@ -23,7 +23,7 @@ function diffInMinutes(start: Date, end: Date): number {
 }
 
 export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreenProps) {
-  const { addSession, themes } = useFocusStore();
+  const { addSession, themes, sessions } = useFocusStore();
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -42,6 +42,25 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
     const start = timeStringToDate(date, startTime);
     const end = timeStringToDate(date, endTime);
     const duration = diffInMinutes(start, end);
+
+    const hasConflict = sessions.some((session) => {
+      const sessionStart = new Date(session.startTime);
+      const sessionEnd = new Date(session.endTime);
+
+      const sameDay = sessionStart.toISOString().split('T')[0] === date;
+
+      if (!sameDay) return false;
+
+      return start < sessionEnd && end > sessionStart;
+    });
+
+    if (hasConflict) {
+      Alert.alert(
+        'Conflito de horário',
+        'Já existe uma sessão registrada nesse horário neste dia.',
+      );
+      return;
+    }
 
     if (duration <= 0) {
       Alert.alert('Atenção', 'O horário de término deve ser após o início.');
