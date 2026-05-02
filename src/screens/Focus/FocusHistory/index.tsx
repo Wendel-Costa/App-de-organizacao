@@ -21,6 +21,22 @@ function formatDuration(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
+function getCurrentWeekRange() {
+  const now = new Date();
+
+  const startOfWeek = new Date(now);
+  const day = now.getDay();
+
+  startOfWeek.setDate(now.getDate() - day);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  return { startOfWeek, endOfWeek };
+}
+
 export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
   const { sessions, themes, fetchSessions, fetchThemes, removeSession } = useFocusStore();
   const [showManual, setShowManual] = useState(false);
@@ -56,7 +72,17 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
   });
 
   const totalMinutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
-  const allTotalMinutes = sessions.reduce((acc, s) => acc + s.duration, 0);
+
+  const { startOfWeek, endOfWeek } = getCurrentWeekRange();
+
+  const weekSessions = sessions.filter((s) => {
+    const sessionDate = new Date(s.startTime);
+
+    return sessionDate >= startOfWeek && sessionDate <= endOfWeek;
+  });
+
+  const weeklyTotalMinutes = weekSessions.reduce((acc, s) => acc + s.duration, 0);
+  const weeklySessionsCount = weekSessions.length;
 
   return (
     <View style={globalStyles.screen}>
@@ -85,13 +111,13 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
               <Card style={styles.summaryCard}>
                 <View style={globalStyles.rowBetween}>
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryValue}>{sessions.length}</Text>
-                    <Text style={styles.summaryLabel}>Total sessões</Text>
+                    <Text style={styles.summaryValue}>{weeklySessionsCount}</Text>
+                    <Text style={styles.summaryLabel}>Sessões da semana</Text>
                   </View>
                   <View style={styles.summaryDivider} />
                   <View style={styles.summaryItem}>
-                    <Text style={styles.summaryValue}>{formatDuration(allTotalMinutes)}</Text>
-                    <Text style={styles.summaryLabel}>Tempo total</Text>
+                    <Text style={styles.summaryValue}>{formatDuration(weeklyTotalMinutes)}</Text>
+                    <Text style={styles.summaryLabel}>Tempo da semana</Text>
                   </View>
                 </View>
               </Card>

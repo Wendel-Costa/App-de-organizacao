@@ -86,16 +86,14 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
       </View>
 
       {showDatePicker && (
-        <View style={styles.hiddenPicker}>
-          <DatePicker
-            value={selectedDate}
-            onChange={(d) => {
-              if (d) onDateChange(d);
-              setShowDatePicker(false);
-            }}
-            placeholder=""
-          />
-        </View>
+        <DatePicker
+          value={selectedDate}
+          autoOpen
+          onChange={(d) => {
+            if (d) onDateChange(d);
+            setShowDatePicker(false);
+          }}
+        />
       )}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>

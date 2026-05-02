@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -6,10 +6,11 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 
 interface DatePickerProps {
   label?: string;
-  value?: string; // ISO string AAAA-MM-DD
+  value?: string;
   onChange: (date: string | undefined) => void;
   placeholder?: string;
   minimumDate?: Date;
+  autoOpen?: boolean;
 }
 
 export function DatePicker({
@@ -18,13 +19,21 @@ export function DatePicker({
   onChange,
   placeholder = 'Selecionar data',
   minimumDate,
+  autoOpen = false,
 }: DatePickerProps) {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(autoOpen);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setShow(true);
+    }
+  }, [autoOpen]);
 
   const date = value ? new Date(value + 'T12:00:00') : new Date();
 
   function handleChange(_event: DateTimePickerEvent, selected?: Date) {
     setShow(Platform.OS === 'ios');
+
     if (selected) {
       const iso = selected.toISOString().split('T')[0];
       onChange(iso);
@@ -48,24 +57,28 @@ export function DatePicker({
     <View>
       {label && <Text style={styles.label}>{label}</Text>}
 
-      <TouchableOpacity style={styles.button} onPress={() => setShow(true)} activeOpacity={0.7}>
-        <MaterialCommunityIcons
-          name="calendar-outline"
-          size={20}
-          color={displayValue ? colors.primaryDark : colors.textDisabled}
-        />
-        <Text style={[styles.text, !displayValue && styles.placeholder]}>
-          {displayValue ?? placeholder}
-        </Text>
-        {displayValue && (
-          <TouchableOpacity
-            onPress={handleClear}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textDisabled} />
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
+      {!autoOpen && (
+        <TouchableOpacity style={styles.button} onPress={() => setShow(true)} activeOpacity={0.7}>
+          <MaterialCommunityIcons
+            name="calendar-outline"
+            size={20}
+            color={displayValue ? colors.primaryDark : colors.textDisabled}
+          />
+
+          <Text style={[styles.text, !displayValue && styles.placeholder]}>
+            {displayValue ?? placeholder}
+          </Text>
+
+          {displayValue && (
+            <TouchableOpacity
+              onPress={handleClear}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialCommunityIcons name="close-circle" size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      )}
 
       {show && (
         <DateTimePicker
