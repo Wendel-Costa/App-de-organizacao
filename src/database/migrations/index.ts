@@ -67,6 +67,22 @@ export async function runMigrations() {
     db.run(sql`ALTER TABLE goals ADD COLUMN tolerance REAL NOT NULL DEFAULT 0`);
   } catch {}
 
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_theme_id TEXT`);
+  } catch {}
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_task_ids TEXT`);
+  } catch {}
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_goal_id TEXT`);
+  } catch {}
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_custom_start TEXT`);
+  } catch {}
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_custom_end TEXT`);
+  } catch {}
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS goal_task_completions (
       id TEXT PRIMARY KEY,

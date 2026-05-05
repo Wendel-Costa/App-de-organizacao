@@ -29,16 +29,16 @@ export async function createReward(
     conditionType: data.condition.type,
     conditionTarget: data.condition.target,
     conditionPeriod: data.condition.period,
+    conditionThemeId: data.condition.themeId,
+    conditionTaskIds: data.condition.taskIds ? JSON.stringify(data.condition.taskIds) : null,
+    conditionGoalId: data.condition.goalId,
+    conditionCustomStart: data.condition.customStartDate,
+    conditionCustomEnd: data.condition.customEndDate,
     unlocked: 0,
     createdAt,
   });
 
-  return {
-    ...data,
-    id,
-    unlocked: false,
-    createdAt,
-  };
+  return { ...data, id, unlocked: false, createdAt };
 }
 
 export async function unlockReward(id: string): Promise<void> {
@@ -56,8 +56,13 @@ function rowToReward(row: typeof rewards.$inferSelect): Reward {
     description: row.description ?? undefined,
     condition: {
       type: row.conditionType as Reward['condition']['type'],
-      target: row.conditionTarget,
-      period: row.conditionPeriod as Reward['condition']['period'],
+      target: row.conditionTarget ?? 0,
+      period: (row.conditionPeriod ?? 'anytime') as Reward['condition']['period'],
+      themeId: row.conditionThemeId ?? undefined,
+      taskIds: row.conditionTaskIds ? JSON.parse(row.conditionTaskIds) : undefined,
+      goalId: row.conditionGoalId ?? undefined,
+      customStartDate: row.conditionCustomStart ?? undefined,
+      customEndDate: row.conditionCustomEnd ?? undefined,
     },
     unlocked: row.unlocked === 1,
     unlockedAt: row.unlockedAt ?? undefined,
