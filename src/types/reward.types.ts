@@ -1,11 +1,20 @@
-export type RewardConditionType = 'focus_hours' | 'tasks_completed';
+export type RewardConditionType =
+  | 'focus_hours'
+  | 'tasks_completed'
+  | 'tasks_specific'
+  | 'goal_completed';
 
-export type RewardPeriod = 'day' | 'week' | 'month';
+export type RewardPeriod = 'day' | 'week' | 'month' | 'anytime' | 'custom';
 
 export interface RewardCondition {
   type: RewardConditionType;
-  target: number; // ex: 10 (horas) ou 20 (tarefas)
+  target: number;
   period: RewardPeriod;
+  themeId?: string;
+  taskIds?: string[];
+  goalId?: string;
+  customStartDate?: string;
+  customEndDate?: string;
 }
 
 export interface Reward {
