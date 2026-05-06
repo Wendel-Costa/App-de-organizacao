@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Reward } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
+import type { Goal } from '@/types/goal.types';
 import {
   getAllRewards,
   createReward,
@@ -15,9 +16,11 @@ interface RewardState {
   loading: boolean;
 
   fetchRewards: () => Promise<void>;
-  addReward: (data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>) => Promise<void>;
+  addReward: (
+    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+  ) => Promise<Reward>;
   removeReward: (id: string) => Promise<void>;
-  checkAndUnlock: (sessions: FocusSession[], tasks: Task[]) => Promise<Reward[]>;
+  checkAndUnlock: (sessions: FocusSession[], tasks: Task[], goals: Goal[]) => Promise<Reward[]>;
 }
 
 export const useRewardStore = create<RewardState>((set, get) => ({
@@ -33,6 +36,7 @@ export const useRewardStore = create<RewardState>((set, get) => ({
   addReward: async (data) => {
     const reward = await createReward(data);
     set((state) => ({ rewards: [...state.rewards, reward] }));
+    return reward;
   },
 
   removeReward: async (id) => {
@@ -40,14 +44,12 @@ export const useRewardStore = create<RewardState>((set, get) => ({
     set((state) => ({ rewards: state.rewards.filter((r) => r.id !== id) }));
   },
 
-  checkAndUnlock: async (sessions, tasks) => {
-    const { rewards } = get();
+  checkAndUnlock: async (sessions, tasks, goals) => {
     const newlyUnlocked: Reward[] = [];
 
-    for (const reward of rewards) {
+    for (const reward of get().rewards) {
       if (reward.unlocked) continue;
-      const met = checkRewardCondition(reward, sessions, tasks);
-      if (met) {
+      if (checkRewardCondition(reward, sessions, tasks, goals)) {
         await unlockReward(reward.id);
         newlyUnlocked.push(reward);
       }
