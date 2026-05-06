@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useGoalStore } from '@/store/goalStore';
+import { useRewardStore } from '@/store/rewardStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -73,6 +74,7 @@ interface GoalDetailScreenProps {
 
 export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenProps) {
   const { addTask, removeTask, removeGoal, completeTask, uncompleteTask } = useGoalStore();
+  const { addReward } = useRewardStore();
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
@@ -80,6 +82,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
 
   const progress = calcGoalProgress(goal);
   const accentColor = goal.color ?? colors.primary;
@@ -190,7 +193,6 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
 
         {showForm && (
           <Card style={styles.addForm}>
-            <TextInputModal visible={false} title="" onConfirm={() => {}} onCancel={() => {}} />
             <Text style={styles.formLabel}>Nome</Text>
             <View style={styles.inlineInput}>
               <TextInput
@@ -366,6 +368,35 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
             );
           })
         )}
+
+        <TextInputModal
+          visible={showRewardModal}
+          title="Recompensa por completar esta meta"
+          placeholder="Ex: Jantar especial, Viagem..."
+          confirmLabel="Criar"
+          onConfirm={async (rewardTitle) => {
+            await addReward({
+              title: rewardTitle,
+              condition: {
+                type: 'goal_completed',
+                target: 1,
+                period: 'anytime',
+                goalId: goal.id,
+              },
+            });
+            setShowRewardModal(false);
+            Alert.alert('✅', 'Recompensa criada! Veja em Conquistas.');
+          }}
+          onCancel={() => setShowRewardModal(false)}
+        />
+
+        <Button
+          label="🏆 Criar recompensa por esta meta"
+          onPress={() => setShowRewardModal(true)}
+          variant="secondary"
+          fullWidth
+          style={styles.actionButton}
+        />
 
         <Button
           label="Excluir meta"
@@ -583,10 +614,12 @@ const styles = StyleSheet.create({
   controlBtnPrimary: {
     borderWidth: 0,
   },
-  deleteButton: {
-    marginTop: spacing.md,
+  actionButton: {
+    marginTop: spacing.xs,
   },
-
+  deleteButton: {
+    marginTop: spacing.xs,
+  },
   toleranceBadge: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -14,62 +16,103 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useRewardStore } from '@/store/rewardStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useGoalStore } from '@/store/goalStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { RewardCard } from '@/components/RewardCard';
 import { EmptyState } from '@/components/EmptyState';
-import type { RewardConditionType, RewardPeriod } from '@/types/reward.types';
+import { DatePicker } from '@/components/DatePicker';
+import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
 
 type Screen = 'list' | 'create';
 
 const CONDITION_OPTIONS: { key: RewardConditionType; label: string; icon: string }[] = [
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
-  { key: 'tasks_completed', label: 'Tarefas concluídas', icon: 'check-circle-outline' },
+  { key: 'tasks_completed', label: 'N tarefas concluídas', icon: 'check-circle-outline' },
+  { key: 'tasks_specific', label: 'Tarefas específicas', icon: 'format-list-checks' },
+  { key: 'goal_completed', label: 'Completar meta', icon: 'flag-checkered' },
 ];
 
 const PERIOD_OPTIONS: { key: RewardPeriod; label: string }[] = [
+  { key: 'anytime', label: 'Desde a criação' },
   { key: 'day', label: 'Em um dia' },
   { key: 'week', label: 'Em uma semana' },
   { key: 'month', label: 'Em um mês' },
+  { key: 'custom', label: 'Período personalizado' },
 ];
 
 export function RewardsScreen() {
   const { rewards, loading, fetchRewards, addReward, removeReward, checkAndUnlock } =
     useRewardStore();
-  const { sessions, fetchSessions } = useFocusStore();
+  const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
   const { tasks, fetchTasks } = useTaskStore();
+  const { goals, fetchGoals } = useGoalStore();
 
   const [screen, setScreen] = useState<Screen>('list');
-  const [conditionType, setConditionType] = useState<RewardConditionType>('focus_hours');
-  const [conditionTarget, setConditionTarget] = useState(10);
-  const [conditionPeriod, setConditionPeriod] = useState<RewardPeriod>('week');
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [conditionType, setConditionType] = useState<RewardConditionType>('focus_hours');
+  const [target, setTarget] = useState(10);
+  const [period, setPeriod] = useState<RewardPeriod>('anytime');
+  const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>();
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | undefined>();
+  const [customStart, setCustomStart] = useState<string | undefined>();
+  const [customEnd, setCustomEnd] = useState<string | undefined>();
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchRewards();
     fetchSessions();
+    fetchThemes();
     fetchTasks();
+    fetchGoals();
   }, []);
 
   useEffect(() => {
-    if (sessions.length > 0 || tasks.length > 0) {
-      checkAndUnlock(sessions, tasks).then((newOnes) => {
+    if (rewards.length > 0 && (sessions.length > 0 || tasks.length > 0)) {
+      checkAndUnlock(sessions, tasks, goals).then((newOnes) => {
         if (newOnes.length > 0) {
           Alert.alert('🏆 Recompensa desbloqueada!', newOnes.map((r) => r.title).join('\n'));
         }
       });
     }
-  }, [sessions, tasks]);
+  }, [sessions, tasks, goals]);
 
   const unlocked = rewards.filter((r) => r.unlocked);
   const locked = rewards.filter((r) => !r.unlocked);
 
+  function resetForm() {
+    setTitle('');
+    setDescription('');
+    setConditionType('focus_hours');
+    setTarget(10);
+    setPeriod('anytime');
+    setSelectedThemeId(undefined);
+    setSelectedTaskIds([]);
+    setSelectedGoalId(undefined);
+    setCustomStart(undefined);
+    setCustomEnd(undefined);
+  }
+
   async function handleSave() {
     if (!title.trim()) {
       Alert.alert('Atenção', 'Dê um nome à recompensa.');
+      return;
+    }
+    if (conditionType === 'tasks_specific' && selectedTaskIds.length === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos uma tarefa.');
+      return;
+    }
+    if (conditionType === 'goal_completed' && !selectedGoalId) {
+      Alert.alert('Atenção', 'Selecione uma meta.');
+      return;
+    }
+    if (conditionType === 'focus_hours' && target <= 0) {
+      Alert.alert('Atenção', 'Defina quantas horas.');
       return;
     }
 
@@ -80,18 +123,19 @@ export function RewardsScreen() {
         description: description.trim() || undefined,
         condition: {
           type: conditionType,
-          target: conditionTarget,
-          period: conditionPeriod,
+          target,
+          period,
+          themeId: selectedThemeId,
+          taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+          goalId: selectedGoalId,
+          customStartDate: period === 'custom' ? customStart : undefined,
+          customEndDate: period === 'custom' ? customEnd : undefined,
         },
       });
-      setTitle('');
-      setDescription('');
-      setConditionType('focus_hours');
-      setConditionTarget(10);
-      setConditionPeriod('week');
+      resetForm();
       setScreen('list');
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar a recompensa.');
+      Alert.alert('Erro', 'Não foi possível salvar.');
     } finally {
       setSaving(false);
     }
@@ -104,10 +148,58 @@ export function RewardsScreen() {
     ]);
   }
 
+  const needsPeriod = conditionType === 'focus_hours' || conditionType === 'tasks_completed';
+  const needsTarget = conditionType === 'focus_hours' || conditionType === 'tasks_completed';
+
   if (screen === 'create') {
     return (
       <View style={globalStyles.screen}>
-        <Header title="Nova recompensa" onBack={() => setScreen('list')} />
+        <Header
+          title="Nova recompensa"
+          onBack={() => {
+            resetForm();
+            setScreen('list');
+          }}
+        />
+
+        <Modal visible={showTaskModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Selecionar tarefas</Text>
+              <ScrollView style={styles.modalScroll}>
+                {tasks.map((task) => {
+                  const selected = selectedTaskIds.includes(task.id);
+                  return (
+                    <TouchableOpacity
+                      key={task.id}
+                      style={styles.modalItem}
+                      onPress={() =>
+                        setSelectedTaskIds((prev) =>
+                          selected ? prev.filter((id) => id !== task.id) : [...prev, task.id],
+                        )
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons
+                        name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                        size={22}
+                        color={selected ? colors.primary : colors.textDisabled}
+                      />
+                      <Text style={styles.modalItemText} numberOfLines={2}>
+                        {task.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <Button
+                label={`Confirmar (${selectedTaskIds.length} selecionadas)`}
+                onPress={() => setShowTaskModal(false)}
+                fullWidth
+              />
+            </View>
+          </View>
+        </Modal>
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -115,17 +207,9 @@ export function RewardsScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.label}>Recompensa *</Text>
-          <View style={styles.inputWrapper}>
-            <MaterialCommunityIcons name="trophy-outline" size={20} color={colors.textDisabled} />
-            <View style={styles.textInputInner}>
-              <Text style={[styles.inputPlaceholder, title && { display: 'none' }]}>
-                Ex: Sorvete, Filme, Dia de folga...
-              </Text>
-            </View>
-          </View>
           <TextInput
             style={styles.input}
-            placeholder="Ex: Sorvete, Filme, Dia de folga..."
+            placeholder="Ex: Sorvete, Dia de folga, Viagem..."
             placeholderTextColor={colors.textDisabled}
             value={title}
             onChangeText={setTitle}
@@ -143,25 +227,22 @@ export function RewardsScreen() {
             maxLength={200}
           />
 
-          <Text style={styles.label}>Condição</Text>
-          <View style={styles.optionRow}>
+          <Text style={styles.label}>Tipo de condição</Text>
+          <View style={styles.optionGrid}>
             {CONDITION_OPTIONS.map((opt) => (
               <TouchableOpacity
                 key={opt.key}
-                style={[styles.optionChip, conditionType === opt.key && styles.optionChipActive]}
+                style={[styles.condChip, conditionType === opt.key && styles.condChipActive]}
                 onPress={() => setConditionType(opt.key)}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons
                   name={opt.icon as any}
-                  size={16}
+                  size={18}
                   color={conditionType === opt.key ? colors.textOnPrimary : colors.textSecondary}
                 />
                 <Text
-                  style={[
-                    styles.optionLabel,
-                    conditionType === opt.key && styles.optionLabelActive,
-                  ]}
+                  style={[styles.condLabel, conditionType === opt.key && styles.condLabelActive]}
                 >
                   {opt.label}
                 </Text>
@@ -169,65 +250,193 @@ export function RewardsScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>
-            {conditionType === 'focus_hours' ? 'Horas necessárias' : 'Tarefas necessárias'}
-          </Text>
-          <View style={styles.counter}>
-            <TouchableOpacity
-              style={styles.counterBtn}
-              onPress={() => setConditionTarget((p) => Math.max(1, p - 1))}
-            >
-              <MaterialCommunityIcons name="minus" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.counterValue}>
-              {conditionTarget}
-              {conditionType === 'focus_hours' ? 'h' : ''}
-            </Text>
-            <TouchableOpacity
-              style={styles.counterBtn}
-              onPress={() => setConditionTarget((p) => p + 1)}
-            >
-              <MaterialCommunityIcons name="plus" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
+          {conditionType === 'focus_hours' && (
+            <>
+              <Text style={styles.label}>Tema de foco (opcional)</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.themeRow}
+              >
+                <TouchableOpacity
+                  style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
+                  onPress={() => setSelectedThemeId(undefined)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                {themes.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
+                    onPress={() => setSelectedThemeId(t.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.themeLabel,
+                        selectedThemeId === t.id && styles.themeLabelActive,
+                      ]}
+                    >
+                      {t.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-          <Text style={styles.label}>Período</Text>
-          <View style={styles.optionRow}>
-            {PERIOD_OPTIONS.map((opt) => (
+          {conditionType === 'tasks_specific' && (
+            <>
+              <Text style={styles.label}>Tarefas *</Text>
               <TouchableOpacity
-                key={opt.key}
-                style={[styles.optionChip, conditionPeriod === opt.key && styles.optionChipActive]}
-                onPress={() => setConditionPeriod(opt.key)}
+                style={styles.selectorBtn}
+                onPress={() => setShowTaskModal(true)}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.optionLabel,
-                    conditionPeriod === opt.key && styles.optionLabelActive,
-                  ]}
-                >
-                  {opt.label}
+                <MaterialCommunityIcons
+                  name="format-list-checks"
+                  size={20}
+                  color={colors.primaryDark}
+                />
+                <Text style={styles.selectorBtnText}>
+                  {selectedTaskIds.length === 0
+                    ? 'Selecionar tarefas...'
+                    : `${selectedTaskIds.length} tarefa(s) selecionada(s)`}
                 </Text>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={18}
+                  color={colors.textDisabled}
+                />
               </TouchableOpacity>
-            ))}
-          </View>
+              {selectedTaskIds.length > 0 && (
+                <View style={styles.selectedTasks}>
+                  {selectedTaskIds.map((id) => {
+                    const task = tasks.find((t) => t.id === id);
+                    return task ? (
+                      <View key={id} style={styles.selectedTaskChip}>
+                        <Text style={styles.selectedTaskTitle} numberOfLines={1}>
+                          {task.title}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setSelectedTaskIds((p) => p.filter((i) => i !== id))}
+                        >
+                          <MaterialCommunityIcons
+                            name="close"
+                            size={14}
+                            color={colors.textSecondary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null;
+                  })}
+                </View>
+              )}
+            </>
+          )}
 
-          {/* Preview */}
-          <Card style={styles.previewCard}>
-            <View style={styles.previewRow}>
-              <MaterialCommunityIcons name="trophy" size={20} color={colors.primary} />
-              <Text style={styles.previewText}>
-                Para ganhar <Text style={styles.previewBold}>{title || '...'}</Text>
-                {' você precisa '}
-                <Text style={styles.previewBold}>
-                  {conditionType === 'focus_hours'
-                    ? `estudar ${conditionTarget}h`
-                    : `concluir ${conditionTarget} tarefas`}
-                </Text>{' '}
-                {PERIOD_OPTIONS.find((p) => p.key === conditionPeriod)?.label.toLowerCase()}.
+          {conditionType === 'goal_completed' && (
+            <>
+              <Text style={styles.label}>Meta *</Text>
+              {goals.length === 0 ? (
+                <Text style={styles.emptyNote}>Nenhuma meta criada ainda.</Text>
+              ) : (
+                goals.map((g) => (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={[styles.goalItem, selectedGoalId === g.id && styles.goalItemActive]}
+                    onPress={() => setSelectedGoalId(g.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[styles.goalDot, { backgroundColor: g.color ?? colors.primary }]}
+                    />
+                    <Text
+                      style={[
+                        styles.goalItemTitle,
+                        selectedGoalId === g.id && styles.goalItemTitleActive,
+                      ]}
+                    >
+                      {g.title}
+                    </Text>
+                    {selectedGoalId === g.id && (
+                      <MaterialCommunityIcons name="check" size={16} color={colors.textOnPrimary} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </>
+          )}
+
+          {needsTarget && (
+            <>
+              <Text style={styles.label}>
+                {conditionType === 'focus_hours' ? 'Horas necessárias' : 'Tarefas necessárias'}
               </Text>
-            </View>
-          </Card>
+              <View style={styles.counter}>
+                <TouchableOpacity
+                  style={styles.counterBtn}
+                  onPress={() => setTarget((p) => Math.max(1, p - 1))}
+                >
+                  <MaterialCommunityIcons name="minus" size={20} color={colors.textPrimary} />
+                </TouchableOpacity>
+                <Text style={styles.counterValue}>
+                  {target}
+                  {conditionType === 'focus_hours' ? 'h' : ''}
+                </Text>
+                <TouchableOpacity style={styles.counterBtn} onPress={() => setTarget((p) => p + 1)}>
+                  <MaterialCommunityIcons name="plus" size={20} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {needsPeriod && (
+            <>
+              <Text style={styles.label}>Período</Text>
+              <View style={styles.optionRow}>
+                {PERIOD_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.periodChip, period === opt.key && styles.periodChipActive]}
+                    onPress={() => setPeriod(opt.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[styles.periodLabel, period === opt.key && styles.periodLabelActive]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {period === 'custom' && (
+                <View style={styles.customDateRow}>
+                  <View style={styles.customDateFlex}>
+                    <DatePicker
+                      label="De"
+                      value={customStart}
+                      onChange={setCustomStart}
+                      placeholder="Início"
+                    />
+                  </View>
+                  <View style={styles.customDateFlex}>
+                    <DatePicker
+                      label="Até"
+                      value={customEnd}
+                      onChange={setCustomEnd}
+                      placeholder="Fim"
+                      minimumDate={customStart ? new Date(customStart + 'T12:00:00') : undefined}
+                    />
+                  </View>
+                </View>
+              )}
+            </>
+          )}
 
           <Button
             label="Criar recompensa"
@@ -274,6 +483,7 @@ export function RewardsScreen() {
                   reward={r}
                   sessions={sessions}
                   tasks={tasks}
+                  goals={goals}
                   onDelete={handleDelete}
                 />
               ))}
@@ -298,6 +508,7 @@ export function RewardsScreen() {
                   reward={r}
                   sessions={sessions}
                   tasks={tasks}
+                  goals={goals}
                   onDelete={handleDelete}
                 />
               ))}
@@ -308,8 +519,6 @@ export function RewardsScreen() {
     </View>
   );
 }
-
-import { TextInput } from 'react-native';
 
 const styles = StyleSheet.create({
   content: {
@@ -338,16 +547,12 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: spacing.sm,
   },
-
-  inputWrapper: { display: 'none' },
-  textInputInner: { display: 'none' },
-  inputPlaceholder: { display: 'none' },
-  optionRow: {
+  optionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
   },
-  optionChip: {
+  condChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -357,17 +562,116 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,
+    minWidth: '45%',
   },
-  optionChipActive: {
+  condChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primaryDark,
   },
-  optionLabel: {
+  condLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  condLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  themeChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  themeLabel: {
     ...typography.label,
     color: colors.textSecondary,
   },
-  optionLabelActive: {
+  themeLabelActive: {
     color: colors.textOnPrimary,
+  },
+  selectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  selectorBtnText: {
+    flex: 1,
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  selectedTasks: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  selectedTaskChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    maxWidth: '90%',
+  },
+  selectedTaskTitle: {
+    ...typography.xs,
+    color: colors.primaryDark,
+    fontWeight: '600',
+    flex: 1,
+  },
+  goalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.xs,
+  },
+  goalItemActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  goalDot: {
+    width: 12,
+    height: 12,
+    borderRadius: radius.full,
+  },
+  goalItemTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  goalItemTitleActive: {
+    color: colors.textOnPrimary,
+    fontWeight: '600',
+  },
+  emptyNote: {
+    ...typography.sm,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
   },
   counter: {
     flexDirection: 'row',
@@ -392,28 +696,74 @@ const styles = StyleSheet.create({
     minWidth: 60,
     textAlign: 'center',
   },
-  previewCard: {
-    marginTop: spacing.sm,
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primary + '44',
-  },
-  previewRow: {
+  optionRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
-  previewText: {
-    ...typography.sm,
+  periodChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  periodChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  periodLabel: {
+    ...typography.label,
     color: colors.textSecondary,
-    flex: 1,
-    lineHeight: 20,
   },
-  previewBold: {
-    fontWeight: '700',
-    color: colors.primaryDark,
+  periodLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  customDateRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  customDateFlex: {
+    flex: 1,
   },
   saveButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.xl,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    maxHeight: '70%',
+    gap: spacing.md,
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  modalItemText: {
+    ...typography.body,
+    color: colors.textPrimary,
+    flex: 1,
   },
 
   sectionHeader: {

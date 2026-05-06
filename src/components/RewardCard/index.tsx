@@ -5,17 +5,31 @@ import { formatCondition, calcRewardProgress } from '@/services/rewards.service'
 import type { Reward } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
+import type { Goal } from '@/types/goal.types';
 
 interface RewardCardProps {
   reward: Reward;
   sessions: FocusSession[];
   tasks: Task[];
+  goals: Goal[];
   onDelete: (id: string) => void;
 }
 
-export function RewardCard({ reward, sessions, tasks, onDelete }: RewardCardProps) {
-  const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks);
+export function RewardCard({ reward, sessions, tasks, goals, onDelete }: RewardCardProps) {
+  const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
+
+  const theme = reward.condition.themeId
+    ? sessions.find((s) => s.themeId === reward.condition.themeId)?.themeName
+    : undefined;
+  const taskTitles = reward.condition.taskIds
+    ?.map((id) => tasks.find((t) => t.id === id)?.title)
+    .filter(Boolean) as string[] | undefined;
+  const goalTitle = reward.condition.goalId
+    ? goals.find((g) => g.id === reward.condition.goalId)?.title
+    : undefined;
+
+  const conditionText = formatCondition(reward, theme, taskTitles, goalTitle);
 
   return (
     <View style={[styles.container, reward.unlocked && styles.containerUnlocked]}>
@@ -46,7 +60,7 @@ export function RewardCard({ reward, sessions, tasks, onDelete }: RewardCardProp
           </Text>
         )}
 
-        <Text style={styles.condition}>{formatCondition(reward)}</Text>
+        <Text style={styles.condition}>{conditionText}</Text>
 
         {!reward.unlocked && (
           <View style={styles.progressRow}>
@@ -59,7 +73,6 @@ export function RewardCard({ reward, sessions, tasks, onDelete }: RewardCardProp
 
         {reward.unlocked && reward.unlockedAt && (
           <Text style={styles.unlockedAt}>
-            Desbloqueada em{' '}
             {new Date(reward.unlockedAt).toLocaleDateString('pt-BR', {
               day: '2-digit',
               month: 'short',
@@ -71,7 +84,6 @@ export function RewardCard({ reward, sessions, tasks, onDelete }: RewardCardProp
 
       <TouchableOpacity
         onPress={() => onDelete(reward.id)}
-        style={styles.deleteBtn}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.textDisabled} />
@@ -176,8 +188,5 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.primaryDark,
     textTransform: 'capitalize',
-  },
-  deleteBtn: {
-    padding: spacing.xs,
   },
 });

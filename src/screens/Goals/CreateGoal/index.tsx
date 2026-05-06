@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useGoalStore } from '@/store/goalStore';
+import { useRewardStore } from '@/store/rewardStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
@@ -55,6 +56,8 @@ interface CreateGoalScreenProps {
 
 export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
   const { addGoal } = useGoalStore();
+  const { addReward } = useRewardStore();
+
   const [title, setTitle] = useState('');
   const [description, setDesc] = useState('');
   const [startDate, setStartDate] = useState<string | undefined>(
@@ -70,6 +73,8 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [tolerance, setTolerance] = useState(0);
+  const [createRewardToggle, setCreateRewardToggle] = useState(false);
+  const [rewardTitle, setRewardTitle] = useState('');
 
   function toggleDay(day: RecurrenceDay) {
     setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -122,7 +127,7 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
 
     setLoading(true);
     try {
-      await addGoal(
+      const savedGoal = (await addGoal(
         {
           title: title.trim(),
           description: description.trim() || undefined,
@@ -132,7 +137,20 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           tolerance,
         },
         localTasks,
-      );
+      )) as { id: string } | undefined;
+
+      if (createRewardToggle && rewardTitle.trim() && savedGoal?.id) {
+        await addReward({
+          title: rewardTitle.trim(),
+          condition: {
+            type: 'goal_completed',
+            target: 1,
+            period: 'anytime',
+            goalId: savedGoal.id,
+          },
+        });
+      }
+
       onSuccess();
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar a meta.');
@@ -393,6 +411,35 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           ))}
         </View>
 
+        <View style={styles.rewardToggleRow}>
+          <TouchableOpacity
+            style={styles.rewardToggle}
+            onPress={() => setCreateRewardToggle((p) => !p)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name={createRewardToggle ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={22}
+              color={createRewardToggle ? colors.primary : colors.textDisabled}
+            />
+            <Text style={styles.rewardToggleLabel}>Criar recompensa ao completar esta meta</Text>
+          </TouchableOpacity>
+        </View>
+
+        {createRewardToggle && (
+          <>
+            <Text style={styles.label}>Nome da recompensa</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Viagem, Presente, Dia de folga..."
+              placeholderTextColor={colors.textDisabled}
+              value={rewardTitle}
+              onChangeText={setRewardTitle}
+              maxLength={60}
+            />
+          </>
+        )}
+
         <Button
           label="Criar meta"
           onPress={handleSave}
@@ -613,9 +660,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  saveButton: {
-    marginTop: spacing.lg,
-  },
 
   toleranceHint: {
     ...typography.xs,
@@ -655,5 +699,21 @@ const styles = StyleSheet.create({
   },
   toleranceSubActive: {
     color: colors.textOnPrimary,
+  },
+  rewardToggleRow: {
+    marginTop: spacing.md,
+  },
+  rewardToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  rewardToggleLabel: {
+    ...typography.body,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  saveButton: {
+    marginTop: spacing.lg,
   },
 });
