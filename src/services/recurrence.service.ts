@@ -19,6 +19,9 @@ function getTodayWeekday(): RecurrenceDay {
 }
 
 export function isTaskActiveToday(task: Task): boolean {
+  if (task.type === 'anytime') {
+    return true;
+  }
   if (task.type === 'scheduled') {
     return task.scheduledDate === getTodayString();
   }

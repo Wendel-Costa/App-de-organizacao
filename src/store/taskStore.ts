@@ -10,6 +10,7 @@ import {
 } from '@/database/queries/tasks.queries';
 import { useRewardStore } from './rewardStore';
 import { useFocusStore } from './focusStore';
+import { useGoalStore } from './goalStore';
 
 interface TaskState {
   tasks: Task[];
@@ -59,9 +60,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }));
     if (completed) {
       const { sessions } = useFocusStore.getState();
+      const { goals } = useGoalStore.getState();
       const { checkAndUnlock } = useRewardStore.getState();
       const updatedTasks = useTaskStore.getState().tasks;
-      checkAndUnlock(sessions, updatedTasks);
+      checkAndUnlock(sessions, updatedTasks, goals);
     }
   },
 
