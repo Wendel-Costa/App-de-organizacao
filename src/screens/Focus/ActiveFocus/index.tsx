@@ -14,6 +14,7 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTimer } from '@/hooks/useTimer';
 import { useTaskStore } from '@/store/taskStore';
 import { isTaskActiveToday } from '@/services/recurrence.service';
+import * as Haptics from 'expo-haptics';
 
 interface ActiveFocusScreenProps {
   onStop: () => void;
@@ -206,7 +207,14 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
               <TouchableOpacity
                 key={task.id}
                 style={styles.taskRow}
-                onPress={() => toggleComplete(task.id, !task.completed)}
+                onPress={() => {
+                  Haptics.impactAsync(
+                    task.completed
+                      ? Haptics.ImpactFeedbackStyle.Light
+                      : Haptics.ImpactFeedbackStyle.Medium,
+                  );
+                  toggleComplete(task.id, !task.completed);
+                }}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons

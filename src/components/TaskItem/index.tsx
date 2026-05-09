@@ -1,5 +1,7 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { useRef } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import type { Task } from '@/types/task.types';
 
@@ -17,9 +19,28 @@ const priorityConfig = {
 };
 
 export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
   const priority = task.priority ? priorityConfig[task.priority] : null;
-  const completedSubtasks = task.subtasks?.filter((s) => s.completed).length ?? 0;
-  const totalSubtasks = task.subtasks?.length ?? 0;
+  const completedSubs = task.subtasks?.filter((s) => s.completed).length ?? 0;
+  const totalSubs = task.subtasks?.length ?? 0;
+
+  async function handleToggle() {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.85, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1.1, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+
+    // Haptic
+    if (!task.completed) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    onToggle(task.id, !task.completed);
+  }
 
   return (
     <TouchableOpacity
@@ -28,16 +49,17 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
       activeOpacity={0.8}
     >
       <TouchableOpacity
-        onPress={() => onToggle(task.id, !task.completed)}
-        style={styles.checkbox}
+        onPress={handleToggle}
         activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <MaterialCommunityIcons
-          name={task.completed ? 'check-circle' : 'circle-outline'}
-          size={24}
-          color={task.completed ? colors.success : colors.textDisabled}
-        />
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <MaterialCommunityIcons
+            name={task.completed ? 'check-circle' : 'circle-outline'}
+            size={24}
+            color={task.completed ? colors.success : colors.textDisabled}
+          />
+        </Animated.View>
       </TouchableOpacity>
 
       <View style={styles.content}>
@@ -70,7 +92,7 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
             </View>
           )}
 
-          {totalSubtasks > 0 && (
+          {totalSubs > 0 && (
             <View style={styles.badge}>
               <MaterialCommunityIcons
                 name="format-list-checks"
@@ -78,7 +100,7 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
                 color={colors.textSecondary}
               />
               <Text style={styles.badgeText}>
-                {completedSubtasks}/{totalSubtasks}
+                {completedSubs}/{totalSubs}
               </Text>
             </View>
           )}
@@ -119,10 +141,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     backgroundColor: colors.surfaceAlt,
   },
-  checkbox: {
-    width: 28,
-    alignItems: 'center',
-  },
   content: {
     flex: 1,
     gap: 6,
@@ -156,5 +174,6 @@ const styles = StyleSheet.create({
   deleteButton: {
     width: 28,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 });

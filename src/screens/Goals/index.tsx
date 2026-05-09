@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { CreateGoalScreen } from './CreateGoal';
 import { GoalDetailScreen } from './GoalDetail';
 import type { Goal, GoalTaskRecurrenceType } from '@/types/goal.types';
+import * as Haptics from 'expo-haptics';
 
 type Screen = 'list' | 'create' | 'detail';
 
@@ -45,6 +46,16 @@ export function GoalsScreen() {
   useEffect(() => {
     fetchGoals();
   }, []);
+
+  async function handleCompleteTask(goalId: string, taskId: string) {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await completeTask(goalId, taskId);
+  }
+
+  async function handleUncompleteTask(goalId: string, taskId: string) {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await uncompleteTask(goalId, taskId);
+  }
 
   function handlePress(goal: Goal) {
     setSelectedGoal(goal);
@@ -136,7 +147,7 @@ export function GoalsScreen() {
                             task.completionsThisMonth > 0) && (
                             <TouchableOpacity
                               style={styles.undoBtn}
-                              onPress={() => uncompleteTask(task.goalId, task.id)}
+                              onPress={() => handleUncompleteTask(task.goalId, task.id)}
                               activeOpacity={0.7}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
@@ -154,7 +165,7 @@ export function GoalsScreen() {
                               { backgroundColor: accentColor },
                               !canComplete && styles.doneBtnDisabled,
                             ]}
-                            onPress={() => completeTask(task.goalId, task.id)}
+                            onPress={() => handleCompleteTask(task.goalId, task.id)}
                             disabled={!canComplete}
                             activeOpacity={0.8}
                           >
