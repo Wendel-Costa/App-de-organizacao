@@ -12,6 +12,7 @@ import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
 import { ReportsScreen } from '@/screens/Reports';
+import { SettingsScreen } from '@/screens/Settings';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -33,6 +34,7 @@ export function HomeScreen() {
   const { sessions, fetchSessions } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
   const [showReports, setShowReports] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -63,16 +65,21 @@ export function HomeScreen() {
     return <ReportsScreen onBack={() => setShowReports(false)} />;
   }
 
+  if (showSettings) {
+    return <SettingsScreen onBack={() => setShowSettings(false)} />;
+  }
+
   return (
     <View style={globalStyles.screen}>
       <Header
-        title="FocoMais"
+        title=" FocoMais"
         rightAction={{ icon: 'chart-bar', onPress: () => setShowReports(true) }}
+        secondaryAction={{ icon: 'cog-outline', onPress: () => setShowSettings(true) }}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.greeting}>
-          <Text style={styles.greetingText}>{getGreeting()} 👋</Text>
+          <Text style={styles.greetingText}>{getGreeting()}!</Text>
           <Text style={styles.dateText}>{getFormattedDate()}</Text>
         </View>
 
