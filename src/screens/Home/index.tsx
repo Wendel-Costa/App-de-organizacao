@@ -1,14 +1,17 @@
-import { useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
+import { useFocusStore } from '@/store/focusStore';
+import { useGoalStore } from '@/store/goalStore';
 import { filterTasksForToday } from '@/services/recurrence.service';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
-import { useGoalStore } from '@/store/goalStore';
+import { ReportsScreen } from '@/screens/Reports';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -27,29 +30,45 @@ function getFormattedDate() {
 
 export function HomeScreen() {
   const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
+  const { sessions, fetchSessions } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
+  const [showReports, setShowReports] = useState(false);
 
-  useEffect(() => {
-    fetchTasks();
-    fetchGoals();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchTasks();
+      fetchGoals();
+      fetchSessions();
+    }, []),
+  );
 
-  const today = new Date().toISOString().split('T')[0];
-  const activeGoals = goals.filter((g) => g.startDate <= today && g.endDate >= today);
-
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
   const todayTasks = filterTasksForToday(tasks);
   const pending = todayTasks.filter((t) => !t.completed);
   const completed = todayTasks.filter((t) => t.completed);
-  const focusToday = 0; // em breve
+
+  const todayMinutes = sessions
+    .filter((s) => s.startTime.split('T')[0] === todayStr)
+    .reduce((acc, s) => acc + s.duration, 0);
+
+  const focusLabel =
+    todayMinutes === 0
+      ? '0h'
+      : todayMinutes < 60
+        ? `${todayMinutes}m`
+        : `${(todayMinutes / 60).toFixed(1)}h`;
+
+  if (showReports) {
+    return <ReportsScreen onBack={() => setShowReports(false)} />;
+  }
 
   return (
     <View style={globalStyles.screen}>
-      <Header title="FocoMais" rightAction={{ icon: 'bell-outline', onPress: () => {} }} />
+      <Header
+        title="FocoMais"
+        rightAction={{ icon: 'chart-bar', onPress: () => setShowReports(true) }}
+      />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.greeting}>
@@ -67,7 +86,7 @@ export function HomeScreen() {
           <SummaryCard
             icon="timer-outline"
             label="Foco hoje"
-            value={`${focusToday}h`}
+            value={focusLabel}
             color={colors.sky}
           />
           <SummaryCard
