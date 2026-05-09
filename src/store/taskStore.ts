@@ -8,9 +8,14 @@ import {
   toggleTaskComplete,
   toggleSubtaskComplete,
 } from '@/database/queries/tasks.queries';
-import { useRewardStore } from './rewardStore';
-import { useFocusStore } from './focusStore';
-import { useGoalStore } from './goalStore';
+import {
+  scheduleTaskReminder,
+  scheduleDueDateWarning,
+  cancelTaskNotifications,
+} from '@/services/notifications.service';
+import { useFocusStore } from '@/store/focusStore';
+import { useRewardStore } from '@/store/rewardStore';
+import { useGoalStore } from '@/store/goalStore';
 
 interface TaskState {
   tasks: Task[];
@@ -37,6 +42,19 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addTask: async (data) => {
     const newTask = await createTask(data);
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
+
+    const { taskReminderEnabled, taskReminderHour, dueDateWarningEnabled, notificationsEnabled } = (
+      await import('@/store/settingsStore')
+    ).useSettingsStore.getState();
+
+    if (notificationsEnabled) {
+      if (taskReminderEnabled && newTask.scheduledDate) {
+        await scheduleTaskReminder(newTask, taskReminderHour);
+      }
+      if (dueDateWarningEnabled && newTask.dueDate) {
+        await scheduleDueDateWarning(newTask);
+      }
+    }
   },
 
   editTask: async (id, data) => {
@@ -44,10 +62,28 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)),
     }));
+
+    await cancelTaskNotifications(id);
+    const updatedTask = get().tasks.find((t) => t.id === id);
+    if (!updatedTask) return;
+
+    const { notificationsEnabled, taskReminderEnabled, taskReminderHour, dueDateWarningEnabled } = (
+      await import('@/store/settingsStore')
+    ).useSettingsStore.getState();
+
+    if (notificationsEnabled && !updatedTask.completed) {
+      if (taskReminderEnabled && updatedTask.scheduledDate) {
+        await scheduleTaskReminder(updatedTask, taskReminderHour);
+      }
+      if (dueDateWarningEnabled && updatedTask.dueDate) {
+        await scheduleDueDateWarning(updatedTask);
+      }
+    }
   },
 
   removeTask: async (id) => {
     await deleteTask(id);
+    await cancelTaskNotifications(id);
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id),
     }));
@@ -58,12 +94,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, completed } : t)),
     }));
+
     if (completed) {
+      await cancelTaskNotifications(id);
+
       const { sessions } = useFocusStore.getState();
       const { goals } = useGoalStore.getState();
       const { checkAndUnlock } = useRewardStore.getState();
-      const updatedTasks = useTaskStore.getState().tasks;
-      checkAndUnlock(sessions, updatedTasks, goals);
+      checkAndUnlock(sessions, get().tasks, goals);
     }
   },
 
