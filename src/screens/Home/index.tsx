@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,6 +13,7 @@ import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
 import { ReportsScreen } from '@/screens/Reports';
 import { SettingsScreen } from '@/screens/Settings';
+import { ActiveFocusScreen } from '@/screens/Focus/ActiveFocus';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -29,12 +30,15 @@ function getFormattedDate() {
   });
 }
 
+type FocusMode = 'free' | 'pomodoro';
+
 export function HomeScreen() {
   const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
-  const { sessions, fetchSessions } = useFocusStore();
+  const { sessions, fetchSessions, mode, setMode, fetchThemes } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showActiveFocus, setShowActiveFocus] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,6 +47,10 @@ export function HomeScreen() {
       fetchSessions();
     }, []),
   );
+
+  useEffect(() => {
+    fetchThemes();
+  }, []);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
@@ -61,6 +69,9 @@ export function HomeScreen() {
         ? `${todayMinutes}m`
         : `${(todayMinutes / 60).toFixed(1)}h`;
 
+  if (showActiveFocus) {
+    return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
+  }
   if (showReports) {
     return <ReportsScreen onBack={() => setShowReports(false)} />;
   }
@@ -111,7 +122,15 @@ export function HomeScreen() {
               <Text style={styles.focusTitle}>Modo livre</Text>
               <Text style={styles.focusSubtitle}>Sem tempo definido</Text>
             </View>
-            <TouchableOpacity style={styles.focusButton} activeOpacity={0.8}>
+
+            <TouchableOpacity
+              style={styles.focusButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                setMode('free');
+                setShowActiveFocus(true);
+              }}
+            >
               <MaterialCommunityIcons name="play" size={28} color={colors.textOnPrimary} />
             </TouchableOpacity>
           </View>
@@ -123,7 +142,15 @@ export function HomeScreen() {
               <Text style={styles.focusTitle}>Pomodoro</Text>
               <Text style={styles.focusSubtitle}>25 min foco · 5 min pausa</Text>
             </View>
-            <TouchableOpacity style={styles.focusButton} activeOpacity={0.8}>
+
+            <TouchableOpacity
+              style={styles.focusButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                setMode('pomodoro');
+                setShowActiveFocus(true);
+              }}
+            >
               <MaterialCommunityIcons name="play" size={28} color={colors.textOnPrimary} />
             </TouchableOpacity>
           </View>
@@ -196,7 +223,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   summaryCard: {
     flex: 1,
@@ -222,6 +249,7 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
+    marginTop: spacing.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
