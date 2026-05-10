@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SectionList,
+  RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -24,6 +24,8 @@ import type { Task, RecurrenceDay } from '@/types/task.types';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
 type Screen = 'list' | 'create' | 'detail' | 'edit';
+
+const COMPLETED_LIMIT = 5;
 
 const filters: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
@@ -57,12 +59,24 @@ export function TasksScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchTasks();
     fetchThemes();
     fetchGoals();
   }, []);
+
+  useEffect(() => {
+    setShowAllCompleted(false);
+  }, [filter]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await Promise.all([fetchTasks(), fetchThemes(), fetchGoals()]);
+    setRefreshing(false);
+  }
 
   const filtered = tasks.filter((t) => {
     if (filter === 'today') {
@@ -79,7 +93,14 @@ export function TasksScreen() {
   });
 
   const pending = filtered.filter((t) => !t.completed);
-  const completed = filtered.filter((t) => t.completed);
+
+  const completedSorted = filtered
+    .filter((t) => t.completed)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const displayedCompleted = showAllCompleted
+    ? completedSorted
+    : completedSorted.slice(0, COMPLETED_LIMIT);
 
   const dueTodayGoalTasks = filter === 'today' ? todayGoalTasks.filter((t) => t.isDue) : [];
 
@@ -145,16 +166,24 @@ export function TasksScreen() {
         </View>
       </View>
 
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={globalStyles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
-          data={[...pending, ...completed]}
+          data={[...pending, ...displayedCompleted]}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListHeaderComponent={
             <>
@@ -206,10 +235,9 @@ export function TasksScreen() {
                 </View>
               )}
 
-              {filtered.length > 0 &&
-                (pending.length > 0 && completed.length > 0 ? (
-                  <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
-                ) : null)}
+              {pending.length > 0 && completedSorted.length > 0 && (
+                <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
+              )}
             </>
           }
           ListEmptyComponent={
@@ -221,13 +249,33 @@ export function TasksScreen() {
               />
             ) : null
           }
+          ListFooterComponent={
+            <>
+              {completedSorted.length > COMPLETED_LIMIT && !showAllCompleted && (
+                <TouchableOpacity
+                  style={styles.showMoreBtn}
+                  onPress={() => setShowAllCompleted(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.showMoreText}>
+                    Mostrar mais ({completedSorted.length - COMPLETED_LIMIT} tarefas)
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={18}
+                    color={colors.primaryDark}
+                  />
+                </TouchableOpacity>
+              )}
+            </>
+          }
           renderItem={({ item, index }) => {
-            const showCompletedHeader = index === pending.length && completed.length > 0;
+            const showCompletedHeader = index === pending.length && displayedCompleted.length > 0;
             return (
               <>
                 {showCompletedHeader && (
                   <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>
-                    Concluídas ({completed.length})
+                    Concluídas recentes ({completedSorted.length})
                   </Text>
                 )}
                 <TaskItem
@@ -332,5 +380,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+  },
+  showMoreText: {
+    ...typography.label,
+    color: colors.primaryDark,
   },
 });
