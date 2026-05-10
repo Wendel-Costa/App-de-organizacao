@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTimer } from '@/hooks/useTimer';
 import { useTaskStore } from '@/store/taskStore';
-import { isTaskActiveToday } from '@/services/recurrence.service';
+import { filterTasksForThemeToday } from '@/services/recurrence.service';
 import * as Haptics from 'expo-haptics';
 
 interface ActiveFocusScreenProps {
@@ -54,13 +54,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
     fetchTasks();
   }, []);
 
-  const themeTasks = selectedTheme
-    ? tasks.filter((t) => {
-        if (t.themeId !== selectedTheme.id) return false;
-        if (t.type === 'anytime') return true;
-        return isTaskActiveToday(t);
-      })
-    : [];
+  const themeTasks = filterTasksForThemeToday(tasks, selectedTheme?.id);
 
   async function handleStop() {
     Alert.alert('Encerrar sessão', 'Deseja encerrar e salvar a sessão de foco?', [
@@ -142,7 +136,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
       )}
 
       <View style={styles.controls}>
-        <TouchableOpacity style={styles.stopButton} onPress={handleStop} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.sideButton} onPress={handleStop} activeOpacity={0.8}>
           <MaterialCommunityIcons name="stop" size={28} color={colors.error} />
         </TouchableOpacity>
 
@@ -158,81 +152,91 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
           />
         </TouchableOpacity>
 
-        <View style={styles.stopButton} />
+        <TouchableOpacity
+          style={styles.sideButton}
+          onPress={() => setShowQuickAdd((prev) => !prev)}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons
+            name={showQuickAdd ? 'close' : 'playlist-plus'}
+            size={24}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.hint}>
         {status === 'running' ? 'Sessão em andamento' : 'Sessão pausada'}
       </Text>
 
-      {selectedTheme && (
-        <View style={styles.tasksSection}>
-          <View style={styles.tasksSectionHeader}>
-            <Text style={styles.tasksSectionTitle}>Tarefas {selectedTheme.name}</Text>
+      <View style={styles.tasksSection}>
+        <View style={styles.tasksSectionHeader}>
+          <Text style={styles.tasksSectionTitle}>
+            {selectedTheme ? `Tarefas · ${selectedTheme.name}` : 'Tarefas de hoje'}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowQuickAdd(!showQuickAdd)}
+            style={styles.addTaskButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="plus" size={18} color={colors.primaryDark} />
+          </TouchableOpacity>
+        </View>
+
+        {showQuickAdd && (
+          <View style={styles.quickAddRow}>
+            <TextInput
+              style={styles.quickAddInput}
+              placeholder="Nova tarefa..."
+              placeholderTextColor={colors.textDisabled}
+              value={quickTaskTitle}
+              onChangeText={setQuickTaskTitle}
+              onSubmitEditing={handleQuickAdd}
+              returnKeyType="done"
+              autoFocus
+            />
             <TouchableOpacity
-              onPress={() => setShowQuickAdd(!showQuickAdd)}
-              style={styles.addTaskButton}
+              onPress={handleQuickAdd}
+              style={styles.quickAddConfirm}
               activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="plus" size={18} color={colors.primaryDark} />
+              <MaterialCommunityIcons name="check" size={18} color={colors.textOnPrimary} />
             </TouchableOpacity>
           </View>
+        )}
 
-          {showQuickAdd && (
-            <View style={styles.quickAddRow}>
-              <TextInput
-                style={styles.quickAddInput}
-                placeholder="Nova tarefa..."
-                placeholderTextColor={colors.textDisabled}
-                value={quickTaskTitle}
-                onChangeText={setQuickTaskTitle}
-                onSubmitEditing={handleQuickAdd}
-                returnKeyType="done"
-                autoFocus
+        {themeTasks.length === 0 && !showQuickAdd ? (
+          <Text style={styles.noTasksText}>Nenhuma tarefa para hoje</Text>
+        ) : (
+          themeTasks.map((task) => (
+            <TouchableOpacity
+              key={task.id}
+              style={styles.taskRow}
+              onPress={() => {
+                Haptics.impactAsync(
+                  task.completed
+                    ? Haptics.ImpactFeedbackStyle.Light
+                    : Haptics.ImpactFeedbackStyle.Medium,
+                );
+                toggleComplete(task.id, !task.completed);
+              }}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name={task.completed ? 'check-circle' : 'circle-outline'}
+                size={22}
+                color={task.completed ? colors.success : colors.textDisabled}
               />
-              <TouchableOpacity
-                onPress={handleQuickAdd}
-                style={styles.quickAddConfirm}
-                activeOpacity={0.7}
+              <Text
+                style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}
+                numberOfLines={2}
               >
-                <MaterialCommunityIcons name="check" size={18} color={colors.textOnPrimary} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {themeTasks.length === 0 && !showQuickAdd ? (
-            <Text style={styles.noTasksText}>Nenhuma tarefa para hoje neste tema</Text>
-          ) : (
-            themeTasks.map((task) => (
-              <TouchableOpacity
-                key={task.id}
-                style={styles.taskRow}
-                onPress={() => {
-                  Haptics.impactAsync(
-                    task.completed
-                      ? Haptics.ImpactFeedbackStyle.Light
-                      : Haptics.ImpactFeedbackStyle.Medium,
-                  );
-                  toggleComplete(task.id, !task.completed);
-                }}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name={task.completed ? 'check-circle' : 'circle-outline'}
-                  size={22}
-                  color={task.completed ? colors.success : colors.textDisabled}
-                />
-                <Text
-                  style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}
-                  numberOfLines={2}
-                >
-                  {task.title}
-                </Text>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      )}
+                {task.title}
+              </Text>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -314,7 +318,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stopButton: {
+  sideButton: {
     width: 52,
     height: 52,
     borderRadius: radius.full,
@@ -326,7 +330,6 @@ const styles = StyleSheet.create({
     ...typography.sm,
     color: colors.textDisabled,
   },
-
   tasksSection: {
     width: '100%',
     backgroundColor: colors.surface,

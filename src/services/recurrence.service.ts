@@ -55,6 +55,42 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
   });
 }
 
+export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[] {
+  const today = getTodayString();
+
+  return tasks.filter((task) => {
+    if (themeId) {
+      if (task.themeId !== themeId) return false;
+    } else {
+      if (task.themeId) return false;
+    }
+
+    if (task.type === 'anytime') {
+      if (task.completed) {
+        return task.updatedAt.split('T')[0] === today;
+      }
+
+      return true;
+    }
+
+    if (task.type === 'scheduled') {
+      return task.scheduledDate === today;
+    }
+
+    if (task.type === 'recurring') {
+      const todayWeekday = getTodayWeekday();
+
+      return (
+        task.recurrenceDays?.includes('daily') ||
+        task.recurrenceDays?.includes(todayWeekday) ||
+        false
+      );
+    }
+
+    return false;
+  });
+}
+
 export function filterTasksByDate(tasks: Task[], date: string): Task[] {
   return tasks.filter((t) => {
     if (t.type === 'scheduled') return t.scheduledDate === date;
