@@ -18,11 +18,14 @@ interface BarChartProps {
 
 function formatValue(v: number, unit: string): string {
   if (unit === 'h') {
-    if (v === 0) return '0h';
+    if (v === 0) return '';
+    if (v >= 10) return `${Math.floor(v)}h`;
     if (v < 1) return `${Math.round(v * 60)}m`;
-    return `${v.toFixed(1)}h`;
+    const hrs = Math.floor(v);
+    const min = Math.round((v - hrs) * 60);
+    return min > 0 ? `${hrs}h${min}` : `${hrs}h`;
   }
-  return String(Math.round(v));
+  return v > 0 ? String(Math.round(v)) : '';
 }
 
 export function BarChart({
@@ -37,29 +40,33 @@ export function BarChart({
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.chartArea, { height }]}>
+      <View style={[styles.chartArea, { height: height + 24 }]}>
         {data.map((item, i) => {
           const ratio = max > 0 ? item.value / max : 0;
           const barH = Math.max(ratio * height, item.value > 0 ? 4 : 0);
           const isHighlight = i === highlight;
           const color = item.color ?? barColor;
+          const label = formatValue(item.value, unit);
 
           return (
             <View key={i} style={styles.barColumn}>
-              {item.value > 0 && (
-                <Text style={styles.valueLabel}>{formatValue(item.value, unit)}</Text>
-              )}
-              <View style={styles.barWrapper}>
+              <View style={styles.labelSpace}>
+                {label ? (
+                  <Text style={[styles.valueLabel, isHighlight && styles.valueLabelHighlight]}>
+                    {label}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={[styles.barWrapper, { height }]}>
                 <View
                   style={[
                     styles.bar,
                     {
                       height: barH,
                       backgroundColor: color,
-                      opacity: isHighlight ? 1 : 0.7,
-                      borderRadius: radius.sm,
+                      opacity: isHighlight ? 1 : 0.65,
                     },
-                    isHighlight && styles.barHighlight,
                   ]}
                 />
               </View>
@@ -86,20 +93,26 @@ const styles = StyleSheet.create({
   chartArea: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 6,
-    paddingBottom: spacing.xs,
+    gap: 4,
   },
   barColumn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 2,
+  },
+  labelSpace: {
+    height: 22,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   valueLabel: {
-    ...typography.xs,
-    color: colors.textDisabled,
     fontSize: 9,
+    color: colors.textDisabled,
     textAlign: 'center',
+  },
+  valueLabelHighlight: {
+    color: colors.primaryDark,
+    fontWeight: '700',
   },
   barWrapper: {
     width: '100%',
@@ -107,24 +120,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bar: {
-    width: '80%',
+    width: '75%',
+    borderRadius: radius.sm,
     minHeight: 2,
-  },
-  barHighlight: {
-    opacity: 1,
-    elevation: 2,
   },
   labels: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 4,
     paddingTop: spacing.xs,
   },
   labelText: {
     flex: 1,
-    ...typography.xs,
+    fontSize: 10,
     color: colors.textSecondary,
     textAlign: 'center',
-    fontSize: 10,
   },
   labelTextHighlight: {
     color: colors.primaryDark,

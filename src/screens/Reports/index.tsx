@@ -246,8 +246,17 @@ function SummaryCard({ icon, label, value, color }: SummaryCardProps) {
   return (
     <View style={[styles.summaryCard, { borderTopColor: color }]}>
       <MaterialCommunityIcons name={icon as any} size={20} color={color} />
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text
+        style={styles.summaryValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {value}
+      </Text>
+      <Text style={styles.summaryLabel} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -314,6 +323,9 @@ const styles = StyleSheet.create({
   summaryValue: {
     ...typography.h3,
     color: colors.textPrimary,
+    width: '100%',
+    textAlign: 'center',
+    flex: 1,
   },
   summaryLabel: {
     ...typography.xs,
