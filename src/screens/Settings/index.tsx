@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TimePicker } from '@/components/TimePicker';
+import { TextInput } from 'react-native-gesture-handler';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -33,14 +34,16 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
     focusReminderEnabled,
     focusReminderHour,
     focusReminderMinute,
+    name,
     requestPermissions,
     setTaskReminder,
     setDueDateWarning,
     setHabitsReminder,
     setFocusReminder,
     disableAllNotifications,
+    setName,
   } = useSettingsStore();
-
+  const [localName, setLocalName] = useState(name);
   async function handleEnableNotifications(value: boolean) {
     if (value) {
       await requestPermissions();
@@ -57,8 +60,31 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
       <Header title="Configurações" onBack={onBack} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Notificações</Text>
+        <Text style={styles.sectionTitle}>Perfil</Text>
+        <Card style={styles.card}>
+          <SettingRow
+            icon="account-outline"
+            label="Meu nome"
+            description="Aparece na saudação da Home"
+          >
+            <View />
+          </SettingRow>
+          <View style={styles.nameInputRow}>
+            <TextInput
+              style={styles.nameInput}
+              value={localName}
+              onChangeText={setLocalName}
+              placeholder="Seu nome..."
+              placeholderTextColor={colors.textDisabled}
+              maxLength={30}
+              returnKeyType="done"
+              onSubmitEditing={() => setName(localName)}
+              onBlur={() => setName(localName)}
+            />
+          </View>
+        </Card>
 
+        <Text style={styles.sectionTitle}>Notificações</Text>
         <Card style={styles.card}>
           <SettingRow
             icon="bell-outline"
@@ -273,5 +299,17 @@ const styles = StyleSheet.create({
   versionText: {
     ...typography.label,
     color: colors.textDisabled,
+  },
+
+  nameInputRow: { paddingHorizontal: spacing.sm },
+  nameInput: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...typography.body,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 });

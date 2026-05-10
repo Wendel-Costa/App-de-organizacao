@@ -1,8 +1,35 @@
+import { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { colors } from '@/styles/theme';
+import { globalStyles } from '@/styles/global';
+import { useSettingsStore } from '@/store/settingsStore';
 import { BottomTabNavigator } from './BottomTabNavigator';
+import { OnboardingScreen } from '@/screens/Onboarding';
 
 export function Navigation() {
+  const { name, nameLoaded, loadName, requestPermissions } = useSettingsStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    loadName().then(() => {
+      requestPermissions();
+      setReady(true);
+    });
+  }, []);
+
+  if (!ready || !nameLoaded) {
+    return (
+      <View style={globalStyles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!name) {
+    return <OnboardingScreen onDone={() => {}} />;
+  }
+
   return (
     <NavigationContainer
       theme={{

@@ -14,6 +14,7 @@ import { TaskItem } from '@/components/TaskItem';
 import { ReportsScreen } from '@/screens/Reports';
 import { SettingsScreen } from '@/screens/Settings';
 import { ActiveFocusScreen } from '@/screens/Focus/ActiveFocus';
+import { useSettingsStore } from '@/store/settingsStore';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -39,6 +40,7 @@ export function HomeScreen() {
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActiveFocus, setShowActiveFocus] = useState(false);
+  const { name } = useSettingsStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -90,7 +92,10 @@ export function HomeScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.greeting}>
-          <Text style={styles.greetingText}>{getGreeting()}!</Text>
+          <Text style={styles.greetingText}>
+            {getGreeting()}
+            {name ? `, ${name}` : ''}!
+          </Text>
           <Text style={styles.dateText}>{getFormattedDate()}</Text>
         </View>
 

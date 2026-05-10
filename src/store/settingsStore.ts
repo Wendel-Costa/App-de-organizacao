@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   requestNotificationPermissions,
   scheduleDailyHabitsReminder,
@@ -8,22 +9,25 @@ import {
   cancelAllNotifications,
 } from '@/services/notifications.service';
 
-interface SettingsState {
-  notificationsEnabled: boolean;
+const NAME_KEY = '@focomais:user_name';
 
+interface SettingsState {
+  name: string;
+  nameLoaded: boolean;
+
+  notificationsEnabled: boolean;
   taskReminderEnabled: boolean;
   taskReminderHour: number;
-
   dueDateWarningEnabled: boolean;
-
   habitsReminderEnabled: boolean;
   habitsReminderHour: number;
   habitsReminderMinute: number;
-
   focusReminderEnabled: boolean;
   focusReminderHour: number;
   focusReminderMinute: number;
 
+  loadName: () => Promise<void>;
+  setName: (name: string) => Promise<void>;
   requestPermissions: () => Promise<void>;
   setTaskReminder: (enabled: boolean, hour?: number) => Promise<void>;
   setDueDateWarning: (enabled: boolean) => void;
@@ -33,6 +37,9 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+  name: '',
+  nameLoaded: false,
+
   notificationsEnabled: false,
   taskReminderEnabled: true,
   taskReminderHour: 8,
@@ -44,10 +51,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   focusReminderHour: 9,
   focusReminderMinute: 0,
 
+  loadName: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(NAME_KEY);
+      set({ name: stored ?? '', nameLoaded: true });
+    } catch {
+      set({ nameLoaded: true });
+    }
+  },
+
+  setName: async (name) => {
+    try {
+      await AsyncStorage.setItem(NAME_KEY, name.trim());
+      set({ name: name.trim() });
+    } catch {
+      set({ name: name.trim() });
+    }
+  },
+
   requestPermissions: async () => {
     const granted = await requestNotificationPermissions();
     set({ notificationsEnabled: granted });
-
     if (granted) {
       const {
         habitsReminderEnabled,
@@ -57,35 +81,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         focusReminderHour,
         focusReminderMinute,
       } = get();
-
-      if (habitsReminderEnabled) {
+      if (habitsReminderEnabled)
         await scheduleDailyHabitsReminder(habitsReminderHour, habitsReminderMinute);
-      }
-      if (focusReminderEnabled) {
-        await scheduleFocusReminder(focusReminderHour, focusReminderMinute);
-      }
+      if (focusReminderEnabled) await scheduleFocusReminder(focusReminderHour, focusReminderMinute);
     }
   },
 
   setTaskReminder: async (enabled, hour) => {
-    set((s) => ({
-      taskReminderEnabled: enabled,
-      taskReminderHour: hour ?? s.taskReminderHour,
-    }));
+    set((s) => ({ taskReminderEnabled: enabled, taskReminderHour: hour ?? s.taskReminderHour }));
   },
 
-  setDueDateWarning: (enabled) => {
-    set({ dueDateWarningEnabled: enabled });
-  },
+  setDueDateWarning: (enabled) => set({ dueDateWarningEnabled: enabled }),
 
   setHabitsReminder: async (enabled, hour, minute) => {
-    const state = get();
-    const h = hour ?? state.habitsReminderHour;
-    const m = minute ?? state.habitsReminderMinute;
-
+    const s = get();
+    const h = hour ?? s.habitsReminderHour;
+    const m = minute ?? s.habitsReminderMinute;
     set({ habitsReminderEnabled: enabled, habitsReminderHour: h, habitsReminderMinute: m });
-
-    if (enabled && state.notificationsEnabled) {
+    if (enabled && s.notificationsEnabled) {
       await scheduleDailyHabitsReminder(h, m);
     } else {
       await cancelDailyHabitsReminder();
@@ -93,13 +106,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setFocusReminder: async (enabled, hour, minute) => {
-    const state = get();
-    const h = hour ?? state.focusReminderHour;
-    const m = minute ?? state.focusReminderMinute;
-
+    const s = get();
+    const h = hour ?? s.focusReminderHour;
+    const m = minute ?? s.focusReminderMinute;
     set({ focusReminderEnabled: enabled, focusReminderHour: h, focusReminderMinute: m });
-
-    if (enabled && state.notificationsEnabled) {
+    if (enabled && s.notificationsEnabled) {
       await scheduleFocusReminder(h, m);
     } else {
       await cancelFocusReminder();
