@@ -43,8 +43,9 @@ const PERIOD_OPTIONS: { key: RewardPeriod; label: string }[] = [
 ];
 
 export function RewardsScreen() {
-  const { rewards, loading, fetchRewards, addReward, removeReward, checkAndUnlock } =
+  const { rewards, loading, fetchRewards, addReward, editReward, removeReward, checkAndUnlock } =
     useRewardStore();
+
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
   const { tasks, fetchTasks } = useTaskStore();
   const { goals, fetchGoals } = useGoalStore();
@@ -63,6 +64,8 @@ export function RewardsScreen() {
   const [customEnd, setCustomEnd] = useState<string | undefined>();
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [editingReward, setEditingReward] = useState<Reward | null>(null);
 
   useEffect(() => {
     fetchRewards();
@@ -96,6 +99,22 @@ export function RewardsScreen() {
     setSelectedGoalId(undefined);
     setCustomStart(undefined);
     setCustomEnd(undefined);
+    setEditingReward(null);
+  }
+
+  function handleEdit(reward: Reward) {
+    setTitle(reward.title);
+    setDescription(reward.description ?? '');
+    setConditionType(reward.condition.type);
+    setTarget(reward.condition.target);
+    setPeriod(reward.condition.period);
+    setSelectedThemeId(reward.condition.themeId);
+    setSelectedTaskIds(reward.condition.taskIds ?? []);
+    setSelectedGoalId(reward.condition.goalId);
+    setCustomStart(reward.condition.customStartDate);
+    setCustomEnd(reward.condition.customEndDate);
+    setEditingReward(reward);
+    setScreen('create');
   }
 
   async function handleSave() {
@@ -118,20 +137,40 @@ export function RewardsScreen() {
 
     setSaving(true);
     try {
-      await addReward({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        condition: {
-          type: conditionType,
-          target,
-          period,
-          themeId: selectedThemeId,
-          taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
-          goalId: selectedGoalId,
-          customStartDate: period === 'custom' ? customStart : undefined,
-          customEndDate: period === 'custom' ? customEnd : undefined,
-        },
-      });
+      if (editingReward) {
+        await editReward(editingReward.id, {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          condition: {
+            type: conditionType,
+            target,
+            period,
+            themeId: selectedThemeId,
+            taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+            goalId: selectedGoalId,
+            customStartDate: period === 'custom' ? customStart : undefined,
+            customEndDate: period === 'custom' ? customEnd : undefined,
+          },
+        });
+
+        setEditingReward(null);
+      } else {
+        await addReward({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          condition: {
+            type: conditionType,
+            target,
+            period,
+            themeId: selectedThemeId,
+            taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+            goalId: selectedGoalId,
+            customStartDate: period === 'custom' ? customStart : undefined,
+            customEndDate: period === 'custom' ? customEnd : undefined,
+          },
+        });
+      }
+
       resetForm();
       setScreen('list');
     } catch {
@@ -155,7 +194,7 @@ export function RewardsScreen() {
     return (
       <View style={globalStyles.screen}>
         <Header
-          title="Nova recompensa"
+          title={editingReward ? 'Editar recompensa' : 'Nova recompensa'}
           onBack={() => {
             resetForm();
             setScreen('list');
@@ -439,7 +478,7 @@ export function RewardsScreen() {
           )}
 
           <Button
-            label="Criar recompensa"
+            label={editingReward ? 'Salvar alterações' : 'Criar recompensa'}
             onPress={handleSave}
             fullWidth
             loading={saving}
@@ -485,6 +524,7 @@ export function RewardsScreen() {
                   tasks={tasks}
                   goals={goals}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               ))}
             </>
@@ -510,6 +550,7 @@ export function RewardsScreen() {
                   tasks={tasks}
                   goals={goals}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               ))}
             </>

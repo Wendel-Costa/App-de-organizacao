@@ -6,9 +6,11 @@ import type { Goal } from '@/types/goal.types';
 import {
   getAllRewards,
   createReward,
+  updateReward,
   unlockReward,
   deleteReward,
 } from '@/database/queries/rewards.queries';
+
 import { checkRewardCondition } from '@/services/rewards.service';
 
 interface RewardState {
@@ -21,6 +23,10 @@ interface RewardState {
   ) => Promise<Reward>;
   removeReward: (id: string) => Promise<void>;
   checkAndUnlock: (sessions: FocusSession[], tasks: Task[], goals: Goal[]) => Promise<Reward[]>;
+  editReward: (
+    id: string,
+    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+  ) => Promise<void>;
 }
 
 export const useRewardStore = create<RewardState>((set, get) => ({
@@ -66,5 +72,12 @@ export const useRewardStore = create<RewardState>((set, get) => ({
     }
 
     return newlyUnlocked;
+  },
+
+  editReward: async (id, data) => {
+    await updateReward(id, data);
+    set((state) => ({
+      rewards: state.rewards.map((r) => (r.id === id ? { ...r, ...data } : r)),
+    }));
   },
 }));

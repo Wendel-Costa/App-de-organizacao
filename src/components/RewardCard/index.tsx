@@ -13,9 +13,10 @@ interface RewardCardProps {
   tasks: Task[];
   goals: Goal[];
   onDelete: (id: string) => void;
+  onEdit: (reward: Reward) => void;
 }
 
-export function RewardCard({ reward, sessions, tasks, goals, onDelete }: RewardCardProps) {
+export function RewardCard({ reward, sessions, tasks, goals, onDelete, onEdit }: RewardCardProps) {
   const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
 
@@ -82,12 +83,15 @@ export function RewardCard({ reward, sessions, tasks, goals, onDelete }: RewardC
         )}
       </View>
 
-      <TouchableOpacity
-        onPress={() => onDelete(reward.id)}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.textDisabled} />
-      </TouchableOpacity>
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => onEdit(reward)}>
+          <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.actionButton]} onPress={() => onDelete(reward.id)}>
+          <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -188,5 +192,18 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.primaryDark,
     textTransform: 'capitalize',
+  },
+
+  actions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

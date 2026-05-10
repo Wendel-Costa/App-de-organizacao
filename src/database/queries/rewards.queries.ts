@@ -49,6 +49,27 @@ export async function deleteReward(id: string): Promise<void> {
   await db.delete(rewards).where(eq(rewards.id, id));
 }
 
+export async function updateReward(
+  id: string,
+  data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+): Promise<void> {
+  await db
+    .update(rewards)
+    .set({
+      title: data.title,
+      description: data.description,
+      conditionType: data.condition.type,
+      conditionTarget: data.condition.target,
+      conditionPeriod: data.condition.period,
+      conditionThemeId: data.condition.themeId,
+      conditionTaskIds: data.condition.taskIds ? JSON.stringify(data.condition.taskIds) : null,
+      conditionGoalId: data.condition.goalId,
+      conditionCustomStart: data.condition.customStartDate,
+      conditionCustomEnd: data.condition.customEndDate,
+    })
+    .where(eq(rewards.id, id));
+}
+
 function rowToReward(row: typeof rewards.$inferSelect): Reward {
   return {
     id: row.id,

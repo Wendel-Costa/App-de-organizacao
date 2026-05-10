@@ -22,21 +22,23 @@
     "plugins": [
       "expo-sqlite",
       "@react-native-community/datetimepicker",
-      "react-native-android-widget",
-      {
-        "widgets": [
-          {
-            "name": "FocoWidget",
-            "label": "FocoMais",
-            "description": "Tarefas e foco do dia",
-            "minWidth": "250dp",
-            "minHeight": "110dp",
-            "targetCellWidth": 4,
-            "targetCellHeight": 2,
-            "updatePeriodMinutes": 30
-          }
-        ]
-      }
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "FocoWidget",
+              "label": "FocoMais",
+              "description": "Tarefas e foco do dia",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "updatePeriodMinutes": 30
+            }
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {
