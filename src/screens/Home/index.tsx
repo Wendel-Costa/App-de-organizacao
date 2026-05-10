@@ -7,7 +7,7 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useGoalStore } from '@/store/goalStore';
-import { filterTasksForToday } from '@/services/recurrence.service';
+import { filterTasksForHome } from '@/services/recurrence.service';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
@@ -54,7 +54,7 @@ export function HomeScreen() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
-  const todayTasks = filterTasksForToday(tasks);
+  const todayTasks = filterTasksForHome(tasks);
   const pending = todayTasks.filter((t) => !t.completed);
   const completed = todayTasks.filter((t) => t.completed);
 
