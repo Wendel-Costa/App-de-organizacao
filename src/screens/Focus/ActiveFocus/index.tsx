@@ -168,7 +168,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
       {selectedTheme && (
         <View style={styles.tasksSection}>
           <View style={styles.tasksSectionHeader}>
-            <Text style={styles.tasksSectionTitle}>Tarefas · {selectedTheme.name}</Text>
+            <Text style={styles.tasksSectionTitle}>Tarefas {selectedTheme.name}</Text>
             <TouchableOpacity
               onPress={() => setShowQuickAdd(!showQuickAdd)}
               style={styles.addTaskButton}

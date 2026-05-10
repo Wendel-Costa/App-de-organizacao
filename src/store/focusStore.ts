@@ -41,6 +41,8 @@ interface FocusState {
   stopFocus: () => Promise<void>;
   tickTimer: () => void;
   setPomodoroConfig: (workMinutes: number, breakMinutes: number) => void;
+
+  recalculateFromStart: () => void;
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({
@@ -176,4 +178,31 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   setPomodoroConfig: (workMinutes, breakMinutes) =>
     set({ pomodoroWorkMinutes: workMinutes, pomodoroBreakMinutes: breakMinutes }),
+
+  recalculateFromStart: () => {
+    const { startTime, mode, pomodoroWorkMinutes, pomodoroBreakMinutes } = get();
+    if (!startTime) return;
+
+    const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
+
+    if (mode === 'pomodoro') {
+      const workSecs = pomodoroWorkMinutes * 60;
+      const breakSecs = pomodoroBreakMinutes * 60;
+      const cycleSecs = workSecs + breakSecs;
+
+      let remaining = elapsed;
+      let rounds = 0;
+      let onBreak = false;
+
+      while (remaining >= cycleSecs) {
+        rounds++;
+        remaining -= cycleSecs;
+      }
+      if (remaining >= workSecs) onBreak = true;
+
+      set({ elapsedSeconds: elapsed, pomodoroRounds: rounds, isOnBreak: onBreak });
+    } else {
+      set({ elapsedSeconds: elapsed });
+    }
+  },
 }));
