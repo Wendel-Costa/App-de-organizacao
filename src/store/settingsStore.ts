@@ -10,10 +10,12 @@ import {
 } from '@/services/notifications.service';
 
 const NAME_KEY = '@focomais:user_name';
+const SETTINGS_KEY = '@focomais:notification_settings';
 
 interface SettingsState {
   name: string;
   nameLoaded: boolean;
+  settingsLoaded: boolean;
 
   notificationsEnabled: boolean;
   taskReminderEnabled: boolean;
@@ -28,17 +30,39 @@ interface SettingsState {
 
   loadName: () => Promise<void>;
   setName: (name: string) => Promise<void>;
+  loadSettings: () => Promise<void>;
   requestPermissions: () => Promise<void>;
   setTaskReminder: (enabled: boolean, hour?: number) => Promise<void>;
-  setDueDateWarning: (enabled: boolean) => void;
+  setDueDateWarning: (enabled: boolean) => Promise<void>;
   setHabitsReminder: (enabled: boolean, hour?: number, minute?: number) => Promise<void>;
   setFocusReminder: (enabled: boolean, hour?: number, minute?: number) => Promise<void>;
   disableAllNotifications: () => Promise<void>;
 }
 
+async function persistSettings(state: Partial<SettingsState>) {
+  const keys: (keyof SettingsState)[] = [
+    'notificationsEnabled',
+    'taskReminderEnabled',
+    'taskReminderHour',
+    'dueDateWarningEnabled',
+    'habitsReminderEnabled',
+    'habitsReminderHour',
+    'habitsReminderMinute',
+    'focusReminderEnabled',
+    'focusReminderHour',
+    'focusReminderMinute',
+  ];
+  const toSave: Record<string, unknown> = {};
+  keys.forEach((k) => {
+    if (k in state) toSave[k] = state[k];
+  });
+  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   name: '',
   nameLoaded: false,
+  settingsLoaded: false,
 
   notificationsEnabled: false,
   taskReminderEnabled: true,
@@ -69,9 +93,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
+  loadSettings: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        set({ ...parsed, settingsLoaded: true });
+      } else {
+        set({ settingsLoaded: true });
+      }
+    } catch {
+      set({ settingsLoaded: true });
+    }
+  },
+
   requestPermissions: async () => {
     const granted = await requestNotificationPermissions();
-    set({ notificationsEnabled: granted });
+    const updates = { notificationsEnabled: granted };
+    set(updates);
+    await persistSettings(updates);
+
     if (granted) {
       const {
         habitsReminderEnabled,
@@ -88,16 +129,31 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setTaskReminder: async (enabled, hour) => {
-    set((s) => ({ taskReminderEnabled: enabled, taskReminderHour: hour ?? s.taskReminderHour }));
+    const updates = {
+      taskReminderEnabled: enabled,
+      taskReminderHour: hour ?? get().taskReminderHour,
+    };
+    set(updates);
+    await persistSettings(updates);
   },
 
-  setDueDateWarning: (enabled) => set({ dueDateWarningEnabled: enabled }),
+  setDueDateWarning: async (enabled) => {
+    set({ dueDateWarningEnabled: enabled });
+    await persistSettings({ dueDateWarningEnabled: enabled });
+  },
 
   setHabitsReminder: async (enabled, hour, minute) => {
     const s = get();
     const h = hour ?? s.habitsReminderHour;
     const m = minute ?? s.habitsReminderMinute;
-    set({ habitsReminderEnabled: enabled, habitsReminderHour: h, habitsReminderMinute: m });
+    const updates = {
+      habitsReminderEnabled: enabled,
+      habitsReminderHour: h,
+      habitsReminderMinute: m,
+    };
+    set(updates);
+    await persistSettings(updates);
+
     if (enabled && s.notificationsEnabled) {
       await scheduleDailyHabitsReminder(h, m);
     } else {
@@ -109,7 +165,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const s = get();
     const h = hour ?? s.focusReminderHour;
     const m = minute ?? s.focusReminderMinute;
-    set({ focusReminderEnabled: enabled, focusReminderHour: h, focusReminderMinute: m });
+    const updates = { focusReminderEnabled: enabled, focusReminderHour: h, focusReminderMinute: m };
+    set(updates);
+    await persistSettings(updates);
+
     if (enabled && s.notificationsEnabled) {
       await scheduleFocusReminder(h, m);
     } else {
@@ -119,6 +178,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   disableAllNotifications: async () => {
     await cancelAllNotifications();
-    set({ notificationsEnabled: false });
+    const updates = { notificationsEnabled: false };
+    set(updates);
+    await persistSettings(updates);
   },
 }));
