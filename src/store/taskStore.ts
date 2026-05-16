@@ -13,14 +13,14 @@ import {
   scheduleDueDateWarning,
   cancelTaskNotifications,
 } from '@/services/notifications.service';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useFocusStore } from '@/store/focusStore';
-import { useRewardStore } from '@/store/rewardStore';
 import { useGoalStore } from '@/store/goalStore';
+import { useRewardStore } from '@/store/rewardStore';
 
 interface TaskState {
   tasks: Task[];
   loading: boolean;
-
   fetchTasks: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   editTask: (id: string, data: Partial<Task>) => Promise<void>;
@@ -35,87 +35,115 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   fetchTasks: async () => {
     set({ loading: true });
-    const tasks = await getAllTasks();
-    set({ tasks, loading: false });
+    try {
+      const tasks = await getAllTasks();
+      set({ tasks, loading: false });
+    } catch {
+      set({ loading: false });
+    }
   },
 
   addTask: async (data) => {
-    const newTask = await createTask(data);
-    set((state) => ({ tasks: [newTask, ...state.tasks] }));
+    try {
+      const newTask = await createTask(data);
+      set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
-    const { taskReminderEnabled, taskReminderHour, dueDateWarningEnabled, notificationsEnabled } = (
-      await import('@/store/settingsStore')
-    ).useSettingsStore.getState();
+      try {
+        const {
+          taskReminderEnabled,
+          taskReminderHour,
+          dueDateWarningEnabled,
+          notificationsEnabled,
+        } = useSettingsStore.getState();
 
-    if (notificationsEnabled) {
-      if (taskReminderEnabled && newTask.scheduledDate) {
-        await scheduleTaskReminder(newTask, taskReminderHour);
-      }
-      if (dueDateWarningEnabled && newTask.dueDate) {
-        await scheduleDueDateWarning(newTask);
-      }
+        if (notificationsEnabled) {
+          if (taskReminderEnabled && newTask.scheduledDate) {
+            await scheduleTaskReminder(newTask, taskReminderHour);
+          }
+          if (dueDateWarningEnabled && newTask.dueDate) {
+            await scheduleDueDateWarning(newTask);
+          }
+        }
+      } catch {}
+    } catch (e) {
+      throw e;
     }
   },
 
   editTask: async (id, data) => {
-    await updateTask(id, data);
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)),
-    }));
+    try {
+      await updateTask(id, data);
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)),
+      }));
 
-    await cancelTaskNotifications(id);
-    const updatedTask = get().tasks.find((t) => t.id === id);
-    if (!updatedTask) return;
+      await cancelTaskNotifications(id).catch(() => {});
+      const updatedTask = get().tasks.find((t) => t.id === id);
+      if (!updatedTask) return;
 
-    const { notificationsEnabled, taskReminderEnabled, taskReminderHour, dueDateWarningEnabled } = (
-      await import('@/store/settingsStore')
-    ).useSettingsStore.getState();
+      const { notificationsEnabled, taskReminderEnabled, taskReminderHour, dueDateWarningEnabled } =
+        useSettingsStore.getState();
 
-    if (notificationsEnabled && !updatedTask.completed) {
-      if (taskReminderEnabled && updatedTask.scheduledDate) {
-        await scheduleTaskReminder(updatedTask, taskReminderHour);
+      if (notificationsEnabled && !updatedTask.completed) {
+        if (taskReminderEnabled && updatedTask.scheduledDate)
+          await scheduleTaskReminder(updatedTask, taskReminderHour).catch(() => {});
+        if (dueDateWarningEnabled && updatedTask.dueDate)
+          await scheduleDueDateWarning(updatedTask).catch(() => {});
       }
-      if (dueDateWarningEnabled && updatedTask.dueDate) {
-        await scheduleDueDateWarning(updatedTask);
-      }
+    } catch (e) {
+      throw e;
     }
   },
 
   removeTask: async (id) => {
-    await deleteTask(id);
-    await cancelTaskNotifications(id);
-    set((state) => ({
-      tasks: state.tasks.filter((t) => t.id !== id),
-    }));
+    try {
+      await deleteTask(id);
+      await cancelTaskNotifications(id).catch(() => {});
+      set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+    } catch (e) {
+      throw e;
+    }
   },
 
   toggleComplete: async (id, completed) => {
-    await toggleTaskComplete(id, completed);
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, completed } : t)),
-    }));
+    try {
+      await toggleTaskComplete(id, completed);
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === id
+            ? { ...t, completed, completedAt: completed ? new Date().toISOString() : undefined }
+            : t,
+        ),
+      }));
 
-    if (completed) {
-      await cancelTaskNotifications(id);
+      if (completed) {
+        cancelTaskNotifications(id).catch(() => {});
 
-      const { sessions } = useFocusStore.getState();
-      const { goals } = useGoalStore.getState();
-      const { checkAndUnlock } = useRewardStore.getState();
-      checkAndUnlock(sessions, get().tasks, goals);
+        try {
+          const { sessions } = useFocusStore.getState();
+          const { goals } = useGoalStore.getState();
+          const { checkAndUnlock } = useRewardStore.getState();
+          checkAndUnlock(sessions, get().tasks, goals).catch(() => {});
+        } catch {}
+      }
+    } catch (e) {
+      throw e;
     }
   },
 
   toggleSubtask: async (taskId, subtaskId, completed) => {
-    await toggleSubtaskComplete(subtaskId, completed);
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              subtasks: t.subtasks?.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
-            }
-          : t,
-      ),
-    }));
+    try {
+      await toggleSubtaskComplete(subtaskId, completed);
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                subtasks: t.subtasks?.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
+              }
+            : t,
+        ),
+      }));
+    } catch {}
   },
 }));
