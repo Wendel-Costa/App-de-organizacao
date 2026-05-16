@@ -23,23 +23,6 @@ const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'frida
 
 export function BottomTabNavigator() {
   const insets = useSafeAreaInsets();
-  const { tasks } = useTaskStore();
-
-  const today = new Date().toISOString().split('T')[0];
-  const todayWeekday = WEEKDAYS[new Date().getDay()];
-
-  const pendingToday = tasks.filter((t) => {
-    if (t.completed) return false;
-    if (t.type === 'scheduled') return t.scheduledDate === today;
-    if (t.type === 'recurring') {
-      return (
-        t.recurrenceDays?.includes('daily' as any) ||
-        t.recurrenceDays?.includes(todayWeekday as any) ||
-        false
-      );
-    }
-    return false;
-  }).length;
 
   return (
     <Tab.Navigator
@@ -59,13 +42,6 @@ export function BottomTabNavigator() {
           ...typography.xs,
           fontWeight: '600',
         },
-        tabBarBadgeStyle: {
-          backgroundColor: colors.primaryDark,
-          fontSize: 10,
-          minWidth: 16,
-          height: 16,
-          lineHeight: 16,
-        },
       }}
     >
       <Tab.Screen
@@ -83,7 +59,6 @@ export function BottomTabNavigator() {
         component={TasksScreen}
         options={{
           title: 'Tarefas',
-          tabBarBadge: pendingToday > 0 ? pendingToday : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="check-circle-outline" color={color} size={size} />
           ),
