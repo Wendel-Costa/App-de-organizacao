@@ -56,7 +56,18 @@ export function HomeScreen() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
-  const todayTasks = filterTasksForHome(tasks);
+
+  const rawTodayTasks = filterTasksForHome(tasks);
+  const todayTasks = rawTodayTasks.map((task) => {
+    if (task.type === 'recurring' && task.completed) {
+      const completedDate = task.updatedAt.split('T')[0];
+      if (completedDate !== todayStr) {
+        return { ...task, completed: false };
+      }
+    }
+    return task;
+  });
+
   const pending = todayTasks.filter((t) => !t.completed);
   const completed = todayTasks.filter((t) => t.completed);
 

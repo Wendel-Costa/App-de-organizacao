@@ -42,14 +42,20 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
       }
       return true;
     }
-    if (task.type === 'scheduled') return task.scheduledDate === today;
+
+    if (task.type === 'scheduled') {
+      return task.scheduledDate === today;
+    }
+
     if (task.type === 'recurring') {
       const todayWeekday = getTodayWeekday();
-      return (
+      const isDueToday =
         task.recurrenceDays?.includes('daily') ||
         task.recurrenceDays?.includes(todayWeekday) ||
-        false
-      );
+        false;
+
+      if (!isDueToday) return false;
+      return true;
     }
     return false;
   });
