@@ -99,7 +99,11 @@ export async function updateTask(id: string, data: Partial<Task>): Promise<void>
 export async function toggleTaskComplete(id: string, completed: boolean): Promise<void> {
   await db
     .update(tasks)
-    .set({ completed: completed ? 1 : 0, updatedAt: now() })
+    .set({
+      completed: completed ? 1 : 0,
+      completedAt: completed ? now() : null,
+      updatedAt: now(),
+    })
     .where(eq(tasks.id, id));
 }
 
@@ -135,5 +139,6 @@ function rowToTask(row: typeof tasks.$inferSelect, subs: (typeof subtasks.$infer
       title: s.title,
       completed: s.completed === 1,
     })),
+    completedAt: row.completedAt ?? undefined,
   };
 }

@@ -86,6 +86,10 @@ export async function runMigrations() {
     await db.run(sql`ALTER TABLE rewards ADD COLUMN condition_custom_end TEXT`);
   } catch {}
 
+  try {
+    await db.run(sql`ALTER TABLE tasks ADD COLUMN completed_at TEXT`);
+  } catch {}
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS goal_task_completions (
       id TEXT PRIMARY KEY,

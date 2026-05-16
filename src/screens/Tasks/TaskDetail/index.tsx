@@ -144,6 +144,20 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
             label="Criada em"
             value={new Date(localTask.createdAt).toLocaleDateString('pt-BR')}
           />
+
+          {localTask.completedAt && (
+            <InfoRow
+              icon="check-circle-outline"
+              label="Concluída em"
+              value={new Date(localTask.completedAt).toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            />
+          )}
         </Card>
 
         {totalSubtasks > 0 && (

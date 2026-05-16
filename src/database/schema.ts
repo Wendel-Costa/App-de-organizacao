@@ -16,6 +16,7 @@ export const tasks = sqliteTable('tasks', {
   themeId: text('theme_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  completedAt: text('completed_at'),
 });
 
 export const subtasks = sqliteTable('subtasks', {

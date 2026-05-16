@@ -33,4 +33,5 @@ export interface Task {
   themeId?: string;
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
 }

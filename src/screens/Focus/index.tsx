@@ -51,6 +51,7 @@ export function FocusScreen() {
         visible={showThemeModal}
         title="Novo tema de foco"
         placeholder="Ex: Matemática, Leitura..."
+        confirmLabel="Criar"
         onConfirm={(name) => {
           addTheme(name);
           setShowThemeModal(false);
