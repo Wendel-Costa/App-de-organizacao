@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Switch, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Switch,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  Modal,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
@@ -44,6 +53,8 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
     setName,
   } = useSettingsStore();
   const [localName, setLocalName] = useState(name);
+  const [showAbout, setShowAbout] = useState(false);
+
   async function handleEnableNotifications(value: boolean) {
     if (value) {
       await requestPermissions();
@@ -208,11 +219,42 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 
         <Text style={styles.sectionTitle}>Sobre</Text>
         <Card style={styles.card}>
-          <SettingRow icon="information-outline" label="Versão" description="1.0.0">
-            <Text style={styles.versionText}>1.0.0</Text>
-          </SettingRow>
+          <TouchableOpacity onPress={() => setShowAbout(true)} activeOpacity={0.7}>
+            <SettingRow
+              icon="information-outline"
+              label="Sobre o FocoMais"
+              description="Versão 1.0.0"
+            >
+              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textDisabled} />
+            </SettingRow>
+          </TouchableOpacity>
         </Card>
       </ScrollView>
+
+      <Modal visible={showAbout} transparent animationType="fade">
+        <View style={styles.aboutOverlay}>
+          <View style={styles.aboutContainer}>
+            <View style={styles.aboutLogo}>
+              <MaterialCommunityIcons name="timer-outline" size={48} color={colors.textOnPrimary} />
+            </View>
+            <Text style={styles.aboutAppName}>FocoMais</Text>
+            <Text style={styles.aboutVersion}>Versão 1.0.0</Text>
+            <Text style={styles.aboutDesc}>
+              App de organização pessoal com foco em produtividade, hábitos e metas.
+            </Text>
+            <View style={styles.aboutDivider} />
+            <Text style={styles.aboutCredit}>Feito por Wendel Costa</Text>
+            <Text style={styles.aboutYear}>© 2026</Text>
+            <TouchableOpacity
+              style={styles.aboutCloseBtn}
+              onPress={() => setShowAbout(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.aboutCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -312,4 +354,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+
+  aboutOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  aboutContainer: {
+    width: '100%',
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  aboutLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aboutAppName: { ...typography.h2, color: colors.textPrimary },
+  aboutVersion: { ...typography.sm, color: colors.textSecondary },
+  aboutDesc: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  aboutDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: spacing.xs,
+  },
+  aboutCredit: { ...typography.label, color: colors.textPrimary },
+  aboutYear: { ...typography.sm, color: colors.textDisabled },
+  aboutCloseBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+  },
+  aboutCloseText: { ...typography.label, color: colors.textOnPrimary },
 });
