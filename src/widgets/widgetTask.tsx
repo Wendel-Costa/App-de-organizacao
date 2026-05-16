@@ -1,24 +1,19 @@
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
 import React from 'react';
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-export const WIDGET_TASK_NAME = 'focomais-widget-update';
+import { FocoWidget } from './FocoWidget';
 
 async function getWidgetData() {
   try {
-    const db = SQLite.openDatabaseSync('focomais.db');
-
-    db.runSync('PRAGMA journal_mode=WAL');
-    db.runSync('PRAGMA synchronous=NORMAL');
+    const rawDb = SQLite.openDatabaseSync('focomais.db');
+    rawDb.runSync('PRAGMA journal_mode=WAL');
 
     const today = new Date().toISOString().split('T')[0];
     const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
       new Date().getDay()
     ];
 
-    const allTasks = db.getAllSync<{
+    const allTasks = rawDb.getAllSync<{
       title: string;
       type: string;
       completed: number;
@@ -34,32 +29,27 @@ async function getWidgetData() {
         const days: string[] = JSON.parse(t.recurrence_days);
         const isDue = days.includes('daily') || days.includes(weekday);
         if (!isDue) return false;
-        if (t.completed === 1) {
-          return t.updated_at.split('T')[0] !== today;
-        }
+        if (t.completed === 1) return t.updated_at.split('T')[0] !== today;
         return true;
       }
       if (t.type === 'anytime') {
-        if (t.completed === 1) return t.updated_at.split('T')[0] === today ? false : true;
+        if (t.completed === 1) return t.updated_at.split('T')[0] !== today;
         return true;
       }
       return false;
     });
 
-    const sessions = db.getAllSync<{ duration: number }>(
+    const sessions = rawDb.getAllSync<{ duration: number }>(
       `SELECT duration FROM focus_sessions WHERE start_time >= '${today}T00:00:00' AND start_time <= '${today}T23:59:59'`,
     );
+
+    rawDb.closeSync();
 
     const focusMinutes = sessions.reduce((acc, s) => acc + s.duration, 0);
     const userName = (await AsyncStorage.getItem('@focomais:user_name')) ?? '';
     const pendingTaskNames = pendingToday.map((t) => t.title);
 
-    return {
-      pendingTasks: pendingToday.length,
-      focusMinutes,
-      userName,
-      pendingTaskNames,
-    };
+    return { pendingTasks: pendingToday.length, focusMinutes, userName, pendingTaskNames };
   } catch {
     return { pendingTasks: 0, focusMinutes: 0, userName: '', pendingTaskNames: [] };
   }
@@ -68,7 +58,6 @@ async function getWidgetData() {
 export async function updateWidget(): Promise<void> {
   try {
     const { requestWidgetUpdate } = await import('react-native-android-widget');
-    const { FocoWidget } = await import('./FocoWidget');
     const data = await getWidgetData();
 
     await requestWidgetUpdate({
@@ -76,16 +65,5 @@ export async function updateWidget(): Promise<void> {
       renderWidget: () => React.createElement(FocoWidget, data),
       widgetNotFound: () => {},
     });
-  } catch (e) {
-    console.log('Widget update error:', e);
-  }
+  } catch {}
 }
-
-TaskManager.defineTask(WIDGET_TASK_NAME, async () => {
-  try {
-    await updateWidget();
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
