@@ -71,14 +71,19 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
 
   async function handleQuickAdd() {
     if (!quickTaskTitle.trim()) return;
-    await addTask({
-      title: quickTaskTitle.trim(),
-      type: 'anytime',
-      completed: false,
-      themeId: selectedTheme?.id,
-    });
-    setQuickTaskTitle('');
-    setShowQuickAdd(false);
+    try {
+      await addTask({
+        title: quickTaskTitle.trim(),
+        type: 'anytime',
+        completed: false,
+        themeId: selectedTheme?.id ?? undefined,
+      });
+      await fetchTasks();
+      setQuickTaskTitle('');
+      setShowQuickAdd(false);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível criar a tarefa. Tente novamente.');
+    }
   }
 
   const totalPomodoroSeconds = isOnBreak ? pomodoroBreakMinutes * 60 : pomodoroWorkMinutes * 60;
@@ -217,8 +222,11 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
                   task.completed
                     ? Haptics.ImpactFeedbackStyle.Light
                     : Haptics.ImpactFeedbackStyle.Medium,
-                );
-                toggleComplete(task.id, !task.completed);
+                ).catch(() => {});
+
+                toggleComplete(task.id, !task.completed).catch(() => {
+                  Alert.alert('Erro', 'Não foi possível atualizar a tarefa.');
+                });
               }}
               activeOpacity={0.7}
             >
