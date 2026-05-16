@@ -13,6 +13,10 @@ async function getWidgetData(): Promise<{
 }> {
   try {
     const db = SQLite.openDatabaseSync('focomais.db');
+
+    db.runSync('PRAGMA journal_mode=WAL');
+    db.runSync('PRAGMA synchronous=NORMAL');
+
     const today = new Date().toISOString().split('T')[0];
     const weekday = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
       new Date().getDay()
@@ -68,6 +72,10 @@ export async function updateWidget(): Promise<void> {
 }
 
 TaskManager.defineTask(WIDGET_TASK_NAME, async () => {
-  await updateWidget();
-  return BackgroundFetch.BackgroundFetchResult.NewData;
+  try {
+    await updateWidget();
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch {
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
 });

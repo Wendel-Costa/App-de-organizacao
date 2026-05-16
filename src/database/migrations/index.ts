@@ -2,6 +2,9 @@ import { db } from '../index';
 import { sql } from 'drizzle-orm';
 
 export async function runMigrations() {
+  await db.run(sql`PRAGMA journal_mode=WAL`);
+  await db.run(sql`PRAGMA synchronous=NORMAL`);
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,

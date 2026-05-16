@@ -27,7 +27,7 @@ async function registerWidgetTask() {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(WIDGET_TASK_NAME);
     if (!isRegistered) {
       await BackgroundFetch.registerTaskAsync(WIDGET_TASK_NAME, {
-        minimumInterval: 30 * 60, // 30 minutos
+        minimumInterval: 30 * 60,
         stopOnTerminate: false,
         startOnBoot: true,
       });
@@ -51,8 +51,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+    const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
       if (next === 'active') {
+        try {
+          await runMigrations();
+        } catch {}
         updateWidget();
       }
     });
