@@ -6,11 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const WIDGET_TASK_NAME = 'focomais-widget-update';
 
-async function getWidgetData(): Promise<{
-  pendingTasks: number;
-  focusMinutes: number;
-  userName: string;
-}> {
+async function getWidgetData() {
   try {
     const db = SQLite.openDatabaseSync('focomais.db');
 
@@ -23,35 +19,49 @@ async function getWidgetData(): Promise<{
     ];
 
     const allTasks = db.getAllSync<{
+      title: string;
       type: string;
       completed: number;
       scheduled_date: string | null;
       recurrence_days: string | null;
-    }>('SELECT type, completed, scheduled_date, recurrence_days FROM tasks');
+      updated_at: string;
+    }>('SELECT title, type, completed, scheduled_date, recurrence_days, updated_at FROM tasks');
 
-    const pendingTasks = allTasks.filter((t) => {
-      if (t.completed === 1) return false;
-      if (t.type === 'scheduled') return t.scheduled_date === today;
+    const pendingToday = allTasks.filter((t) => {
+      if (t.type === 'scheduled') return t.completed === 0 && t.scheduled_date === today;
       if (t.type === 'recurring') {
         if (!t.recurrence_days) return false;
         const days: string[] = JSON.parse(t.recurrence_days);
-        return days.includes('daily') || days.includes(weekday);
+        const isDue = days.includes('daily') || days.includes(weekday);
+        if (!isDue) return false;
+        if (t.completed === 1) {
+          return t.updated_at.split('T')[0] !== today;
+        }
+        return true;
       }
-      return t.type === 'anytime';
-    }).length;
+      if (t.type === 'anytime') {
+        if (t.completed === 1) return t.updated_at.split('T')[0] === today ? false : true;
+        return true;
+      }
+      return false;
+    });
 
-    const sessions = db.getAllSync<{ duration: number }>(`
-      SELECT duration FROM focus_sessions
-      WHERE start_time >= '${today}T00:00:00'
-        AND start_time <= '${today}T23:59:59'
-    `);
+    const sessions = db.getAllSync<{ duration: number }>(
+      `SELECT duration FROM focus_sessions WHERE start_time >= '${today}T00:00:00' AND start_time <= '${today}T23:59:59'`,
+    );
+
     const focusMinutes = sessions.reduce((acc, s) => acc + s.duration, 0);
-
     const userName = (await AsyncStorage.getItem('@focomais:user_name')) ?? '';
+    const pendingTaskNames = pendingToday.map((t) => t.title);
 
-    return { pendingTasks, focusMinutes, userName };
+    return {
+      pendingTasks: pendingToday.length,
+      focusMinutes,
+      userName,
+      pendingTaskNames,
+    };
   } catch {
-    return { pendingTasks: 0, focusMinutes: 0, userName: '' };
+    return { pendingTasks: 0, focusMinutes: 0, userName: '', pendingTaskNames: [] };
   }
 }
 

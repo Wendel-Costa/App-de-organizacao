@@ -5,6 +5,7 @@ export interface FocoWidgetProps {
   pendingTasks: number;
   focusMinutes: number;
   userName: string;
+  pendingTaskNames: string[];
 }
 
 function formatFocus(minutes: number): string {
@@ -15,9 +16,12 @@ function formatFocus(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-export function FocoWidget({ pendingTasks, focusMinutes, userName }: FocoWidgetProps) {
-  const greeting = userName ? `Olá, ${userName}!` : 'Bom foco!';
-
+export function FocoWidget({
+  pendingTasks,
+  focusMinutes,
+  userName,
+  pendingTaskNames,
+}: FocoWidgetProps) {
   return (
     <FlexWidget
       style={{
@@ -26,28 +30,47 @@ export function FocoWidget({ pendingTasks, focusMinutes, userName }: FocoWidgetP
         flexDirection: 'column',
         backgroundColor: '#FFFFFF',
         borderRadius: 20,
-        padding: 16,
+        padding: 14,
         justifyContent: 'space-between',
       }}
     >
-      <FlexWidget style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <FlexWidget
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+      >
         <TextWidget
           text="FocoMais"
-          style={{ fontSize: 16, fontFamily: 'sans-serif-medium', color: '#2A2318' }}
+          style={{ fontSize: 15, fontFamily: 'sans-serif-medium', color: '#2A2318' }}
+        />
+        <TextWidget
+          text={`${formatFocus(focusMinutes)}`}
+          style={{ fontSize: 12, color: '#7A6E5F' }}
         />
       </FlexWidget>
 
-      <TextWidget text={greeting} style={{ fontSize: 13, color: '#7A6E5F' }} />
+      {userName ? (
+        <TextWidget text={`Olá, ${userName}!`} style={{ fontSize: 12, color: '#7A6E5F' }} />
+      ) : null}
 
       <FlexWidget style={{ flexDirection: 'column' }}>
         <TextWidget
-          text={`${pendingTasks} tarefa${pendingTasks !== 1 ? 's' : ''} pendente${pendingTasks !== 1 ? 's' : ''} hoje`}
-          style={{ fontSize: 13, color: '#2A2318', fontFamily: 'sans-serif' }}
+          text={`${pendingTasks} pendente${pendingTasks !== 1 ? 's' : ''} hoje`}
+          style={{ fontSize: 13, color: '#2A2318', fontFamily: 'sans-serif-medium' }}
         />
-        <TextWidget
-          text={`${formatFocus(focusMinutes)} de foco hoje`}
-          style={{ fontSize: 13, color: '#2A2318', fontFamily: 'sans-serif' }}
-        />
+
+        {pendingTaskNames.slice(0, 3).map((name, i) => (
+          <TextWidget
+            key={i}
+            text={`  · ${name.length > 28 ? name.slice(0, 28) + '...' : name}`}
+            style={{ fontSize: 11, color: '#7A6E5F' }}
+          />
+        ))}
+
+        {pendingTasks > 3 && (
+          <TextWidget
+            text={`  + ${pendingTasks - 3} mais...`}
+            style={{ fontSize: 11, color: '#BFB8AB' }}
+          />
+        )}
       </FlexWidget>
 
       <FlexWidget
@@ -55,12 +78,8 @@ export function FocoWidget({ pendingTasks, focusMinutes, userName }: FocoWidgetP
         clickAction="OPEN_APP"
       >
         <TextWidget
-          text="Abrir app →"
-          style={{
-            fontSize: 12,
-            color: '#C49A00',
-            fontFamily: 'sans-serif-medium',
-          }}
+          text="Abrir →"
+          style={{ fontSize: 11, color: '#C49A00', fontFamily: 'sans-serif-medium' }}
         />
       </FlexWidget>
     </FlexWidget>
