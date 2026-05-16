@@ -17,6 +17,7 @@ import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TimePicker } from '@/components/TimePicker';
 import { TextInput } from 'react-native-gesture-handler';
+import { Linking } from 'react-native';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -229,6 +230,40 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             </SettingRow>
           </TouchableOpacity>
         </Card>
+
+        <TouchableOpacity
+          style={styles.watermark}
+          activeOpacity={0.7}
+          onPress={() => {
+            Alert.alert(
+              'Abrir repositório',
+              'Você será direcionado ao repositório do projeto no GitHub, deseja continuar?',
+              [
+                {
+                  text: 'Cancelar',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Continuar',
+                  onPress: async () => {
+                    const url = 'https://github.com/Wendel-Costa/App-de-organizacao';
+
+                    const supported = await Linking.canOpenURL(url);
+
+                    if (supported) {
+                      await Linking.openURL(url);
+                    } else {
+                      Alert.alert('Erro', 'Não foi possível abrir o link.');
+                    }
+                  },
+                },
+              ],
+            );
+          }}
+        >
+          <Text style={styles.watermarkText}>FocoMais © 2026</Text>
+          <Text style={styles.watermarkSub}>Feito por Wendel Costa</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <Modal visible={showAbout} transparent animationType="fade">
@@ -284,7 +319,7 @@ function SettingRow({ icon, label, description, children }: SettingRowProps) {
 const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
   sectionTitle: {
@@ -402,4 +437,21 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   aboutCloseText: { ...typography.label, color: colors.textOnPrimary },
+
+  watermark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+    gap: 2,
+  },
+  watermarkText: {
+    ...typography.label,
+    color: colors.textDisabled,
+  },
+
+  watermarkSub: {
+    ...typography.xs,
+    color: colors.textDisabled,
+  },
 });
