@@ -8,19 +8,11 @@ import { BottomTabNavigator } from './BottomTabNavigator';
 import { OnboardingScreen } from '@/screens/Onboarding';
 
 export function Navigation() {
-  const { name, nameLoaded, loadName, requestPermissions, loadSettings } = useSettingsStore();
+  const { name, nameLoaded, loadName, loadSettings } = useSettingsStore();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    loadName().then(() => {
-      requestPermissions();
-      setReady(true);
-    });
-  }, []);
-
-  useEffect(() => {
     Promise.all([loadName(), loadSettings()]).then(() => {
-      requestPermissions();
       setReady(true);
     });
   }, []);
