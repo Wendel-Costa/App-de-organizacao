@@ -9,6 +9,7 @@ import {
   completeGoalTaskForToday,
   uncompleteGoalTaskForToday,
   getGoalTasksForToday,
+  updateGoal,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
 
@@ -21,7 +22,7 @@ interface GoalState {
   addGoal: (
     data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
     tasks: LocalGoalTask[],
-  ) => Promise<void>;
+  ) => Promise<Goal>;
   removeGoal: (id: string) => Promise<void>;
   addTask: (
     goalId: string,
@@ -33,6 +34,10 @@ interface GoalState {
   completeTask: (goalId: string, taskId: string) => Promise<void>;
   uncompleteTask: (goalId: string, taskId: string) => Promise<void>;
   refreshTodayTasks: () => Promise<void>;
+  editGoal: (
+    id: string,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+  ) => Promise<void>;
 }
 
 export const useGoalStore = create<GoalState>((set, get) => ({
@@ -42,15 +47,27 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   fetchGoals: async () => {
     set({ loading: true });
-    const goals = await getAllGoals();
-    const today = await getGoalTasksForToday(goals);
-    set({ goals, todayGoalTasks: today, loading: false });
+    try {
+      const goals = await getAllGoals();
+      const today = await getGoalTasksForToday(goals);
+      set({ goals, todayGoalTasks: today, loading: false });
+    } catch {
+      set({ loading: false });
+    }
   },
 
-  addGoal: async (data, tasks) => {
+  addGoal: async (data, tasks): Promise<Goal> => {
     const goal = await createGoal(data, tasks);
     set((state) => ({ goals: [goal, ...state.goals] }));
     await get().refreshTodayTasks();
+    return goal;
+  },
+
+  editGoal: async (id: string, data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>) => {
+    await updateGoal(id, data);
+    set((state) => ({
+      goals: state.goals.map((g) => (g.id === id ? { ...g, ...data } : g)),
+    }));
   },
 
   removeGoal: async (id) => {

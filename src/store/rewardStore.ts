@@ -35,8 +35,12 @@ export const useRewardStore = create<RewardState>((set, get) => ({
 
   fetchRewards: async () => {
     set({ loading: true });
-    const rewards = await getAllRewards();
-    set({ rewards, loading: false });
+    try {
+      const rewards = await getAllRewards();
+      set({ rewards, loading: false });
+    } catch {
+      set({ loading: false });
+    }
   },
 
   addReward: async (data) => {

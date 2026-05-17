@@ -234,6 +234,24 @@ export async function addGoalTask(
   };
 }
 
+export async function updateGoal(
+  id: string,
+  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+): Promise<void> {
+  await db
+    .update(goals)
+    .set({
+      title: data.title,
+      description: data.description,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      color: data.color,
+      tolerance: data.tolerance ?? 0,
+      updatedAt: now(),
+    })
+    .where(eq(goals.id, id));
+}
+
 export async function deleteGoalTask(taskId: string): Promise<void> {
   await db.delete(goalTaskCompletions).where(eq(goalTaskCompletions.goalTaskId, taskId));
   await db.delete(goalTasks).where(eq(goalTasks.id, taskId));
