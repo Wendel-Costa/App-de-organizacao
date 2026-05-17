@@ -127,7 +127,7 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
 
     setLoading(true);
     try {
-      const savedGoal = (await addGoal(
+      const goal = await addGoal(
         {
           title: title.trim(),
           description: description.trim() || undefined,
@@ -137,16 +137,16 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           tolerance,
         },
         localTasks,
-      )) as { id: string } | undefined;
+      );
 
-      if (createRewardToggle && rewardTitle.trim() && savedGoal?.id) {
+      if (createRewardToggle && rewardTitle.trim()) {
         await addReward({
           title: rewardTitle.trim(),
           condition: {
             type: 'goal_completed',
             target: 1,
             period: 'anytime',
-            goalId: savedGoal.id,
+            goalId: goal.id,
           },
         });
       }
