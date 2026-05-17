@@ -16,7 +16,7 @@ import { useRewardStore } from '@/store/rewardStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
-import type { GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
+import type { Goal, GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
 import { TOLERANCE_OPTIONS, toleranceLabel } from '@/services/goals.service';
 
@@ -52,19 +52,22 @@ const WEEKDAYS: { key: RecurrenceDay; label: string }[] = [
 interface CreateGoalScreenProps {
   onBack: () => void;
   onSuccess: () => void;
+  initialGoal?: Goal;
 }
 
-export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
-  const { addGoal } = useGoalStore();
+export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalScreenProps) {
+  const isEditing = !!initialGoal;
+  const { addGoal, editGoal } = useGoalStore();
   const { addReward } = useRewardStore();
 
-  const [title, setTitle] = useState('');
-  const [description, setDesc] = useState('');
+  const [title, setTitle] = useState(initialGoal?.title ?? '');
+  const [description, setDesc] = useState(initialGoal?.description ?? '');
   const [startDate, setStartDate] = useState<string | undefined>(
-    new Date().toISOString().split('T')[0],
+    initialGoal?.startDate ?? new Date().toISOString().split('T')[0],
   );
-  const [endDate, setEndDate] = useState<string | undefined>();
-  const [color, setColor] = useState(COLORS[0]);
+  const [endDate, setEndDate] = useState<string | undefined>(initialGoal?.endDate);
+  const [color, setColor] = useState(initialGoal?.color ?? COLORS[0]);
+  const [tolerance, setTolerance] = useState(initialGoal?.tolerance ?? 0);
   const [loading, setLoading] = useState(false);
   const [localTasks, setLocalTasks] = useState<LocalGoalTask[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -72,7 +75,6 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
   const [taskRecType, setTaskRecType] = useState<GoalTaskRecurrenceType>('daily');
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
-  const [tolerance, setTolerance] = useState(0);
   const [createRewardToggle, setCreateRewardToggle] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
 
@@ -127,32 +129,44 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
 
     setLoading(true);
     try {
-      const goal = await addGoal(
-        {
+      if (isEditing && initialGoal) {
+        await editGoal(initialGoal.id, {
           title: title.trim(),
           description: description.trim() || undefined,
           startDate,
           endDate,
           color,
           tolerance,
-        },
-        localTasks,
-      );
-
-      if (createRewardToggle && rewardTitle.trim()) {
-        await addReward({
-          title: rewardTitle.trim(),
-          condition: {
-            type: 'goal_completed',
-            target: 1,
-            period: 'anytime',
-            goalId: goal.id,
-          },
         });
+      } else {
+        const goal = await addGoal(
+          {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            startDate,
+            endDate,
+            color,
+            tolerance,
+          },
+          localTasks,
+        );
+
+        if (createRewardToggle && rewardTitle.trim()) {
+          await addReward({
+            title: rewardTitle.trim(),
+            condition: {
+              type: 'goal_completed',
+              target: 1,
+              period: 'anytime',
+              goalId: goal.id,
+            },
+          });
+        }
       }
 
       onSuccess();
-    } catch {
+    } catch (error) {
+      console.error(error);
       Alert.alert('Erro', 'Não foi possível salvar a meta.');
     } finally {
       setLoading(false);
@@ -171,12 +185,14 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
         return task.recurrenceDays.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).join(', ');
       case 'none':
         return `${task.recurrenceCount}x no período`;
+      default:
+        return '';
     }
   }
 
   return (
     <View style={globalStyles.screen}>
-      <Header title="Nova meta" onBack={onBack} />
+      <Header title={isEditing ? 'Editar meta' : 'Nova meta'} onBack={onBack} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -237,149 +253,160 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           ))}
         </View>
 
-        <View style={styles.taskSectionHeader}>
-          <Text style={styles.sectionTitle}>Hábitos e tarefas</Text>
-          <TouchableOpacity
-            style={styles.addTaskBtn}
-            onPress={() => setShowTaskForm(!showTaskForm)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={showTaskForm ? 'close' : 'plus'}
-              size={18}
-              color={colors.primaryDark}
-            />
-            <Text style={styles.addTaskBtnLabel}>{showTaskForm ? 'Cancelar' : 'Adicionar'}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {showTaskForm && (
-          <View style={styles.taskForm}>
-            <Text style={styles.label}>Nome do hábito/tarefa *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: Ver videoaula, Treinar..."
-              placeholderTextColor={colors.textDisabled}
-              value={taskTitle}
-              onChangeText={setTaskTitle}
-              maxLength={80}
-              autoFocus
-            />
-
-            <Text style={styles.label}>Frequência</Text>
-            <View style={styles.recTypeRow}>
-              {RECURRENCE_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.recChip, taskRecType === opt.key && styles.recChipActive]}
-                  onPress={() => setTaskRecType(opt.key)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={opt.icon as any}
-                    size={14}
-                    color={taskRecType === opt.key ? colors.textOnPrimary : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.recChipLabel,
-                      taskRecType === opt.key && styles.recChipLabelActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+        {!isEditing && (
+          <>
+            <View style={styles.taskSectionHeader}>
+              <Text style={styles.sectionTitle}>Hábitos e tarefas</Text>
+              <TouchableOpacity
+                style={styles.addTaskBtn}
+                onPress={() => setShowTaskForm(!showTaskForm)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={showTaskForm ? 'close' : 'plus'}
+                  size={18}
+                  color={colors.primaryDark}
+                />
+                <Text style={styles.addTaskBtnLabel}>
+                  {showTaskForm ? 'Cancelar' : 'Adicionar'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {(taskRecType === 'times_per_week' ||
-              taskRecType === 'times_per_month' ||
-              taskRecType === 'none') && (
-              <View style={styles.counterRow}>
-                <Text style={styles.label}>
-                  {taskRecType === 'times_per_week' && 'Vezes por semana'}
-                  {taskRecType === 'times_per_month' && 'Vezes por mês'}
-                  {taskRecType === 'none' && 'Total no período'}
-                </Text>
-                <View style={styles.counter}>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setTaskRecCount((p) => Math.max(1, p - 1))}
-                  >
-                    <MaterialCommunityIcons name="minus" size={18} color={colors.textPrimary} />
-                  </TouchableOpacity>
-                  <Text style={styles.counterValue}>{taskRecCount}</Text>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setTaskRecCount((p) => p + 1)}
-                  >
-                    <MaterialCommunityIcons name="plus" size={18} color={colors.textPrimary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+            {showTaskForm && (
+              <View style={styles.taskForm}>
+                <Text style={styles.label}>Nome do hábito/tarefa *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Ver videoaula, Treinar..."
+                  placeholderTextColor={colors.textDisabled}
+                  value={taskTitle}
+                  onChangeText={setTaskTitle}
+                  maxLength={80}
+                  autoFocus
+                />
 
-            {taskRecType === 'specific_days' && (
-              <>
-                <Text style={styles.label}>Dias da semana</Text>
-                <View style={styles.daysRow}>
-                  {WEEKDAYS.map((d) => (
+                <Text style={styles.label}>Frequência</Text>
+                <View style={styles.recTypeRow}>
+                  {RECURRENCE_OPTIONS.map((opt) => (
                     <TouchableOpacity
-                      key={d.key}
-                      style={[styles.dayChip, taskRecDays.includes(d.key) && styles.dayChipActive]}
-                      onPress={() => toggleDay(d.key)}
+                      key={opt.key}
+                      style={[styles.recChip, taskRecType === opt.key && styles.recChipActive]}
+                      onPress={() => setTaskRecType(opt.key)}
                       activeOpacity={0.7}
                     >
+                      <MaterialCommunityIcons
+                        name={opt.icon as any}
+                        size={14}
+                        color={
+                          taskRecType === opt.key ? colors.textOnPrimary : colors.textSecondary
+                        }
+                      />
                       <Text
                         style={[
-                          styles.dayChipLabel,
-                          taskRecDays.includes(d.key) && styles.dayChipLabelActive,
+                          styles.recChipLabel,
+                          taskRecType === opt.key && styles.recChipLabelActive,
                         ]}
                       >
-                        {d.label}
+                        {opt.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-              </>
+
+                {(taskRecType === 'times_per_week' ||
+                  taskRecType === 'times_per_month' ||
+                  taskRecType === 'none') && (
+                  <View style={styles.counterRow}>
+                    <Text style={styles.label}>
+                      {taskRecType === 'times_per_week' && 'Vezes por semana'}
+                      {taskRecType === 'times_per_month' && 'Vezes por mês'}
+                      {taskRecType === 'none' && 'Total no período'}
+                    </Text>
+                    <View style={styles.counter}>
+                      <TouchableOpacity
+                        style={styles.counterBtn}
+                        onPress={() => setTaskRecCount((p) => Math.max(1, p - 1))}
+                      >
+                        <MaterialCommunityIcons name="minus" size={18} color={colors.textPrimary} />
+                      </TouchableOpacity>
+                      <Text style={styles.counterValue}>{taskRecCount}</Text>
+                      <TouchableOpacity
+                        style={styles.counterBtn}
+                        onPress={() => setTaskRecCount((p) => p + 1)}
+                      >
+                        <MaterialCommunityIcons name="plus" size={18} color={colors.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {taskRecType === 'specific_days' && (
+                  <>
+                    <Text style={styles.label}>Dias da semana</Text>
+                    <View style={styles.daysRow}>
+                      {WEEKDAYS.map((d) => (
+                        <TouchableOpacity
+                          key={d.key}
+                          style={[
+                            styles.dayChip,
+                            taskRecDays.includes(d.key) && styles.dayChipActive,
+                          ]}
+                          onPress={() => toggleDay(d.key)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.dayChipLabel,
+                              taskRecDays.includes(d.key) && styles.dayChipLabelActive,
+                            ]}
+                          >
+                            {d.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <Button
+                  label="Adicionar hábito/tarefa"
+                  onPress={handleAddTask}
+                  variant="secondary"
+                  fullWidth
+                  style={styles.addTaskConfirmBtn}
+                />
+              </View>
             )}
 
-            <Button
-              label="Adicionar hábito/tarefa"
-              onPress={handleAddTask}
-              variant="secondary"
-              fullWidth
-              style={styles.addTaskConfirmBtn}
-            />
-          </View>
-        )}
-
-        {localTasks.length > 0 && (
-          <View style={styles.taskList}>
-            {localTasks.map((task, index) => (
-              <View key={index} style={styles.taskItem}>
-                <View style={styles.taskItemLeft}>
-                  <Text style={styles.taskItemTitle}>{task.title}</Text>
-                  <Text style={styles.taskItemSub}>{recurrenceLabel(task)}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => removeLocalTask(index)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
-                </TouchableOpacity>
+            {localTasks.length > 0 && (
+              <View style={styles.taskList}>
+                {localTasks.map((task, index) => (
+                  <View key={index} style={styles.taskItem}>
+                    <View style={styles.taskItemLeft}>
+                      <Text style={styles.taskItemTitle}>{task.title}</Text>
+                      <Text style={styles.taskItemSub}>{recurrenceLabel(task)}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => removeLocalTask(index)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        )}
+            )}
 
-        {localTasks.length === 0 && !showTaskForm && (
-          <View style={styles.emptyTasks}>
-            <Text style={styles.emptyTasksText}>
-              Nenhum hábito/tarefa adicionado ainda.{'\n'}
-              Adicione o que precisa fazer para cumprir essa meta.
-            </Text>
-          </View>
+            {localTasks.length === 0 && !showTaskForm && (
+              <View style={styles.emptyTasks}>
+                <Text style={styles.emptyTasksText}>
+                  Nenhum hábito/tarefa adicionado ainda.{'\n'}
+                  Adicione o que precisa fazer para cumprir essa meta.
+                </Text>
+              </View>
+            )}
+          </>
         )}
 
         <Text style={styles.label}>Margem de erro</Text>
@@ -411,37 +438,43 @@ export function CreateGoalScreen({ onBack, onSuccess }: CreateGoalScreenProps) {
           ))}
         </View>
 
-        <View style={styles.rewardToggleRow}>
-          <TouchableOpacity
-            style={styles.rewardToggle}
-            onPress={() => setCreateRewardToggle((p) => !p)}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={createRewardToggle ? 'checkbox-marked' : 'checkbox-blank-outline'}
-              size={22}
-              color={createRewardToggle ? colors.primary : colors.textDisabled}
-            />
-            <Text style={styles.rewardToggleLabel}>Criar recompensa ao completar esta meta</Text>
-          </TouchableOpacity>
-        </View>
-
-        {createRewardToggle && (
+        {!isEditing && (
           <>
-            <Text style={styles.label}>Nome da recompensa</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: Viagem, Presente, Dia de folga..."
-              placeholderTextColor={colors.textDisabled}
-              value={rewardTitle}
-              onChangeText={setRewardTitle}
-              maxLength={60}
-            />
+            <View style={styles.rewardToggleRow}>
+              <TouchableOpacity
+                style={styles.rewardToggle}
+                onPress={() => setCreateRewardToggle((p) => !p)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={createRewardToggle ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                  size={22}
+                  color={createRewardToggle ? colors.primary : colors.textDisabled}
+                />
+                <Text style={styles.rewardToggleLabel}>
+                  Criar recompensa ao completar esta meta
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {createRewardToggle && (
+              <>
+                <Text style={styles.label}>Nome da recompensa</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Viagem, Presente, Dia de folga..."
+                  placeholderTextColor={colors.textDisabled}
+                  value={rewardTitle}
+                  onChangeText={setRewardTitle}
+                  maxLength={60}
+                />
+              </>
+            )}
           </>
         )}
 
         <Button
-          label="Criar meta"
+          label={isEditing ? 'Salvar alterações' : 'Criar meta'}
           onPress={handleSave}
           fullWidth
           loading={loading}

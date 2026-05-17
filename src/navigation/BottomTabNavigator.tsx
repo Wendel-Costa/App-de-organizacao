@@ -2,7 +2,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '@/styles/theme';
-import { useTaskStore } from '@/store/taskStore';
 import { HomeScreen } from '@/screens/Home';
 import { TasksScreen } from '@/screens/Tasks';
 import { FocusScreen } from '@/screens/Focus';
@@ -18,8 +17,6 @@ export type BottomTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
-
-const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 export function BottomTabNavigator() {
   const insets = useSafeAreaInsets();

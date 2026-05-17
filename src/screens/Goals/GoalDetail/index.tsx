@@ -21,6 +21,7 @@ import { TextInputModal } from '@/components/TextInputModal';
 import type { Goal, GoalTaskRecurrenceType, LocalGoalTask } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
 import { calcGoalProgress, calcTaskProgress, toleranceLabel } from '@/services/goals.service';
+import { CreateGoalScreen } from '../CreateGoal'; // ATENÇÃO: Confirme se este caminho está correto!
 
 const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
   { key: 'daily', label: 'Diário' },
@@ -56,11 +57,13 @@ function recurrenceLabel(
       return days.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).join(', ');
     case 'none':
       return `${count}x no período total`;
+    default:
+      return '';
   }
 }
 
 function calcProgress(goal: Goal): number {
-  if (goal.tasks.length === 0) return 0;
+  if (!goal.tasks || goal.tasks.length === 0) return 0;
   const total = goal.tasks.reduce((acc, t) => acc + t.targetCount, 0);
   const completed = goal.tasks.reduce((acc, t) => acc + t.completedCount, 0);
   return total > 0 ? completed / total : 0;
@@ -72,17 +75,23 @@ interface GoalDetailScreenProps {
   onDeleted: () => void;
 }
 
-export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenProps) {
-  const { addTask, removeTask, removeGoal, completeTask, uncompleteTask } = useGoalStore();
+export function GoalDetailScreen({
+  goal: initialGoalProp,
+  onBack,
+  onDeleted,
+}: GoalDetailScreenProps) {
+  const { goals, addTask, removeTask, removeGoal, completeTask, uncompleteTask } = useGoalStore();
   const { addReward } = useRewardStore();
 
-  const [showAddTask, setShowAddTask] = useState(false);
+  const goal = goals.find((g) => g.id === initialGoalProp.id) || initialGoalProp;
+
   const [taskTitle, setTaskTitle] = useState('');
   const [taskRecType, setTaskRecType] = useState<GoalTaskRecurrenceType>('daily');
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const progress = calcGoalProgress(goal);
   const accentColor = goal.color ?? colors.primary;
@@ -131,12 +140,22 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
     ]);
   }
 
+  if (showEdit) {
+    return (
+      <CreateGoalScreen
+        initialGoal={goal}
+        onBack={() => setShowEdit(false)}
+        onSuccess={() => setShowEdit(false)}
+      />
+    );
+  }
+
   return (
     <View style={globalStyles.screen}>
       <Header
         title="Detalhe da meta"
         onBack={onBack}
-        rightAction={{ icon: 'trash-can-outline', onPress: handleDelete }}
+        rightAction={{ icon: 'pencil-outline', onPress: () => setShowEdit(true) }}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -174,7 +193,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
         </Card>
 
         <View style={styles.taskSectionHeader}>
-          <Text style={styles.sectionTitle}>Hábitos e tarefas ({goal.tasks.length})</Text>
+          <Text style={styles.sectionTitle}>Hábitos e tarefas ({goal.tasks?.length || 0})</Text>
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: accentColor + '22' }]}
             onPress={() => setShowForm(!showForm)}
@@ -287,7 +306,7 @@ export function GoalDetailScreen({ goal, onBack, onDeleted }: GoalDetailScreenPr
           </Card>
         )}
 
-        {goal.tasks.length === 0 ? (
+        {!goal.tasks || goal.tasks.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>
               Nenhum hábito/tarefa ainda. Adicione o que precisa fazer para cumprir esta meta.
