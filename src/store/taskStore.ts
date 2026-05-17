@@ -108,10 +108,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   toggleComplete: async (id, completed) => {
     try {
       await toggleTaskComplete(id, completed);
+      const now = new Date().toISOString();
       set((state) => ({
         tasks: state.tasks.map((t) =>
           t.id === id
-            ? { ...t, completed, completedAt: completed ? new Date().toISOString() : undefined }
+            ? {
+                ...t,
+                completed,
+                updatedAt: now,
+                completedAt: completed ? now : undefined,
+              }
             : t,
         ),
       }));
