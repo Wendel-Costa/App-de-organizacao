@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -77,6 +77,8 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [createRewardToggle, setCreateRewardToggle] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+  const [taskSectionY, setTaskSectionY] = useState(0);
 
   function toggleDay(day: RecurrenceDay) {
     setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -195,6 +197,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
       <Header title={isEditing ? 'Editar meta' : 'Nova meta'} onBack={onBack} />
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -255,11 +258,29 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
 
         {!isEditing && (
           <>
-            <View style={styles.taskSectionHeader}>
+            <View
+              style={styles.taskSectionHeader}
+              onLayout={(event) => {
+                setTaskSectionY(event.nativeEvent.layout.y);
+              }}
+            >
               <Text style={styles.sectionTitle}>Hábitos e tarefas</Text>
               <TouchableOpacity
                 style={styles.addTaskBtn}
-                onPress={() => setShowTaskForm(!showTaskForm)}
+                onPress={() => {
+                  const opening = !showTaskForm;
+
+                  setShowTaskForm(opening);
+
+                  if (opening) {
+                    setTimeout(() => {
+                      scrollRef.current?.scrollTo({
+                        y: Math.max(taskSectionY - 20, 0),
+                        animated: true,
+                      });
+                    }, 100);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons
@@ -283,7 +304,6 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                   value={taskTitle}
                   onChangeText={setTaskTitle}
                   maxLength={80}
-                  autoFocus
                 />
 
                 <Text style={styles.label}>Frequência</Text>
@@ -649,6 +669,7 @@ const styles = StyleSheet.create({
   },
   addTaskConfirmBtn: {
     marginTop: spacing.md,
+    backgroundColor: colors.primary,
   },
 
   taskList: {

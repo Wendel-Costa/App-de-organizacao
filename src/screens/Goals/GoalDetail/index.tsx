@@ -404,7 +404,7 @@ export function GoalDetailScreen({
               },
             });
             setShowRewardModal(false);
-            Alert.alert('✅', 'Recompensa criada! Veja em Conquistas.');
+            Alert.alert('Concluído', 'Recompensa criada! Veja em Conquistas.');
           }}
           onCancel={() => setShowRewardModal(false)}
         />

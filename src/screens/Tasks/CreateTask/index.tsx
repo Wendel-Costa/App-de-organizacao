@@ -245,17 +245,19 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           ))}
         </View>
 
-        <DatePicker
-          label="Data limite (opcional)"
-          value={dueDate}
-          onChange={setDueDate}
-          placeholder="Selecionar data limite"
-          minimumDate={
-            type === 'scheduled' && scheduledDate
-              ? new Date(scheduledDate + 'T12:00:00')
-              : new Date()
-          }
-        />
+        <View style={{ marginTop: spacing.md }}>
+          <DatePicker
+            label="Data limite (opcional)"
+            value={dueDate}
+            onChange={setDueDate}
+            placeholder="Selecionar data limite"
+            minimumDate={
+              type === 'scheduled' && scheduledDate
+                ? new Date(scheduledDate + 'T12:00:00')
+                : new Date()
+            }
+          />
+        </View>
 
         {themes.length > 0 && (
           <>
@@ -289,10 +291,12 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         )}
 
         <Text style={styles.label}>Subtarefas</Text>
+        <Text style={styles.sublabel}>Escreva no campo abaixo e toque em + para adicionar</Text>
+
         <View style={styles.subtaskInput}>
           <TextInput
             style={styles.subtaskTextInput}
-            placeholder="Nova subtarefa..."
+            placeholder="Ex: Ler capítulo 1..."
             placeholderTextColor={colors.textDisabled}
             value={newSubtask}
             onChangeText={setNewSubtask}
@@ -301,10 +305,15 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           />
           <TouchableOpacity
             onPress={addSubtask}
-            style={styles.subtaskAddButton}
+            style={[styles.subtaskAddButton, !newSubtask.trim() && styles.subtaskAddButtonDisabled]}
+            disabled={!newSubtask.trim()}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="plus" size={22} color={colors.primaryDark} />
+            <MaterialCommunityIcons
+              name="plus"
+              size={22}
+              color={newSubtask.trim() ? colors.primaryDark : colors.textDisabled}
+            />
           </TouchableOpacity>
         </View>
 
@@ -486,4 +495,11 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.xl,
   },
+  sublabel: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginBottom: spacing.xs,
+    marginTop: -spacing.xs,
+  },
+  subtaskAddButtonDisabled: { opacity: 0.4 },
 });
