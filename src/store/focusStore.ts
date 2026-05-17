@@ -8,6 +8,7 @@ import {
   deleteSession,
   deleteTheme,
   getSessionsForDate,
+  updateSessionTheme,
 } from '@/database/queries/focus.queries';
 
 interface FocusState {
@@ -32,6 +33,7 @@ interface FocusState {
   removeSession: (id: string) => Promise<void>;
   removeTheme: (id: string) => Promise<void>;
   getTodaySessions: () => Promise<FocusSession[]>;
+  editSessionTheme: (id: string, themeId?: string, themeName?: string) => Promise<void>;
 
   setMode: (mode: FocusMode) => void;
   setSelectedTheme: (theme: FocusTheme | null) => void;
@@ -204,5 +206,11 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     } else {
       set({ elapsedSeconds: elapsed });
     }
+  },
+  editSessionTheme: async (id, themeId, themeName) => {
+    await updateSessionTheme(id, themeId, themeName);
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === id ? { ...s, themeId, themeName } : s)),
+    }));
   },
 }));

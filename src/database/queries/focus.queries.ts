@@ -89,6 +89,17 @@ export async function deleteSession(id: string): Promise<void> {
   await db.delete(focusSessions).where(eq(focusSessions.id, id));
 }
 
+export async function updateSessionTheme(
+  id: string,
+  themeId: string | undefined,
+  themeName: string | undefined,
+): Promise<void> {
+  await db
+    .update(focusSessions)
+    .set({ themeId: themeId ?? null, themeName: themeName ?? null })
+    .where(eq(focusSessions.id, id));
+}
+
 function rowToSession(row: typeof focusSessions.$inferSelect): FocusSession {
   return {
     id: row.id,

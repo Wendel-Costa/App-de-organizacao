@@ -9,6 +9,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { TimelineBar } from '@/components/TimelineBar';
 import { ManualRegisterScreen } from '../ActiveFocus/ManualRegister';
+import { ScrollView } from 'react-native-gesture-handler';
 
 interface FocusHistoryScreenProps {
   onBack: () => void;
@@ -41,6 +42,8 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
   const { sessions, themes, fetchSessions, fetchThemes, removeSession } = useFocusStore();
   const [showManual, setShowManual] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editingSession, setEditingSession] = useState<string | null>(null);
+  const { editSessionTheme } = useFocusStore();
 
   useEffect(() => {
     fetchSessions();
@@ -165,10 +168,21 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                     </Text>
                   </View>
                 </View>
-
                 <View style={styles.sessionRight}>
                   <Text style={styles.sessionDuration}>{formatDuration(item.duration)}</Text>
                   {item.isManual && <Text style={styles.manualBadge}>manual</Text>}
+
+                  <TouchableOpacity
+                    onPress={() => setEditingSession(item.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons
+                      name="tag-outline"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     onPress={() => handleDelete(item.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -181,6 +195,56 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {editingSession === item.id && (
+                <View style={styles.themeSelector}>
+                  <Text style={styles.themeSelectorLabel}>Alterar tema:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.themeSelectorRow}
+                  >
+                    <TouchableOpacity
+                      style={[styles.themeChip, !item.themeId && styles.themeChipActive]}
+                      onPress={async () => {
+                        await editSessionTheme(item.id, undefined, undefined);
+                        setEditingSession(null);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.themeChipLabel,
+                          !item.themeId && styles.themeChipLabelActive,
+                        ]}
+                      >
+                        Geral
+                      </Text>
+                    </TouchableOpacity>
+
+                    {themes.map((t) => (
+                      <TouchableOpacity
+                        key={t.id}
+                        style={[styles.themeChip, item.themeId === t.id && styles.themeChipActive]}
+                        onPress={async () => {
+                          await editSessionTheme(item.id, t.id, t.name);
+                          setEditingSession(null);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.themeChipLabel,
+                            item.themeId === t.id && styles.themeChipLabelActive,
+                          ]}
+                        >
+                          {t.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </Card>
           )}
         />
@@ -276,4 +340,23 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radius.full,
   },
+  themeSelector: {
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  themeSelectorLabel: { ...typography.xs, color: colors.textSecondary },
+  themeSelectorRow: { flexDirection: 'row', gap: spacing.xs, paddingBottom: spacing.xs },
+  themeChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
+  themeChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
+  themeChipLabelActive: { color: colors.textOnPrimary },
 });
