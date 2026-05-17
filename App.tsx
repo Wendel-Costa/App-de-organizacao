@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -20,12 +20,31 @@ Notifications.setNotificationHandler({
 
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     runMigrations()
-      .then(() => setDbReady(true))
-      .catch(console.error);
+      .then(() => {
+        setDbReady(true);
+        setDbError(false);
+      })
+      .catch((e) => {
+        console.error('Migration error:', e);
+        setDbError(true);
+      });
   }, []);
+
+  if (dbError) {
+    return (
+      <GestureHandlerRootView style={globalStyles.flex}>
+        <SafeAreaProvider>
+          <View style={[globalStyles.center, { gap: 12, padding: 24 }]}>
+            <ActivityIndicator size="large" color={colors.error} />
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   if (!dbReady) {
     return (
