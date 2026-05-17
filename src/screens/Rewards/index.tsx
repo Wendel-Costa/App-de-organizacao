@@ -24,8 +24,7 @@ import { RewardCard } from '@/components/RewardCard';
 import { EmptyState } from '@/components/EmptyState';
 import { DatePicker } from '@/components/DatePicker';
 import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
-
-type Screen = 'list' | 'create';
+import { RewardDetailScreen } from './RewardDetail';
 
 const CONDITION_OPTIONS: { key: RewardConditionType; label: string; icon: string }[] = [
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
@@ -50,6 +49,8 @@ export function RewardsScreen() {
   const { tasks, fetchTasks } = useTaskStore();
   const { goals, fetchGoals } = useGoalStore();
 
+  const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
+  type Screen = 'list' | 'create' | 'detail';
   const [screen, setScreen] = useState<Screen>('list');
 
   const [title, setTitle] = useState('');
@@ -189,6 +190,23 @@ export function RewardsScreen() {
 
   const needsPeriod = conditionType === 'focus_hours' || conditionType === 'tasks_completed';
   const needsTarget = conditionType === 'focus_hours' || conditionType === 'tasks_completed';
+
+  if (screen === 'detail' && selectedReward) {
+    return (
+      <RewardDetailScreen
+        reward={rewards.find((r) => r.id === selectedReward.id) ?? selectedReward}
+        sessions={sessions}
+        tasks={tasks}
+        goals={goals}
+        onBack={() => setScreen('list')}
+        onEdit={() => {
+          handleEdit(selectedReward);
+          setScreen('create');
+        }}
+        onDeleted={() => setScreen('list')}
+      />
+    );
+  }
 
   if (screen === 'create') {
     return (
@@ -524,7 +542,10 @@ export function RewardsScreen() {
                   tasks={tasks}
                   goals={goals}
                   onDelete={handleDelete}
-                  onEdit={handleEdit}
+                  onPress={(reward) => {
+                    setSelectedReward(reward);
+                    setScreen('detail');
+                  }}
                 />
               ))}
             </>
@@ -550,7 +571,10 @@ export function RewardsScreen() {
                   tasks={tasks}
                   goals={goals}
                   onDelete={handleDelete}
-                  onEdit={handleEdit}
+                  onPress={(reward) => {
+                    setSelectedReward(reward);
+                    setScreen('detail');
+                  }}
                 />
               ))}
             </>

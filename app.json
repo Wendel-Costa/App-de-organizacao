@@ -19,27 +19,7 @@
       "package": "com.wendeldavi.focusflow"
     },
     "platforms": ["android"],
-    "plugins": [
-      "expo-sqlite",
-      "@react-native-community/datetimepicker",
-      [
-        "react-native-android-widget",
-        {
-          "widgets": [
-            {
-              "name": "FocoWidget",
-              "label": "FocoMais",
-              "description": "Tarefas e foco do dia",
-              "minWidth": "250dp",
-              "minHeight": "110dp",
-              "targetCellWidth": 4,
-              "targetCellHeight": 2,
-              "updatePeriodMinutes": 30
-            }
-          ]
-        }
-      ]
-    ],
+    "plugins": ["expo-sqlite", "@react-native-community/datetimepicker"],
     "extra": {
       "eas": {
         "projectId": "39f6c4b9-4b5b-42de-aa23-ff7c04057557"

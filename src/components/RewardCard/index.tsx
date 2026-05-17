@@ -13,10 +13,10 @@ interface RewardCardProps {
   tasks: Task[];
   goals: Goal[];
   onDelete: (id: string) => void;
-  onEdit: (reward: Reward) => void;
+  onPress: (reward: Reward) => void;
 }
 
-export function RewardCard({ reward, sessions, tasks, goals, onDelete, onEdit }: RewardCardProps) {
+export function RewardCard({ reward, sessions, tasks, goals, onDelete, onPress }: RewardCardProps) {
   const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
 
@@ -33,7 +33,11 @@ export function RewardCard({ reward, sessions, tasks, goals, onDelete, onEdit }:
   const conditionText = formatCondition(reward, theme, taskTitles, goalTitle);
 
   return (
-    <View style={[styles.container, reward.unlocked && styles.containerUnlocked]}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => onPress(reward)}
+      style={[styles.container, reward.unlocked && styles.containerUnlocked]}
+    >
       <View style={[styles.iconWrapper, reward.unlocked && styles.iconWrapperUnlocked]}>
         <MaterialCommunityIcons
           name={reward.unlocked ? 'trophy' : 'trophy-outline'}
@@ -84,15 +88,11 @@ export function RewardCard({ reward, sessions, tasks, goals, onDelete, onEdit }:
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => onEdit(reward)}>
-          <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-
         <TouchableOpacity style={[styles.actionButton]} onPress={() => onDelete(reward.id)}>
           <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
