@@ -9,8 +9,6 @@ import { colors } from '@/styles/theme';
 import { runMigrations } from '@/database/migrations';
 import { Navigation } from '@/navigation';
 
-import { updateWidget } from '@/widgets/widgetTask';
-
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -25,20 +23,8 @@ export default function App() {
 
   useEffect(() => {
     runMigrations()
-      .then(async () => {
-        setDbReady(true);
-        updateWidget().catch(() => {});
-      })
+      .then(() => setDbReady(true))
       .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') {
-        updateWidget().catch(() => {});
-      }
-    });
-    return () => sub.remove();
   }, []);
 
   if (!dbReady) {
