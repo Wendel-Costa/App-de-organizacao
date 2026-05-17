@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
@@ -48,6 +48,27 @@ export function HomeScreen() {
       fetchGoals();
       fetchSessions();
     }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (showReports) {
+          setShowReports(false);
+          return true;
+        }
+        if (showSettings) {
+          setShowSettings(false);
+          return true;
+        }
+        if (showActiveFocus) {
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [showReports, showSettings, showActiveFocus]),
   );
 
   useEffect(() => {
