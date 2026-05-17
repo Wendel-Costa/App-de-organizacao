@@ -1,14 +1,7 @@
-import * as SQLite from 'expo-sqlite';
 import { db } from '../index';
 import { sql } from 'drizzle-orm';
 
 export async function runMigrations() {
-  const rawDb = SQLite.openDatabaseSync('focomais.db');
-  try {
-    rawDb.runSync('PRAGMA journal_mode=WAL');
-    rawDb.runSync('PRAGMA synchronous=NORMAL');
-  } catch {}
-
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS tasks (
       id            TEXT PRIMARY KEY,

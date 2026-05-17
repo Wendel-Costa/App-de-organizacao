@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
 import type { Task, RecurrenceDay } from '@/types/task.types';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
 type Screen = 'list' | 'create' | 'detail' | 'edit';
@@ -62,11 +63,13 @@ export function TasksScreen() {
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchTasks();
-    fetchThemes();
-    fetchGoals();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchTasks();
+      fetchThemes();
+      fetchGoals();
+    }, []),
+  );
 
   useEffect(() => {
     setShowAllCompleted(false);

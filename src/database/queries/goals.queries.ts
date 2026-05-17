@@ -111,19 +111,42 @@ async function getCompletionStats(goalTaskId: string): Promise<{
 }
 
 export async function getAllGoals(): Promise<Goal[]> {
-  const rows = await db.select().from(goals);
-  return Promise.all(
-    rows.map(async (row) => {
-      const taskRows = await db.select().from(goalTasks).where(eq(goalTasks.goalId, row.id));
-      const tasks = await Promise.all(
-        taskRows.map(async (t) => {
-          const stats = await getCompletionStats(t.id);
-          return rowToTask(t, stats);
-        }),
-      );
-      return rowToGoal(row, tasks);
-    }),
-  );
+  const goalRows = await db.select().from(goals);
+  if (goalRows.length === 0) return [];
+
+  const taskRows = await db.select().from(goalTasks);
+  const completionRows = await db.select().from(goalTaskCompletions);
+
+  const todayStr = today();
+  const week = getWeekRange();
+  const month = getMonthRange();
+
+  const completionsByTaskId = new Map<string, typeof completionRows>();
+  for (const c of completionRows) {
+    if (!completionsByTaskId.has(c.goalTaskId)) {
+      completionsByTaskId.set(c.goalTaskId, []);
+    }
+    completionsByTaskId.get(c.goalTaskId)!.push(c);
+  }
+
+  const tasksByGoalId = new Map<string, GoalTask[]>();
+  for (const t of taskRows) {
+    const comps = completionsByTaskId.get(t.id) ?? [];
+    const stats = {
+      completedCount: comps.length,
+      completedToday: comps.some((c) => c.completedDate === todayStr),
+      completionsThisWeek: comps.filter(
+        (c) => c.completedDate >= week.start && c.completedDate <= week.end,
+      ).length,
+      completionsThisMonth: comps.filter(
+        (c) => c.completedDate >= month.start && c.completedDate <= month.end,
+      ).length,
+    };
+    if (!tasksByGoalId.has(t.goalId)) tasksByGoalId.set(t.goalId, []);
+    tasksByGoalId.get(t.goalId)!.push(rowToTask(t, stats));
+  }
+
+  return goalRows.map((row) => rowToGoal(row, tasksByGoalId.get(row.id) ?? []));
 }
 
 export async function createGoal(

@@ -13,12 +13,17 @@ function now() {
 
 export async function getAllTasks(): Promise<Task[]> {
   const rows = await db.select().from(tasks);
-  return Promise.all(
-    rows.map(async (row) => {
-      const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, row.id));
-      return rowToTask(row, subs);
-    }),
-  );
+  if (rows.length === 0) return [];
+  const allSubs = await db.select().from(subtasks);
+  const subsByTaskId = new Map<string, typeof allSubs>();
+  for (const sub of allSubs) {
+    if (!subsByTaskId.has(sub.taskId)) {
+      subsByTaskId.set(sub.taskId, []);
+    }
+    subsByTaskId.get(sub.taskId)!.push(sub);
+  }
+
+  return rows.map((row) => rowToTask(row, subsByTaskId.get(row.id) ?? []));
 }
 
 export async function createTask(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { CreateGoalScreen } from './CreateGoal';
 import { GoalDetailScreen } from './GoalDetail';
 import type { Goal, GoalTaskRecurrenceType } from '@/types/goal.types';
 import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Screen = 'list' | 'create' | 'detail';
 
@@ -43,9 +44,11 @@ export function GoalsScreen() {
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
 
-  useEffect(() => {
-    fetchGoals();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchGoals();
+    }, []),
+  );
 
   async function handleCompleteTask(goalId: string, taskId: string) {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
