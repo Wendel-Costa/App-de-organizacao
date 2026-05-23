@@ -40,11 +40,15 @@ interface FocusState {
   startFocus: () => void;
   pauseFocus: () => void;
   resumeFocus: () => void;
-  stopFocus: () => Promise<void>;
+  stopFocus: () => Promise<{ conflict: boolean }>;
   tickTimer: () => void;
   setPomodoroConfig: (workMinutes: number, breakMinutes: number) => void;
 
   recalculateFromStart: () => void;
+}
+
+function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {
+  return startA < endB && endA > startB;
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({
@@ -149,13 +153,33 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   stopFocus: async () => {
-    const { startTime, elapsedSeconds, mode, selectedTheme, pomodoroRounds } = get();
+    const { startTime, elapsedSeconds, mode, selectedTheme, pomodoroRounds, sessions } = get();
+
     if (!startTime || elapsedSeconds < 10) {
       set({ status: 'idle', startTime: null, elapsedSeconds: 0 });
-      return;
+      return { conflict: false };
     }
 
     const endTime = new Date();
+    const sessionDate = startTime.toISOString().split('T')[0];
+
+    const conflict = sessions.some((s) => {
+      const sDate = new Date(s.startTime).toISOString().split('T')[0];
+      if (sDate !== sessionDate) return false;
+      return hasTimeOverlap(startTime, endTime, new Date(s.startTime), new Date(s.endTime));
+    });
+
+    if (conflict) {
+      set({
+        status: 'idle',
+        startTime: null,
+        elapsedSeconds: 0,
+        pomodoroRounds: 0,
+        isOnBreak: false,
+      });
+      return { conflict: true };
+    }
+
     const duration = Math.floor(elapsedSeconds / 60);
 
     await get().addSession({
@@ -176,14 +200,16 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       pomodoroRounds: 0,
       isOnBreak: false,
     });
+
+    return { conflict: false };
   },
 
   setPomodoroConfig: (workMinutes, breakMinutes) =>
     set({ pomodoroWorkMinutes: workMinutes, pomodoroBreakMinutes: breakMinutes }),
 
   recalculateFromStart: () => {
-    const { startTime, mode, pomodoroWorkMinutes, pomodoroBreakMinutes } = get();
-    if (!startTime) return;
+    const { startTime, status, mode, pomodoroWorkMinutes, pomodoroBreakMinutes } = get();
+    if (!startTime || status !== 'running') return;
 
     const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
 
