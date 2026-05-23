@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -48,6 +49,20 @@ export function GoalsScreen() {
     useCallback(() => {
       fetchGoals();
     }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen === 'create' || screen === 'detail') {
+          setScreen('list');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen]),
   );
 
   async function handleCompleteTask(goalId: string, taskId: string) {

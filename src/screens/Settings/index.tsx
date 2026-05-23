@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -373,11 +373,6 @@ const styles = StyleSheet.create({
     ...typography.sm,
     color: colors.textSecondary,
   },
-  versionText: {
-    ...typography.label,
-    color: colors.textDisabled,
-  },
-
   nameInputRow: { paddingHorizontal: spacing.sm },
   nameInput: {
     backgroundColor: colors.surfaceAlt,

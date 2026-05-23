@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRewardStore } from '@/store/rewardStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -52,6 +54,20 @@ export function RewardsScreen() {
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
   type Screen = 'list' | 'create' | 'detail';
   const [screen, setScreen] = useState<Screen>('list');
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen === 'create' || screen === 'detail') {
+          setScreen('list');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen]),
+  );
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');

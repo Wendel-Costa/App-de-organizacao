@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  BackHandler,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useFocusStore } from '@/store/focusStore';
+import { useFocusEffect } from '@react-navigation/native';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -31,9 +40,25 @@ export function FocusScreen() {
     setPomodoroConfig,
   } = useFocusStore();
 
-  useEffect(() => {
-    fetchThemes();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchThemes();
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen === 'active' || screen === 'history') {
+          setScreen('home');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen]),
+  );
 
   if (screen === 'active') {
     return <ActiveFocusScreen onStop={() => setScreen('home')} />;

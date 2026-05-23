@@ -31,8 +31,6 @@ function getFormattedDate() {
   });
 }
 
-type FocusMode = 'free' | 'pomodoro';
-
 export function HomeScreen() {
   const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const { sessions, fetchSessions, mode, setMode, fetchThemes } = useFocusStore();

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -69,6 +70,24 @@ export function TasksScreen() {
       fetchThemes();
       fetchGoals();
     }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen === 'edit') {
+          setScreen('detail');
+          return true;
+        }
+        if (screen === 'create' || screen === 'detail') {
+          setScreen('list');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen]),
   );
 
   useEffect(() => {

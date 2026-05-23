@@ -62,7 +62,13 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
       {
         text: 'Encerrar',
         onPress: async () => {
-          await stopFocus();
+          const { conflict } = await stopFocus();
+          if (conflict) {
+            Alert.alert(
+              'Conflito de horário',
+              'Já existe um registro manual para este período. A sessão de foco não foi salva.',
+            );
+          }
           onStop();
         },
       },
