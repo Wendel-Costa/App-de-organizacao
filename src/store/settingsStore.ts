@@ -15,7 +15,6 @@ const SETTINGS_KEY = '@focomais:notification_settings';
 interface SettingsState {
   name: string;
   nameLoaded: boolean;
-  settingsLoaded: boolean;
 
   notificationsEnabled: boolean;
   taskReminderEnabled: boolean;
@@ -39,30 +38,35 @@ interface SettingsState {
   disableAllNotifications: () => Promise<void>;
 }
 
-async function persistSettings(state: Partial<SettingsState>) {
-  const keys: (keyof SettingsState)[] = [
-    'notificationsEnabled',
-    'taskReminderEnabled',
-    'taskReminderHour',
-    'dueDateWarningEnabled',
-    'habitsReminderEnabled',
-    'habitsReminderHour',
-    'habitsReminderMinute',
-    'focusReminderEnabled',
-    'focusReminderHour',
-    'focusReminderMinute',
-  ];
-  const toSave: Record<string, unknown> = {};
-  keys.forEach((k) => {
-    if (k in state) toSave[k] = state[k];
-  });
-  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
+async function persistSettings(newValues: Partial<SettingsState>): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+    const current: Record<string, unknown> = stored ? JSON.parse(stored) : {};
+
+    const settingKeys: (keyof SettingsState)[] = [
+      'notificationsEnabled',
+      'taskReminderEnabled',
+      'taskReminderHour',
+      'dueDateWarningEnabled',
+      'habitsReminderEnabled',
+      'habitsReminderHour',
+      'habitsReminderMinute',
+      'focusReminderEnabled',
+      'focusReminderHour',
+      'focusReminderMinute',
+    ];
+
+    settingKeys.forEach((k) => {
+      if (k in newValues) current[k] = newValues[k];
+    });
+
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(current));
+  } catch {}
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   name: '',
   nameLoaded: false,
-  settingsLoaded: false,
 
   notificationsEnabled: false,
   taskReminderEnabled: true,
@@ -98,20 +102,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const stored = await AsyncStorage.getItem(SETTINGS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        set({ ...parsed, settingsLoaded: true });
-      } else {
-        set({ settingsLoaded: true });
+        set(parsed);
       }
-    } catch {
-      set({ settingsLoaded: true });
-    }
+    } catch {}
   },
 
   requestPermissions: async () => {
     const granted = await requestNotificationPermissions();
-    const updates = { notificationsEnabled: granted };
-    set(updates);
-    await persistSettings(updates);
+    set({ notificationsEnabled: granted });
+    await persistSettings({ notificationsEnabled: granted });
 
     if (granted) {
       const {
@@ -178,8 +177,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   disableAllNotifications: async () => {
     await cancelAllNotifications();
-    const updates = { notificationsEnabled: false };
-    set(updates);
-    await persistSettings(updates);
+    set({ notificationsEnabled: false });
+    await persistSettings({ notificationsEnabled: false });
   },
 }));
