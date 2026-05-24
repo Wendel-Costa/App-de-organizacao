@@ -7,7 +7,11 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useGoalStore } from '@/store/goalStore';
-import { filterTasksForHome } from '@/services/recurrence.service';
+import {
+  filterTasksForHome,
+  getTodayString,
+  applyRecurringReset,
+} from '@/services/recurrence.service';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
@@ -73,19 +77,11 @@ export function HomeScreen() {
     fetchThemes();
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayString();
   const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
 
   const rawTodayTasks = filterTasksForHome(tasks);
-  const todayTasks = rawTodayTasks.map((task) => {
-    if (task.type === 'recurring' && task.completed) {
-      const completedDate = task.updatedAt.split('T')[0];
-      if (completedDate !== todayStr) {
-        return { ...task, completed: false };
-      }
-    }
-    return task;
-  });
+  const todayTasks = applyRecurringReset(rawTodayTasks, todayStr);
 
   const pending = todayTasks.filter((t) => !t.completed);
   const completed = todayTasks.filter((t) => t.completed);

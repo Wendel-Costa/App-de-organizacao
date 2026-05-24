@@ -10,12 +10,24 @@ const WEEKDAYS: RecurrenceDay[] = [
   'saturday',
 ];
 
-function getTodayString(): string {
+export function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-function getTodayWeekday(): RecurrenceDay {
+export function getTodayWeekday(): RecurrenceDay {
   return WEEKDAYS[new Date().getDay()];
+}
+
+export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
+  return tasks.map((task) => {
+    if (task.type === 'recurring' && task.completed) {
+      const completedDate = (task.completedAt ?? task.updatedAt).split('T')[0];
+      if (completedDate !== todayStr) {
+        return { ...task, completed: false };
+      }
+    }
+    return task;
+  });
 }
 
 export function isTaskActiveToday(task: Task): boolean {

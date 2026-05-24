@@ -21,7 +21,12 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
-import type { Task, RecurrenceDay } from '@/types/task.types';
+import type { Task } from '@/types/task.types';
+import {
+  getTodayString,
+  getTodayWeekday,
+  applyRecurringReset,
+} from '@/services/recurrence.service';
 import { useFocusEffect } from '@react-navigation/native';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
@@ -35,23 +40,6 @@ const filters: { key: Filter; label: string }[] = [
   { key: 'anytime', label: 'Livre' },
   { key: 'recurring', label: 'Rotina' },
 ];
-
-function getTodayString() {
-  return new Date().toISOString().split('T')[0];
-}
-
-function getTodayWeekday(): RecurrenceDay {
-  const days: RecurrenceDay[] = [
-    'sunday',
-    'monday',
-    'tuesday',
-    'wednesday',
-    'thursday',
-    'friday',
-    'saturday',
-  ];
-  return days[new Date().getDay()];
-}
 
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
@@ -100,9 +88,11 @@ export function TasksScreen() {
     setRefreshing(false);
   }
 
+  const todayStr = getTodayString();
+
   const filtered = tasks.filter((t) => {
     if (filter === 'today') {
-      if (t.type === 'scheduled') return t.scheduledDate === getTodayString();
+      if (t.type === 'scheduled') return t.scheduledDate === todayStr;
       if (t.type === 'recurring') {
         const today = getTodayWeekday();
         return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
@@ -114,9 +104,11 @@ export function TasksScreen() {
     return true;
   });
 
-  const pending = filtered.filter((t) => !t.completed);
+  const effectiveFiltered = applyRecurringReset(filtered, todayStr);
 
-  const completedSorted = filtered
+  const pending = effectiveFiltered.filter((t) => !t.completed);
+
+  const completedSorted = effectiveFiltered
     .filter((t) => t.completed)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -157,9 +149,11 @@ export function TasksScreen() {
   }
 
   if (screen === 'detail' && selectedTask) {
+    const rawTask = tasks.find((t) => t.id === selectedTask.id) ?? selectedTask;
+    const effectiveTask = applyRecurringReset([rawTask], todayStr)[0];
     return (
       <TaskDetailScreen
-        task={tasks.find((t) => t.id === selectedTask.id) ?? selectedTask}
+        task={effectiveTask}
         onBack={() => setScreen('list')}
         onDeleted={() => setScreen('list')}
         onEdit={() => setScreen('edit')}
