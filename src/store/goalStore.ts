@@ -10,6 +10,8 @@ import {
   uncompleteGoalTaskForToday,
   getGoalTasksForToday,
   updateGoal,
+  archiveGoal,
+  setAllowBeyond100,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
 
@@ -23,7 +25,13 @@ interface GoalState {
     data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
     tasks: LocalGoalTask[],
   ) => Promise<Goal>;
+  editGoal: (
+    id: string,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+  ) => Promise<void>;
   removeGoal: (id: string) => Promise<void>;
+  archiveGoal: (id: string) => Promise<void>;
+  enableBeyond100: (id: string, value: boolean) => Promise<void>;
   addTask: (
     goalId: string,
     startDate: string,
@@ -34,10 +42,6 @@ interface GoalState {
   completeTask: (goalId: string, taskId: string) => Promise<void>;
   uncompleteTask: (goalId: string, taskId: string) => Promise<void>;
   refreshTodayTasks: () => Promise<void>;
-  editGoal: (
-    id: string,
-    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
-  ) => Promise<void>;
 }
 
 export const useGoalStore = create<GoalState>((set, get) => ({
@@ -58,36 +62,47 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   addGoal: async (data, tasks): Promise<Goal> => {
     const goal = await createGoal(data, tasks);
-    set((state) => ({ goals: [goal, ...state.goals] }));
+    set((s) => ({ goals: [goal, ...s.goals] }));
     await get().refreshTodayTasks();
     return goal;
   },
 
-  editGoal: async (id: string, data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>) => {
+  editGoal: async (id, data) => {
     await updateGoal(id, data);
-    set((state) => ({
-      goals: state.goals.map((g) => (g.id === id ? { ...g, ...data } : g)),
-    }));
+    set((s) => ({ goals: s.goals.map((g) => (g.id === id ? { ...g, ...data } : g)) }));
   },
 
   removeGoal: async (id) => {
     await deleteGoal(id);
-    set((state) => ({ goals: state.goals.filter((g) => g.id !== id) }));
+    set((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
     await get().refreshTodayTasks();
+  },
+
+  archiveGoal: async (id) => {
+    await archiveGoal(id);
+    set((s) => ({ goals: s.goals.map((g) => (g.id === id ? { ...g, archived: true } : g)) }));
+    await get().refreshTodayTasks();
+  },
+
+  enableBeyond100: async (id, value) => {
+    await setAllowBeyond100(id, value);
+    set((s) => ({
+      goals: s.goals.map((g) => (g.id === id ? { ...g, allowBeyond100: value } : g)),
+    }));
   },
 
   addTask: async (goalId, startDate, endDate, local) => {
     const task = await addGoalTask(goalId, startDate, endDate, local);
-    set((state) => ({
-      goals: state.goals.map((g) => (g.id === goalId ? { ...g, tasks: [...g.tasks, task] } : g)),
+    set((s) => ({
+      goals: s.goals.map((g) => (g.id === goalId ? { ...g, tasks: [...g.tasks, task] } : g)),
     }));
     await get().refreshTodayTasks();
   },
 
   removeTask: async (goalId, taskId) => {
     await deleteGoalTask(taskId);
-    set((state) => ({
-      goals: state.goals.map((g) =>
+    set((s) => ({
+      goals: s.goals.map((g) =>
         g.id === goalId ? { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) } : g,
       ),
     }));
@@ -96,8 +111,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   completeTask: async (goalId, taskId) => {
     await completeGoalTaskForToday(taskId);
-    set((state) => ({
-      goals: state.goals.map((g) =>
+    set((s) => ({
+      goals: s.goals.map((g) =>
         g.id === goalId
           ? {
               ...g,
@@ -121,8 +136,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   uncompleteTask: async (goalId, taskId) => {
     await uncompleteGoalTaskForToday(taskId);
-    set((state) => ({
-      goals: state.goals.map((g) =>
+    set((s) => ({
+      goals: s.goals.map((g) =>
         g.id === goalId
           ? {
               ...g,
