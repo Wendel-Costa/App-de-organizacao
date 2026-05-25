@@ -7,10 +7,13 @@ export type GoalTaskRecurrenceType =
   | 'times_per_month'
   | 'specific_days';
 
+export type GoalTaskType = 'habit' | 'focus_hours' | 'wildcard';
+
 export interface GoalTask {
   id: string;
   goalId: string;
   title: string;
+  type: GoalTaskType;
   targetCount: number;
   completedCount: number;
   completedToday: boolean;
@@ -19,6 +22,8 @@ export interface GoalTask {
   recurrenceType: GoalTaskRecurrenceType;
   recurrenceCount: number;
   recurrenceDays: RecurrenceDay[];
+  themeId?: string;
+  themeName?: string;
 }
 
 export interface Goal {
@@ -30,13 +35,20 @@ export interface Goal {
   tasks: GoalTask[];
   color?: string;
   tolerance: number;
+  allowOverflow: boolean;
+  allowBeyond100: boolean;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface LocalGoalTask {
   title: string;
+  type: GoalTaskType;
   recurrenceType: GoalTaskRecurrenceType;
   recurrenceCount: number;
   recurrenceDays: RecurrenceDay[];
+  themeId?: string;
+  themeName?: string;
+  targetHours?: number;
 }
