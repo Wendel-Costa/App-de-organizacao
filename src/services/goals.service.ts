@@ -1,15 +1,49 @@
 import type { Goal, GoalTask } from '@/types/goal.types';
+import { colors } from '@/styles/theme';
 
-export function calcTaskProgress(task: GoalTask, tolerance: number): number {
+export function calcTaskProgress(task: GoalTask, tolerance: number, allowOverflow = false): number {
   if (task.targetCount === 0) return 1;
   const adjustedTarget = task.targetCount * (1 - tolerance);
-  return Math.min(1, task.completedCount / adjustedTarget);
+  const raw = task.completedCount / adjustedTarget;
+  return allowOverflow ? raw : Math.min(1, raw);
 }
 
 export function calcGoalProgress(goal: Goal): number {
-  if (goal.tasks.length === 0) return 0;
-  const sum = goal.tasks.reduce((acc, task) => acc + calcTaskProgress(task, goal.tolerance), 0);
-  return sum / goal.tasks.length;
+  const regularTasks = goal.tasks.filter((t) => t.type !== 'wildcard');
+  const wildcardDone = goal.tasks.some(
+    (t) => t.type === 'wildcard' && t.completedCount >= t.targetCount,
+  );
+
+  if (wildcardDone) {
+    if (!goal.allowBeyond100) return 1;
+    if (regularTasks.length === 0) return 1;
+    const extra =
+      regularTasks.reduce((acc, t) => acc + calcTaskProgress(t, goal.tolerance, true), 0) /
+      regularTasks.length;
+    return Math.max(1, extra);
+  }
+
+  if (regularTasks.length === 0) return 0;
+
+  const sum = regularTasks.reduce((acc, task) => {
+    return acc + calcTaskProgress(task, goal.tolerance, goal.allowOverflow);
+  }, 0);
+
+  const avg = sum / regularTasks.length;
+  return goal.allowBeyond100 ? avg : Math.min(1, avg);
+}
+
+export function progressRingColor(
+  progress: number,
+  baseColor: string,
+): {
+  primary: string;
+  secondary?: string;
+} {
+  if (progress <= 1) return { primary: baseColor };
+  if (progress <= 2) return { primary: baseColor, secondary: '#FFD700' };
+  if (progress <= 3) return { primary: baseColor, secondary: '#00f7ff' };
+  return { primary: baseColor, secondary: '#0015ff' };
 }
 
 export function toleranceLabel(tolerance: number): string {
