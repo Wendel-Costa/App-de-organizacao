@@ -8,7 +8,7 @@ export const tasks = sqliteTable('tasks', {
   description: text('description'),
   type: text('type').notNull(),
   priority: text('priority'),
-  completed: int('completed').notNull().default(0), // 0 = false, 1 = true
+  completed: int('completed').notNull().default(0),
   scheduledDate: text('scheduled_date'),
   dueDate: text('due_date'),
   recurrenceDays: text('recurrence_days'),
@@ -41,7 +41,7 @@ export const focusSessions = sqliteTable('focus_sessions', {
   mode: text('mode').notNull(),
   startTime: text('start_time').notNull(),
   endTime: text('end_time').notNull(),
-  duration: int('duration').notNull(), // em minutos
+  duration: int('duration').notNull(),
   isManual: int('is_manual').notNull().default(0),
   pomodoroRounds: int('pomodoro_rounds'),
   createdAt: text('created_at').notNull(),
@@ -57,6 +57,9 @@ export const goals = sqliteTable('goals', {
   endDate: text('end_date').notNull(),
   color: text('color'),
   tolerance: real('tolerance').notNull().default(0),
+  allowOverflow: int('allow_overflow').notNull().default(0),
+  allowBeyond100: int('allow_beyond_100').notNull().default(0),
+  archived: int('archived').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -65,7 +68,10 @@ export const goalTasks = sqliteTable('goal_tasks', {
   id: text('id').primaryKey(),
   goalId: text('goal_id').notNull(),
   title: text('title').notNull(),
-  targetCount: int('target_count').notNull(),
+  targetCount: real('target_count').notNull(),
+  type: text('type').notNull().default('habit'),
+  themeId: text('theme_id'),
+  themeName: text('theme_name'),
   recurrenceType: text('recurrence_type').notNull().default('none'),
   recurrenceCount: int('recurrence_count').notNull().default(1),
   recurrenceDays: text('recurrence_days'),
@@ -74,7 +80,7 @@ export const goalTasks = sqliteTable('goal_tasks', {
 export const goalTaskCompletions = sqliteTable('goal_task_completions', {
   id: text('id').primaryKey(),
   goalTaskId: text('goal_task_id').notNull(),
-  completedDate: text('completed_date').notNull(), // YYYY-MM-DD
+  completedDate: text('completed_date').notNull(),
   createdAt: text('created_at').notNull(),
 });
 

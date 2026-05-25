@@ -1,4 +1,4 @@
-import { db } from '../index';
+import { db, sqlite } from '../index';
 import { sql } from 'drizzle-orm';
 
 export async function runMigrations() {
@@ -62,6 +62,9 @@ export async function runMigrations() {
       end_date    TEXT NOT NULL,
       color       TEXT,
       tolerance   REAL NOT NULL DEFAULT 0,
+      allow_overflow       INTEGER NOT NULL DEFAULT 0,
+      allow_beyond_100     INTEGER NOT NULL DEFAULT 0,
+      archived             INTEGER NOT NULL DEFAULT 0,
       created_at  TEXT NOT NULL,
       updated_at  TEXT NOT NULL
     )
@@ -101,9 +104,21 @@ export async function runMigrations() {
       condition_goal_id    TEXT,
       condition_custom_start TEXT,
       condition_custom_end   TEXT,
-      unlocked             INTEGER NOT NULL DEFAULT 0,
-      unlocked_at          TEXT,
-      created_at           TEXT NOT NULL
+      unlocked               INTEGER NOT NULL DEFAULT 0,
+      unlocked_at            TEXT,
+      created_at             TEXT NOT NULL
     )
   `);
+
+  const goalUpgrades = [
+    'ALTER TABLE goals ADD COLUMN allow_overflow INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE goals ADD COLUMN allow_beyond_100 INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE goals ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
+  ];
+
+  for (const upgrade of goalUpgrades) {
+    try {
+      sqlite.runSync(upgrade);
+    } catch {}
+  }
 }
