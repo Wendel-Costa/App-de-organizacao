@@ -4,20 +4,20 @@ import { sql } from 'drizzle-orm';
 export async function runMigrations() {
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS tasks (
-      id            TEXT PRIMARY KEY,
-      title         TEXT NOT NULL,
-      description   TEXT,
-      type          TEXT NOT NULL,
-      priority      TEXT,
-      completed     INTEGER NOT NULL DEFAULT 0,
-      scheduled_date TEXT,
-      due_date      TEXT,
+      id              TEXT PRIMARY KEY,
+      title           TEXT NOT NULL,
+      description     TEXT,
+      type            TEXT NOT NULL,
+      priority        TEXT,
+      completed       INTEGER NOT NULL DEFAULT 0,
+      scheduled_date  TEXT,
+      due_date        TEXT,
       recurrence_days TEXT,
-      goal_id       TEXT,
-      theme_id      TEXT,
-      completed_at  TEXT,
-      created_at    TEXT NOT NULL,
-      updated_at    TEXT NOT NULL
+      goal_id         TEXT,
+      theme_id        TEXT,
+      completed_at    TEXT,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
     )
   `);
 
@@ -40,33 +40,33 @@ export async function runMigrations() {
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS focus_sessions (
-      id             TEXT PRIMARY KEY,
-      theme_id       TEXT,
-      theme_name     TEXT,
-      mode           TEXT NOT NULL,
-      start_time     TEXT NOT NULL,
-      end_time       TEXT NOT NULL,
-      duration       INTEGER NOT NULL,
-      is_manual      INTEGER NOT NULL DEFAULT 0,
+      id              TEXT PRIMARY KEY,
+      theme_id        TEXT,
+      theme_name      TEXT,
+      mode            TEXT NOT NULL,
+      start_time      TEXT NOT NULL,
+      end_time        TEXT NOT NULL,
+      duration        INTEGER NOT NULL,
+      is_manual       INTEGER NOT NULL DEFAULT 0,
       pomodoro_rounds INTEGER,
-      created_at     TEXT NOT NULL
+      created_at      TEXT NOT NULL
     )
   `);
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS goals (
-      id          TEXT PRIMARY KEY,
-      title       TEXT NOT NULL,
-      description TEXT,
-      start_date  TEXT NOT NULL,
-      end_date    TEXT NOT NULL,
-      color       TEXT,
-      tolerance   REAL NOT NULL DEFAULT 0,
-      allow_overflow       INTEGER NOT NULL DEFAULT 0,
-      allow_beyond_100     INTEGER NOT NULL DEFAULT 0,
-      archived             INTEGER NOT NULL DEFAULT 0,
-      created_at  TEXT NOT NULL,
-      updated_at  TEXT NOT NULL
+      id               TEXT PRIMARY KEY,
+      title            TEXT NOT NULL,
+      description      TEXT,
+      start_date       TEXT NOT NULL,
+      end_date         TEXT NOT NULL,
+      color            TEXT,
+      tolerance        REAL NOT NULL DEFAULT 0,
+      allow_overflow   INTEGER NOT NULL DEFAULT 0,
+      allow_beyond_100 INTEGER NOT NULL DEFAULT 0,
+      archived         INTEGER NOT NULL DEFAULT 0,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL
     )
   `);
 
@@ -75,7 +75,10 @@ export async function runMigrations() {
       id               TEXT PRIMARY KEY,
       goal_id          TEXT NOT NULL,
       title            TEXT NOT NULL,
-      target_count     INTEGER NOT NULL,
+      target_count     REAL NOT NULL,
+      type             TEXT NOT NULL DEFAULT 'habit',
+      theme_id         TEXT,
+      theme_name       TEXT,
       recurrence_type  TEXT NOT NULL DEFAULT 'none',
       recurrence_count INTEGER NOT NULL DEFAULT 1,
       recurrence_days  TEXT
@@ -84,24 +87,24 @@ export async function runMigrations() {
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS goal_task_completions (
-      id              TEXT PRIMARY KEY,
-      goal_task_id    TEXT NOT NULL,
-      completed_date  TEXT NOT NULL,
-      created_at      TEXT NOT NULL
+      id             TEXT PRIMARY KEY,
+      goal_task_id   TEXT NOT NULL,
+      completed_date TEXT NOT NULL,
+      created_at     TEXT NOT NULL
     )
   `);
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS rewards (
-      id                   TEXT PRIMARY KEY,
-      title                TEXT NOT NULL,
-      description          TEXT,
-      condition_type       TEXT NOT NULL,
-      condition_target     REAL NOT NULL,
-      condition_period     TEXT NOT NULL,
-      condition_theme_id   TEXT,
-      condition_task_ids   TEXT,
-      condition_goal_id    TEXT,
+      id                     TEXT PRIMARY KEY,
+      title                  TEXT NOT NULL,
+      description            TEXT,
+      condition_type         TEXT NOT NULL,
+      condition_target       REAL NOT NULL,
+      condition_period       TEXT NOT NULL,
+      condition_theme_id     TEXT,
+      condition_task_ids     TEXT,
+      condition_goal_id      TEXT,
       condition_custom_start TEXT,
       condition_custom_end   TEXT,
       unlocked               INTEGER NOT NULL DEFAULT 0,
@@ -109,16 +112,4 @@ export async function runMigrations() {
       created_at             TEXT NOT NULL
     )
   `);
-
-  const goalUpgrades = [
-    'ALTER TABLE goals ADD COLUMN allow_overflow INTEGER NOT NULL DEFAULT 0',
-    'ALTER TABLE goals ADD COLUMN allow_beyond_100 INTEGER NOT NULL DEFAULT 0',
-    'ALTER TABLE goals ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
-  ];
-
-  for (const upgrade of goalUpgrades) {
-    try {
-      sqlite.runSync(upgrade);
-    } catch {}
-  }
 }

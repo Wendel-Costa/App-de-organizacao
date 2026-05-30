@@ -47,7 +47,7 @@ const TASK_TYPE_OPTIONS: { key: GoalTaskType; label: string; icon: string; desc:
   },
   {
     key: 'wildcard',
-    label: 'Coringa ⚡',
+    label: 'Coringa',
     icon: 'lightning-bolt',
     desc: 'Ao concluir, a meta vai para 100%',
   },
@@ -160,7 +160,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
     if (task.type === 'focus_hours') {
       return `${task.targetHours}h de foco${task.themeName ? ` · ${task.themeName}` : ''}`;
     }
-    if (task.type === 'wildcard') return '⚡ Ação coringa';
+    if (task.type === 'wildcard') return 'Ação coringa';
     switch (task.recurrenceType) {
       case 'daily':
         return 'Todos os dias';
@@ -596,11 +596,11 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                 )}
 
                 <Button
-                  label="Adicionar fator"
+                  label="Adicionar"
                   onPress={handleAddTask}
                   variant="secondary"
                   fullWidth
-                  style={styles.addTaskConfirmBtn}
+                  style={styles.saveButton}
                 />
               </View>
             )}
@@ -978,10 +978,6 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
   },
 
-  addTaskConfirmBtn: {
-    marginTop: spacing.sm,
-  },
-
   taskList: {
     gap: spacing.xs,
     marginBottom: spacing.sm,
@@ -1086,5 +1082,6 @@ const styles = StyleSheet.create({
 
   saveButton: {
     marginTop: spacing.lg,
+    backgroundColor: colors.primary,
   },
 });

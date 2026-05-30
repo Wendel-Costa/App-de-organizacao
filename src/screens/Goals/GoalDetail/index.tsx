@@ -51,7 +51,7 @@ const WEEKDAYS: { key: RecurrenceDay; label: string }[] = [
 const NEW_TASK_TYPE_OPTIONS: { key: GoalTaskType; label: string; icon: string }[] = [
   { key: 'habit', label: 'Hábito / Tarefa', icon: 'checkbox-marked-outline' },
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
-  { key: 'wildcard', label: 'Coringa ⚡', icon: 'lightning-bolt' },
+  { key: 'wildcard', label: 'Coringa', icon: 'lightning-bolt' },
 ];
 
 function recurrenceLabel(
@@ -76,9 +76,9 @@ function recurrenceLabel(
 }
 
 function getOverflowColor(progress: number): string {
-  if (progress <= 1.5) return '#FFD700';
-  if (progress <= 2.0) return '#FF8C00';
-  return '#FF4500';
+  if (progress <= 2.0) return '#08d120';
+  if (progress <= 3.0) return '#03c2c5';
+  return '#1a04c3';
 }
 
 interface GoalDetailScreenProps {
@@ -212,7 +212,7 @@ export function GoalDetailScreen({
       ]);
     } else {
       Alert.alert(
-        'Ir além de 100% ✨',
+        'Ir além de 100%',
         'Ativar este modo permite que o progresso continue acumulando após os 100%. O anel de progresso vai mudar de cor conforme você avança!',
         [
           { text: 'Cancelar', style: 'cancel' },
@@ -237,8 +237,8 @@ export function GoalDetailScreen({
               </View>
               <Text style={[styles.taskRec, done && { color: colors.success }]}>
                 {done
-                  ? '⚡ Coringa ativado — meta em 100%!'
-                  : 'Ação coringa — ao concluir, vai para 100%'}
+                  ? 'Coringa ativado - meta em 100%!'
+                  : 'Ação coringa - ao concluir, vai para 100%'}
               </Text>
             </View>
             <TouchableOpacity
@@ -515,11 +515,11 @@ export function GoalDetailScreen({
               />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.actionCardTitle, isBeyond && { color: overflowClr }]}>
-                  {isBeyond ? `Indo além! ${Math.round(progress * 100)}% ✨` : 'Ir além de 100%'}
+                  {isBeyond ? `Indo além! ${Math.round(progress * 100)}%` : 'Ir além de 100%'}
                 </Text>
                 <Text style={styles.actionCardDesc}>
                   {isBeyond
-                    ? 'Continue acumulando — o anel vai mudando de cor'
+                    ? 'Continue acumulando - o anel vai mudando de cor'
                     : 'Ative para continuar acumulando progresso após 100%'}
                 </Text>
               </View>
@@ -805,7 +805,7 @@ export function GoalDetailScreen({
         />
 
         <Button
-          label="🏆 Criar recompensa por esta meta"
+          label="Criar recompensa por esta meta"
           onPress={() => setShowRewardModal(true)}
           variant="secondary"
           fullWidth
