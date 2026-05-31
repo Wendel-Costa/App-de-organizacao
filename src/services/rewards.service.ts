@@ -3,43 +3,38 @@ import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
 import type { Goal } from '@/types/goal.types';
 import { calcGoalProgress } from '@/services/goals.service';
+import {
+  localDateStr,
+  dateOf,
+  localWeekStart,
+  localWeekEnd,
+  localMonthStart,
+  localMonthEnd,
+} from '@/utils/date';
 
 function getDateRange(reward: Reward): { start: string; end: string } {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   const { period } = reward.condition;
 
   if (period === 'anytime') {
-    return { start: reward.createdAt.split('T')[0], end: today };
+    return {
+      start: dateOf(reward.createdAt),
+      end: today,
+    };
   }
 
   if (period === 'custom') {
     return {
-      start: reward.condition.customStartDate ?? reward.createdAt.split('T')[0],
+      start: reward.condition.customStartDate ?? dateOf(reward.createdAt),
       end: reward.condition.customEndDate ?? today,
     };
   }
 
-  if (period === 'day') {
-    return { start: today, end: today };
-  }
+  if (period === 'day') return { start: today, end: today };
 
-  if (period === 'week') {
-    const d = new Date();
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const mon = new Date(new Date().setDate(diff));
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
-    return {
-      start: mon.toISOString().split('T')[0],
-      end: sun.toISOString().split('T')[0],
-    };
-  }
+  if (period === 'week') return { start: localWeekStart(), end: localWeekEnd() };
 
-  const d = new Date();
-  const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-  return { start, end };
+  return { start: localMonthStart(), end: localMonthEnd() };
 }
 
 export function checkRewardCondition(
@@ -66,7 +61,7 @@ export function checkRewardCondition(
 
   if (type === 'focus_hours') {
     const filtered = sessions.filter((s) => {
-      const date = s.startTime.split('T')[0];
+      const date = dateOf(s.startTime);
       const inRange = date >= start && date <= end;
       const inTheme = reward.condition.themeId ? s.themeId === reward.condition.themeId : true;
       return inRange && inTheme;
@@ -78,7 +73,7 @@ export function checkRewardCondition(
   if (type === 'tasks_completed') {
     const count = tasks.filter((t) => {
       if (!t.completed) return false;
-      const date = t.updatedAt.split('T')[0];
+      const date = dateOf(t.updatedAt);
       return date >= start && date <= end;
     }).length;
     return count >= reward.condition.target;
@@ -111,7 +106,7 @@ export function calcRewardProgress(
 
   if (type === 'focus_hours') {
     const filtered = sessions.filter((s) => {
-      const date = s.startTime.split('T')[0];
+      const date = dateOf(s.startTime);
       const inRange = date >= start && date <= end;
       const inTheme = reward.condition.themeId ? s.themeId === reward.condition.themeId : true;
       return inRange && inTheme;
@@ -123,7 +118,7 @@ export function calcRewardProgress(
   if (type === 'tasks_completed') {
     const count = tasks.filter((t) => {
       if (!t.completed) return false;
-      const date = t.updatedAt.split('T')[0];
+      const date = dateOf(t.updatedAt);
       return date >= start && date <= end;
     }).length;
     return Math.min(1, count / reward.condition.target);
@@ -149,15 +144,11 @@ export function formatCondition(
   };
 
   if (type === 'tasks_specific') {
-    if (taskTitles && taskTitles.length > 0) {
-      return `Concluir: ${taskTitles.join(', ')}`;
-    }
+    if (taskTitles && taskTitles.length > 0) return `Concluir: ${taskTitles.join(', ')}`;
     return `Concluir ${reward.condition.taskIds?.length ?? 0} tarefa(s) específica(s)`;
   }
 
-  if (type === 'goal_completed') {
-    return `Completar meta: ${goalTitle ?? '—'}`;
-  }
+  if (type === 'goal_completed') return `Completar meta: ${goalTitle ?? '—'}`;
 
   if (type === 'focus_hours') {
     const themeStr = themeName ? ` (${themeName})` : '';

@@ -9,32 +9,33 @@ import type {
   LocalGoalTask,
 } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
+import {
+  localDateStr,
+  dateOf,
+  localWeekStart,
+  localWeekEnd,
+  localMonthStart,
+  localMonthEnd,
+} from '@/utils/date';
 
 function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
+
 function now() {
   return new Date().toISOString();
 }
+
 function today() {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr();
 }
 
 function getWeekRange() {
-  const d = new Date();
-  const diff = d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1);
-  const mon = new Date(new Date(d).setDate(diff));
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return { start: mon.toISOString().split('T')[0], end: sun.toISOString().split('T')[0] };
+  return { start: localWeekStart(), end: localWeekEnd() };
 }
 
 function getMonthRange() {
-  const d = new Date();
-  return {
-    start: new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0],
-    end: new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0],
-  };
+  return { start: localMonthStart(), end: localMonthEnd() };
 }
 
 export function calculateTargetCount(
@@ -79,7 +80,7 @@ export async function getAllGoals(): Promise<Goal[]> {
 
   const taskRows = await db.select().from(goalTasks);
   const completionRows = await db.select().from(goalTaskCompletions);
-  const sessionRows = await db.select().from(focusSessions); // para focus_hours
+  const sessionRows = await db.select().from(focusSessions);
 
   const todayStr = today();
   const week = getWeekRange();
@@ -94,6 +95,7 @@ export async function getAllGoals(): Promise<Goal[]> {
   const goalById = new Map(goalRows.map((g) => [g.id, g]));
 
   const tasksByGoalId = new Map<string, GoalTask[]>();
+
   for (const t of taskRows) {
     const taskType = (t.type ?? 'habit') as GoalTaskType;
     let completedCount = 0,
@@ -105,17 +107,15 @@ export async function getAllGoals(): Promise<Goal[]> {
       const goal = goalById.get(t.goalId);
       if (goal) {
         const relevantSessions = sessionRows.filter((s) => {
-          const date = s.startTime.split('T')[0];
+          const date = dateOf(s.startTime);
           const inPeriod = date >= goal.startDate && date <= goal.endDate;
           const matchTheme = t.themeId ? s.themeId === t.themeId : true;
           return inPeriod && matchTheme;
         });
+
         const totalMinutes = relevantSessions.reduce((acc, s) => acc + s.duration, 0);
         completedCount = Math.round((totalMinutes / 60) * 10) / 10;
-        const todaySessions = relevantSessions.filter(
-          (s) => s.startTime.split('T')[0] === todayStr,
-        );
-        completedToday = todaySessions.length > 0;
+        completedToday = relevantSessions.some((s) => dateOf(s.startTime) === todayStr);
       }
     } else {
       const comps = completionsByTaskId.get(t.id) ?? [];
@@ -194,11 +194,9 @@ export async function createGoal(
     const taskType = lt.type ?? 'habit';
 
     let targetCount: number;
-    if (taskType === 'wildcard') {
-      targetCount = 1;
-    } else if (taskType === 'focus_hours') {
-      targetCount = lt.targetHours ?? 10;
-    } else {
+    if (taskType === 'wildcard') targetCount = 1;
+    else if (taskType === 'focus_hours') targetCount = lt.targetHours ?? 10;
+    else
       targetCount = calculateTargetCount(
         data.startDate,
         data.endDate,
@@ -206,7 +204,6 @@ export async function createGoal(
         lt.recurrenceCount,
         lt.recurrenceDays,
       );
-    }
 
     await db.insert(goalTasks).values({
       id: taskId,
@@ -298,11 +295,9 @@ export async function addGoalTask(
   const taskType = local.type ?? 'habit';
 
   let targetCount: number;
-  if (taskType === 'wildcard') {
-    targetCount = 1;
-  } else if (taskType === 'focus_hours') {
-    targetCount = local.targetHours ?? 10;
-  } else {
+  if (taskType === 'wildcard') targetCount = 1;
+  else if (taskType === 'focus_hours') targetCount = local.targetHours ?? 10;
+  else
     targetCount = calculateTargetCount(
       startDate,
       endDate,
@@ -310,7 +305,6 @@ export async function addGoalTask(
       local.recurrenceCount,
       local.recurrenceDays,
     );
-  }
 
   await db.insert(goalTasks).values({
     id,

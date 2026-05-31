@@ -2,6 +2,7 @@ import type { FocusSession, FocusTheme } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
 import type { Goal } from '@/types/goal.types';
 import { calcGoalProgress } from '@/services/goals.service';
+import { localDateStr, dateOf } from '@/utils/date';
 
 export interface DayData {
   label: string;
@@ -56,7 +57,7 @@ function getWeekDates(): string[] {
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
+    dates.push(localDateStr(d));
   }
   return dates;
 }
@@ -64,48 +65,51 @@ function getWeekDates(): string[] {
 function getMonthDates(): { start: string; end: string } {
   const d = new Date();
   return {
-    start: new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0],
-    end: new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0],
+    start: localDateStr(new Date(d.getFullYear(), d.getMonth(), 1)),
+    end: localDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
   };
 }
 
 export function getWeeklySummary(sessions: FocusSession[], tasks: Task[]): WeeklySummary {
   const weekDates = getWeekDates();
+  const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
   const focusDays: DayData[] = weekDates.map((date, i) => {
-    const daySessions = sessions.filter((s) => s.startTime.split('T')[0] === date);
+    const daySessions = sessions.filter((s) => dateOf(s.startTime) === date);
     const minutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
-    return { label: WEEKDAY_LABELS[(i + 1) % 7] || WEEKDAY_LABELS[i], value: minutes / 60, date };
-  });
-
-  const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-  focusDays.forEach((d, i) => {
-    d.label = labels[i];
+    return { label: labels[i], value: minutes / 60, date };
   });
 
   const taskDays: DayData[] = weekDates.map((date, i) => {
-    const count = tasks.filter((t) => t.completed && t.updatedAt.split('T')[0] === date).length;
+    const count = tasks.filter((t) => t.completed && dateOf(t.updatedAt) === date).length;
     return { label: labels[i], value: count, date };
   });
 
   const totalHours = focusDays.reduce((acc, d) => acc + d.value, 0);
   const totalTasks = taskDays.reduce((acc, d) => acc + d.value, 0);
-
   const bestDay = focusDays.reduce((best, d) => (d.value > best.value ? d : best), focusDays[0]);
 
   let streak = 0;
-  const today = new Date().toISOString().split('T')[0];
-  let checkDate = new Date();
-  while (true) {
-    const dateStr = checkDate.toISOString().split('T')[0];
-    const hasFocus = sessions.some((s) => s.startTime.split('T')[0] === dateStr);
-    if (!hasFocus && dateStr !== today) break;
-    if (hasFocus) streak++;
+  const checkDate = new Date();
+
+  while (streak <= 365) {
+    const dateStr = localDateStr(checkDate);
+    const hasFocus = sessions.some((s) => dateOf(s.startTime) === dateStr);
+
+    if (!hasFocus) break;
+
+    streak++;
     checkDate.setDate(checkDate.getDate() - 1);
-    if (streak > 365) break;
   }
 
-  return { focusDays, taskDays, totalHours, totalTasks, bestFocusDay: bestDay.label, streak };
+  return {
+    focusDays,
+    taskDays,
+    totalHours,
+    totalTasks,
+    bestFocusDay: bestDay.label,
+    streak,
+  };
 }
 
 export function getMonthlySummary(
@@ -117,13 +121,13 @@ export function getMonthlySummary(
   const { start, end } = getMonthDates();
 
   const monthSessions = sessions.filter((s) => {
-    const d = s.startTime.split('T')[0];
+    const d = dateOf(s.startTime);
     return d >= start && d <= end;
   });
 
   const monthTasks = tasks.filter((t) => {
     if (!t.completed) return false;
-    const d = t.updatedAt.split('T')[0];
+    const d = dateOf(t.updatedAt);
     return d >= start && d <= end;
   });
 
@@ -154,16 +158,16 @@ export function getMonthlySummary(
   });
   focusByTheme.sort((a, b) => b.minutes - a.minutes);
 
-  const today = new Date().toISOString().split('T')[0];
-  const activeGoals = goals.filter((g) => g.startDate <= today && g.endDate >= today);
+  const todayStr = localDateStr();
+  const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
   const goalsSummary = activeGoals.map((g) => ({
     title: g.title,
     progress: calcGoalProgress(g),
     color: g.color ?? '#F5C518',
   }));
 
-  const totalTasks = tasks.length;
-  const taskCompletionRate = totalTasks > 0 ? monthTasks.length / totalTasks : 0;
+  const totalTasksCount = tasks.length;
+  const taskCompletionRate = totalTasksCount > 0 ? monthTasks.length / totalTasksCount : 0;
 
   return {
     totalHours,
