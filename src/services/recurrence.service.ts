@@ -1,3 +1,4 @@
+import { localDateStr, dateOf } from '@/utils/date';
 import type { Task, RecurrenceDay } from '@/types/task.types';
 
 const WEEKDAYS: RecurrenceDay[] = [
@@ -11,23 +12,11 @@ const WEEKDAYS: RecurrenceDay[] = [
 ];
 
 export function getTodayString(): string {
-  return new Date().toISOString().split('T')[0];
+  return localDateStr();
 }
 
-export function getTodayWeekday(): RecurrenceDay {
+function getTodayWeekday(): RecurrenceDay {
   return WEEKDAYS[new Date().getDay()];
-}
-
-export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
-  return tasks.map((task) => {
-    if (task.type === 'recurring' && task.completed) {
-      const completedDate = (task.completedAt ?? task.updatedAt).split('T')[0];
-      if (completedDate !== todayStr) {
-        return { ...task, completed: false };
-      }
-    }
-    return task;
-  });
 }
 
 export function isTaskActiveToday(task: Task): boolean {
@@ -50,15 +39,11 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
   return tasks.filter((task) => {
     if (task.type === 'anytime') {
       if (task.completed) {
-        return task.updatedAt.split('T')[0] === today;
+        return dateOf(task.updatedAt) === today;
       }
       return true;
     }
-
-    if (task.type === 'scheduled') {
-      return task.scheduledDate === today;
-    }
-
+    if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
       const todayWeekday = getTodayWeekday();
       const isDueToday =
@@ -73,6 +58,18 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
   });
 }
 
+export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
+  return tasks.map((task) => {
+    if (task.type === 'recurring' && task.completed) {
+      const completedDate = dateOf(task.updatedAt);
+      if (completedDate !== todayStr) {
+        return { ...task, completed: false };
+      }
+    }
+    return task;
+  });
+}
+
 export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[] {
   const today = getTodayString();
 
@@ -84,17 +81,10 @@ export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[
     }
 
     if (task.type === 'anytime') {
-      if (task.completed) {
-        return task.updatedAt.split('T')[0] === today;
-      }
-
+      if (task.completed) return dateOf(task.updatedAt) === today;
       return true;
     }
-
-    if (task.type === 'scheduled') {
-      return task.scheduledDate === today;
-    }
-
+    if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
       const todayWeekday = getTodayWeekday();
 
