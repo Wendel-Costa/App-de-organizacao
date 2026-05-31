@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { TimelineBar } from '@/components/TimelineBar';
 import { ManualRegisterScreen } from '../ActiveFocus/ManualRegister';
 import { ScrollView } from 'react-native-gesture-handler';
+import { localDateStr, dateOf } from '@/utils/date';
 
 interface FocusHistoryScreenProps {
   onBack: () => void;
@@ -27,7 +28,6 @@ function getCurrentWeekRange() {
 
   const startOfWeek = new Date(now);
   const day = now.getDay();
-
   startOfWeek.setDate(now.getDate() - day);
   startOfWeek.setHours(0, 0, 0, 0);
 
@@ -39,11 +39,11 @@ function getCurrentWeekRange() {
 }
 
 export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
-  const { sessions, themes, fetchSessions, fetchThemes, removeSession } = useFocusStore();
+  const { sessions, themes, fetchSessions, fetchThemes, removeSession, editSessionTheme } =
+    useFocusStore();
   const [showManual, setShowManual] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [editingSession, setEditingSession] = useState<string | null>(null);
-  const { editSessionTheme } = useFocusStore();
+  const [selectedDate, setSelectedDate] = useState(localDateStr());
 
   useEffect(() => {
     fetchSessions();
@@ -69,18 +69,13 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
     ]);
   }
 
-  const daySessions = sessions.filter((s) => {
-    const sessionDate = new Date(s.startTime).toISOString().split('T')[0];
-    return sessionDate === selectedDate;
-  });
+  const daySessions = sessions.filter((s) => dateOf(s.startTime) === selectedDate);
 
   const totalMinutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
 
   const { startOfWeek, endOfWeek } = getCurrentWeekRange();
-
   const weekSessions = sessions.filter((s) => {
     const sessionDate = new Date(s.startTime);
-
     return sessionDate >= startOfWeek && sessionDate <= endOfWeek;
   });
 
@@ -173,13 +168,13 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                   {item.isManual && <Text style={styles.manualBadge}>manual</Text>}
 
                   <TouchableOpacity
-                    onPress={() => setEditingSession(item.id)}
+                    onPress={() => setEditingSession(editingSession === item.id ? null : item.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <MaterialCommunityIcons
                       name="tag-outline"
                       size={16}
-                      color={colors.textSecondary}
+                      color={editingSession === item.id ? colors.primary : colors.textSecondary}
                     />
                   </TouchableOpacity>
 

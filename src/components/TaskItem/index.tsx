@@ -32,7 +32,6 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
       Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start();
 
-    // Haptic
     if (!task.completed) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {

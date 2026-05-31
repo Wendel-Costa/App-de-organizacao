@@ -6,7 +6,7 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 
 interface TimePickerProps {
   label?: string;
-  value: string; // "HH:MM"
+  value: string;
   onChange: (time: string) => void;
 }
 

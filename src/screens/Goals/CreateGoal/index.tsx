@@ -849,7 +849,6 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 
-  // Counter de horas
   counterRow: {
     flexDirection: 'row',
     alignItems: 'center',
