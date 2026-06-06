@@ -12,6 +12,7 @@ import {
   getTodayString,
   applyRecurringReset,
 } from '@/services/recurrence.service';
+import { dateOf } from '@/utils/date';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { TaskItem } from '@/components/TaskItem';
@@ -39,10 +40,10 @@ export function HomeScreen() {
   const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const { sessions, fetchSessions, mode, setMode, fetchThemes } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
+  const { name } = useSettingsStore();
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActiveFocus, setShowActiveFocus] = useState(false);
-  const { name } = useSettingsStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -87,7 +88,7 @@ export function HomeScreen() {
   const completed = todayTasks.filter((t) => t.completed);
 
   const todayMinutes = sessions
-    .filter((s) => s.startTime.split('T')[0] === todayStr)
+    .filter((s) => dateOf(s.startTime) === todayStr)
     .reduce((acc, s) => acc + s.duration, 0);
 
   const focusLabel =
@@ -97,16 +98,9 @@ export function HomeScreen() {
         ? `${todayMinutes}m`
         : `${(todayMinutes / 60).toFixed(1)}h`;
 
-  if (showActiveFocus) {
-    return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
-  }
-  if (showReports) {
-    return <ReportsScreen onBack={() => setShowReports(false)} />;
-  }
-
-  if (showSettings) {
-    return <SettingsScreen onBack={() => setShowSettings(false)} />;
-  }
+  if (showActiveFocus) return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
+  if (showReports) return <ReportsScreen onBack={() => setShowReports(false)} />;
+  if (showSettings) return <SettingsScreen onBack={() => setShowSettings(false)} />;
 
   return (
     <View style={globalStyles.screen}>
@@ -225,7 +219,14 @@ function SummaryCard({ icon, label, value, color }: SummaryCardProps) {
   return (
     <View style={[styles.summaryCard, { borderTopColor: color }]}>
       <MaterialCommunityIcons name={icon as any} size={22} color={color} />
-      <Text style={styles.summaryValue}>{value}</Text>
+      <Text
+        style={styles.summaryValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {value}
+      </Text>
       <Text style={styles.summaryLabel}>{label}</Text>
     </View>
   );
@@ -270,6 +271,8 @@ const styles = StyleSheet.create({
   summaryValue: {
     ...typography.h3,
     color: colors.textPrimary,
+    width: '100%',
+    textAlign: 'center',
   },
   summaryLabel: {
     ...typography.xs,

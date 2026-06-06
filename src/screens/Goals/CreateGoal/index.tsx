@@ -494,7 +494,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                       color={colors.primaryDark}
                     />
                     <Text style={styles.wildcardInfoText}>
-                      Ao concluir esta ação, a meta inteira será marcada como 100% automaticamente —
+                      Ao concluir esta ação, a meta inteira será marcada como 100% automaticamente
                       independente dos outros fatores.
                     </Text>
                   </View>

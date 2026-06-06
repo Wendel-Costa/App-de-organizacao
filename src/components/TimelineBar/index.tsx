@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { DatePicker } from '@/components/DatePicker';
 import type { FocusSession, FocusTheme } from '@/types/focus.types';
+import { localDateStr, dateOf, localMinutesSinceMidnight } from '@/utils/date';
 
 interface TimelineBarProps {
   sessions: FocusSession[];
@@ -35,18 +37,15 @@ function getThemeColor(themeId: string | undefined, themes: FocusTheme[]): strin
   return index >= 0 ? THEME_PALETTE[index % THEME_PALETTE.length] : GENERAL_COLOR;
 }
 
-function getMinutesFromMidnight(isoString: string): number {
-  const d = new Date(isoString);
-  return d.getHours() * 60 + d.getMinutes();
-}
-
 function formatHour(hour: number): string {
   return `${String(hour).padStart(2, '0')}h`;
 }
 
 function formatDateLabel(dateStr: string): string {
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = localDateStr();
+  const yd = new Date();
+  yd.setDate(yd.getDate() - 1);
+  const yesterday = localDateStr(yd);
 
   if (dateStr === today) return 'Hoje';
   if (dateStr === yesterday) return 'Ontem';
@@ -62,11 +61,7 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
   const [showDatePicker, setShowDatePicker] = useState(false);
   const totalMinutes = TOTAL_HOURS * 60;
 
-  const daySessions = sessions.filter((s) => {
-    const sessionDate = new Date(s.startTime).toISOString().split('T')[0];
-    return sessionDate === selectedDate;
-  });
-
+  const daySessions = sessions.filter((s) => dateOf(s.startTime) === selectedDate);
   const activeThemes = themes.filter((t) => daySessions.some((s) => s.themeId === t.id));
   const hasGeneral = daySessions.some((s) => !s.themeId);
 
@@ -100,27 +95,23 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
         <View style={styles.timeline}>
           <View style={styles.track}>
             {daySessions.map((session) => {
-              const startMin = getMinutesFromMidnight(session.startTime);
-              const endMin = getMinutesFromMidnight(session.endTime);
-
+              const startMin = localMinutesSinceMidnight(session.startTime);
+              const endMin = localMinutesSinceMidnight(session.endTime);
+              const adjustedEnd = endMin < startMin ? endMin + 24 * 60 : endMin;
               const clampedStart = Math.max(startMin, HOUR_START * 60);
-              const clampedEnd = Math.min(endMin, HOUR_END * 60);
-
+              const clampedEnd = Math.min(adjustedEnd, HOUR_END * 60);
               if (clampedEnd <= clampedStart) return null;
-
-              const leftPercent = (clampedStart - HOUR_START * 60) / totalMinutes;
-              const widthPercent = (clampedEnd - clampedStart) / totalMinutes;
-              const color = getThemeColor(session.themeId, themes);
-
+              const leftPct = (clampedStart - HOUR_START * 60) / totalMinutes;
+              const widthPct = (clampedEnd - clampedStart) / totalMinutes;
               return (
                 <View
                   key={session.id}
                   style={[
                     styles.sessionBlock,
                     {
-                      left: `${leftPercent * 100}%`,
-                      width: `${widthPercent * 100}%`,
-                      backgroundColor: color,
+                      left: `${leftPct * 100}%`,
+                      width: `${widthPct * 100}%`,
+                      backgroundColor: getThemeColor(session.themeId, themes),
                     },
                   ]}
                 />
@@ -129,21 +120,12 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
           </View>
 
           <View style={styles.labelsRow}>
-            {Array.from({ length: TOTAL_HOURS + 1 }).map((_, i) => {
-              const hour = HOUR_START + i;
-              return (
-                <Text
-                  key={hour}
-                  style={[
-                    styles.hourLabel,
-                    i === 0 && styles.hourLabelFirst,
-                    i === TOTAL_HOURS && styles.hourLabelLast,
-                  ]}
-                >
-                  {formatHour(hour)}
-                </Text>
-              );
-            })}
+            {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
+              <View key={HOUR_START + i} style={styles.labelSlot}>
+                <Text style={styles.hourLabel}>{formatHour(HOUR_START + i)}</Text>
+              </View>
+            ))}
+            <Text style={styles.hourLabelEnd}>{formatHour(HOUR_END)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -204,11 +186,6 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     textTransform: 'capitalize',
   },
-  hiddenPicker: {
-    opacity: 0,
-    height: 0,
-    overflow: 'hidden',
-  },
   timeline: {
     width: 720,
     paddingLeft: spacing.md,
@@ -232,21 +209,22 @@ const styles = StyleSheet.create({
   },
   labelsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginTop: spacing.xs,
   },
+  labelSlot: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
   hourLabel: {
-    ...typography.xs,
+    fontSize: 9,
     color: colors.textDisabled,
-    textAlign: 'center',
-    width: 32,
-    transform: [{ translateX: -8 }],
+    lineHeight: 12,
   },
-  hourLabelFirst: {
-    transform: [{ translateX: 0 }],
-  },
-  hourLabelLast: {
-    transform: [{ translateX: -24 }],
+  hourLabelEnd: {
+    fontSize: 9,
+    color: colors.textDisabled,
+    lineHeight: 12,
   },
   legend: {
     flexDirection: 'row',
