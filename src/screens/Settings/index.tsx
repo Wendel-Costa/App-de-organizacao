@@ -8,6 +8,7 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
+  Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -269,17 +270,19 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
       <Modal visible={showAbout} transparent animationType="fade">
         <View style={styles.aboutOverlay}>
           <View style={styles.aboutContainer}>
-            <View style={styles.aboutLogo}>
-              <MaterialCommunityIcons name="timer-outline" size={48} color={colors.textOnPrimary} />
-            </View>
+            <Image
+              source={require('../../../assets/icon.png')}
+              style={styles.logo}
+              resizeMode="cover"
+            />
             <Text style={styles.aboutAppName}>FocoMais</Text>
             <Text style={styles.aboutVersion}>Versão 1.0.0</Text>
             <Text style={styles.aboutDesc}>
               App de organização pessoal com foco em produtividade, hábitos e metas.
             </Text>
             <View style={styles.aboutDivider} />
-            <Text style={styles.aboutCredit}>Feito por Wendel Costa</Text>
-            <Text style={styles.aboutYear}>© 2026</Text>
+
+            <Text style={styles.aboutCredit}>Feito por Wendel Costa © 2026</Text>
             <TouchableOpacity
               style={styles.aboutCloseBtn}
               onPress={() => setShowAbout(false)}
@@ -400,11 +403,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  aboutLogo: {
+  logo: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary,
+    borderRadius: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -422,8 +425,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.divider,
     marginVertical: spacing.xs,
   },
-  aboutCredit: { ...typography.label, color: colors.textPrimary },
-  aboutYear: { ...typography.sm, color: colors.textDisabled },
+  aboutCredit: { ...typography.sm, color: colors.textDisabled },
   aboutCloseBtn: {
     marginTop: spacing.sm,
     backgroundColor: colors.primary,
