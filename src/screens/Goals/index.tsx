@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -53,6 +54,20 @@ export function GoalsScreen() {
     useCallback(() => {
       fetchGoals();
     }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen !== 'list') {
+          setScreen('list');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen]),
   );
 
   async function onRefresh() {

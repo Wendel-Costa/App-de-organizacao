@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -63,6 +64,30 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   const [newSubtask, setNewSubtask] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
   const [loading, setLoading] = useState(false);
+
+  function hasUnsavedChanges() {
+    if (isEditing) return false;
+    return title.trim().length > 0 || description.trim().length > 0 || subtasks.length > 0;
+  }
+
+  function handleBack() {
+    if (hasUnsavedChanges()) {
+      Alert.alert('Descartar tarefa?', 'Você tem informações não salvas. Deseja voltar?', [
+        { text: 'Continuar', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: onBack },
+      ]);
+    } else {
+      onBack();
+    }
+  }
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [title, description, subtasks]);
 
   function toggleRecurrenceDay(day: RecurrenceDay) {
     if (day === 'daily') {
@@ -131,7 +156,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
 
   return (
     <View style={globalStyles.screen}>
-      <Header title={isEditing ? 'Editar tarefa' : 'Nova tarefa'} onBack={onBack} />
+      <Header title={isEditing ? 'Editar tarefa' : 'Nova tarefa'} onBack={handleBack} />
 
       <ScrollView
         contentContainerStyle={styles.content}
