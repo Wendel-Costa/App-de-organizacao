@@ -19,7 +19,10 @@ import { TaskItem } from '@/components/TaskItem';
 import { ReportsScreen } from '@/screens/Reports';
 import { SettingsScreen } from '@/screens/Settings';
 import { ActiveFocusScreen } from '@/screens/Focus/ActiveFocus';
+import { TaskDetailScreen } from '@/screens/Tasks/TaskDetail';
+import { CreateTaskScreen } from '@/screens/Tasks/CreateTask';
 import { useSettingsStore } from '@/store/settingsStore';
+import type { Task } from '@/types/task.types';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -44,6 +47,8 @@ export function HomeScreen() {
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActiveFocus, setShowActiveFocus] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [homeScreen, setHomeScreen] = useState<'home' | 'detail' | 'edit'>('home');
 
   useFocusEffect(
     useCallback(() => {
@@ -56,6 +61,14 @@ export function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const onBack = () => {
+        if (homeScreen === 'edit') {
+          setHomeScreen('detail');
+          return true;
+        }
+        if (homeScreen === 'detail') {
+          setHomeScreen('home');
+          return true;
+        }
         if (showReports) {
           setShowReports(false);
           return true;
@@ -71,7 +84,7 @@ export function HomeScreen() {
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
       return () => sub.remove();
-    }, [showReports, showSettings, showActiveFocus]),
+    }, [showReports, showSettings, showActiveFocus, homeScreen]),
   );
 
   useEffect(() => {
@@ -101,6 +114,32 @@ export function HomeScreen() {
   if (showActiveFocus) return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
   if (showReports) return <ReportsScreen onBack={() => setShowReports(false)} />;
   if (showSettings) return <SettingsScreen onBack={() => setShowSettings(false)} />;
+
+  if (homeScreen === 'edit' && selectedTask) {
+    return (
+      <CreateTaskScreen
+        initialTask={selectedTask}
+        onBack={() => setHomeScreen('detail')}
+        onSuccess={() => {
+          fetchTasks();
+          setHomeScreen('detail');
+        }}
+      />
+    );
+  }
+
+  if (homeScreen === 'detail' && selectedTask) {
+    const rawTask = tasks.find((t) => t.id === selectedTask.id) ?? selectedTask;
+    const effectiveTask = applyRecurringReset([rawTask], getTodayString())[0];
+    return (
+      <TaskDetailScreen
+        task={effectiveTask}
+        onBack={() => setHomeScreen('home')}
+        onDeleted={() => setHomeScreen('home')}
+        onEdit={() => setHomeScreen('edit')}
+      />
+    );
+  }
 
   return (
     <View style={globalStyles.screen}>
@@ -197,7 +236,10 @@ export function HomeScreen() {
                 key={task.id}
                 task={task}
                 onToggle={toggleComplete}
-                onPress={() => {}}
+                onPress={(t) => {
+                  setSelectedTask(t);
+                  setHomeScreen('detail');
+                }}
                 onDelete={removeTask}
               />
             ))}

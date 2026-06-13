@@ -15,7 +15,7 @@ export function getTodayString(): string {
   return localDateStr();
 }
 
-function getTodayWeekday(): RecurrenceDay {
+export function getTodayWeekday(): RecurrenceDay {
   return WEEKDAYS[new Date().getDay()];
 }
 
