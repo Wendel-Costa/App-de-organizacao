@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,12 @@ import type {
   LocalGoalTask,
 } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
-import { calcGoalProgress, calcTaskProgress, toleranceLabel } from '@/services/goals.service';
+import {
+  calcGoalProgress,
+  calcTaskProgress,
+  toleranceLabel,
+  getLinearBarInfo,
+} from '@/services/goals.service';
 import { CreateGoalScreen } from '../CreateGoal';
 
 const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
@@ -75,10 +80,57 @@ function recurrenceLabel(
   }
 }
 
-function getOverflowColor(progress: number): string {
-  if (progress <= 2.0) return '#08d120';
-  if (progress <= 3.0) return '#03c2c5';
-  return '#1a04c3';
+function EditableValue({
+  value,
+  onChange,
+  suffix = '',
+  style,
+  min = 1,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+  style?: any;
+  min?: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+
+  function commit() {
+    const v = parseInt(text, 10);
+    if (!isNaN(v) && v >= min) onChange(v);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={[style, { padding: 0, minWidth: 40, textAlign: 'center' }]}
+        value={text}
+        onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
+        keyboardType="number-pad"
+        autoFocus
+        onBlur={commit}
+        onSubmitEditing={commit}
+        returnKeyType="done"
+        selectTextOnFocus
+      />
+    );
+  }
+  return (
+    <TouchableOpacity
+      activeOpacity={0.6}
+      onPress={() => {
+        setText(String(value));
+        setEditing(true);
+      }}
+    >
+      <Text style={style}>
+        {value}
+        {suffix}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 interface GoalDetailScreenProps {
@@ -119,11 +171,30 @@ export function GoalDetailScreen({
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
+  const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      stopContinuous();
+    };
+  }, []);
+
+  function startContinuous(action: () => void) {
+    longPressIntervalRef.current = setInterval(action, 150);
+  }
+
+  function stopContinuous() {
+    if (longPressIntervalRef.current) {
+      clearInterval(longPressIntervalRef.current);
+      longPressIntervalRef.current = null;
+    }
+  }
+
   const progress = calcGoalProgress(goal);
   const isComplete = progress >= 1;
   const isBeyond = progress > 1;
   const accentColor = goal.color ?? colors.primary;
-  const overflowClr = getOverflowColor(progress);
+  const { width: barWidth, color: barColor } = getLinearBarInfo(progress, accentColor);
 
   function toggleDay(day: RecurrenceDay) {
     setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -223,7 +294,8 @@ export function GoalDetailScreen({
   }
 
   function renderTaskProgress(task: GoalTask) {
-    const taskProg = calcTaskProgress(task, goal.tolerance, goal.allowOverflow);
+    const allowTaskOverflow = goal.allowOverflow || goal.allowBeyond100;
+    const taskProg = calcTaskProgress(task, goal.tolerance, allowTaskOverflow);
 
     if (task.type === 'wildcard') {
       const done = task.completedCount >= task.targetCount;
@@ -253,6 +325,9 @@ export function GoalDetailScreen({
             <TouchableOpacity
               style={styles.controlBtn}
               onPress={() => uncompleteTask(goal.id, task.id)}
+              onLongPress={() => startContinuous(() => uncompleteTask(goal.id, task.id))}
+              onPressOut={stopContinuous}
+              delayLongPress={300}
               disabled={task.completedCount === 0}
               activeOpacity={0.7}
             >
@@ -268,6 +343,9 @@ export function GoalDetailScreen({
                 { backgroundColor: done ? colors.success : '#FFD700' },
               ]}
               onPress={() => completeTask(goal.id, task.id)}
+              onLongPress={() => startContinuous(() => completeTask(goal.id, task.id))}
+              onPressOut={stopContinuous}
+              delayLongPress={300}
               disabled={done}
               activeOpacity={0.7}
             >
@@ -283,7 +361,7 @@ export function GoalDetailScreen({
     }
 
     if (task.type === 'focus_hours') {
-      const hoursPercent = Math.min(Math.round(taskProg * 100), goal.allowOverflow ? 999 : 100);
+      const hoursPercent = Math.min(Math.round(taskProg * 100), allowTaskOverflow ? 999 : 100);
       return (
         <Card key={task.id} style={styles.taskCard}>
           <View style={globalStyles.rowBetween}>
@@ -324,7 +402,7 @@ export function GoalDetailScreen({
       );
     }
 
-    const cappedProg = goal.allowOverflow ? taskProg : Math.min(taskProg, 1);
+    const cappedProg = allowTaskOverflow ? taskProg : Math.min(taskProg, 1);
     const displayPct = Math.round(taskProg * 100);
     return (
       <Card key={task.id} style={styles.taskCard}>
@@ -363,6 +441,9 @@ export function GoalDetailScreen({
             <TouchableOpacity
               style={styles.controlBtn}
               onPress={() => uncompleteTask(goal.id, task.id)}
+              onLongPress={() => startContinuous(() => uncompleteTask(goal.id, task.id))}
+              onPressOut={stopContinuous}
+              delayLongPress={300}
               disabled={task.completedCount === 0}
               activeOpacity={0.7}
             >
@@ -375,6 +456,9 @@ export function GoalDetailScreen({
             <TouchableOpacity
               style={[styles.controlBtnPrimary, { backgroundColor: accentColor }]}
               onPress={() => completeTask(goal.id, task.id)}
+              onLongPress={() => startContinuous(() => completeTask(goal.id, task.id))}
+              onPressOut={stopContinuous}
+              delayLongPress={300}
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons name="plus" size={14} color={colors.textOnPrimary} />
@@ -464,13 +548,13 @@ export function GoalDetailScreen({
                 style={[
                   styles.progressBarFill,
                   {
-                    width: `${Math.min(progress, 1) * 100}%`,
-                    backgroundColor: isBeyond ? overflowClr : accentColor,
+                    width: `${barWidth * 100}%`,
+                    backgroundColor: barColor || accentColor,
                   },
                 ]}
               />
             </View>
-            <Text style={[styles.progressPct, isBeyond && { color: overflowClr }]}>
+            <Text style={[styles.progressPct, isBeyond && { color: barColor }]}>
               {Math.round(progress * 100)}%
             </Text>
           </View>
@@ -501,46 +585,37 @@ export function GoalDetailScreen({
           <Card
             style={[
               styles.actionCard,
-              {
-                borderColor: (isBeyond ? overflowClr : colors.primary) + '55',
-                backgroundColor: isBeyond ? overflowClr + '11' : colors.primaryLight,
-              },
+              { borderColor: goal.allowBeyond100 ? colors.primary + '55' : colors.border },
             ]}
           >
             <View style={styles.actionCardContent}>
               <MaterialCommunityIcons
-                name={isBeyond ? 'infinity' : 'trending-up'}
+                name={goal.allowBeyond100 ? 'infinity' : 'trophy-outline'}
                 size={22}
-                color={isBeyond ? overflowClr : colors.primaryDark}
+                color={goal.allowBeyond100 ? colors.primary : '#B8860B'}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.actionCardTitle, isBeyond && { color: overflowClr }]}>
-                  {isBeyond ? `Indo além! ${Math.round(progress * 100)}%` : 'Ir além de 100%'}
+                <Text style={styles.actionCardTitle}>
+                  {goal.allowBeyond100 ? 'Além de 100% ativado' : 'Continuar além de 100%'}
                 </Text>
                 <Text style={styles.actionCardDesc}>
-                  {isBeyond
-                    ? 'Continue acumulando - o anel vai mudando de cor'
-                    : 'Ative para continuar acumulando progresso após 100%'}
+                  {goal.allowBeyond100
+                    ? 'O anel muda de cor conforme você avança'
+                    : 'Acumule progresso além da meta inicial'}
                 </Text>
               </View>
               <TouchableOpacity
                 style={[
                   styles.actionBtn,
-                  {
-                    backgroundColor: goal.allowBeyond100
-                      ? colors.surfaceAlt
-                      : isBeyond
-                        ? overflowClr
-                        : colors.primary,
-                  },
+                  { backgroundColor: goal.allowBeyond100 ? colors.primary : '#F5C518' },
                 ]}
                 onPress={handleToggleBeyond100}
                 activeOpacity={0.7}
               >
                 <MaterialCommunityIcons
-                  name={goal.allowBeyond100 ? 'lock-open-outline' : 'lock-outline'}
+                  name={goal.allowBeyond100 ? 'pause' : 'play'}
                   size={18}
-                  color={goal.allowBeyond100 ? colors.textSecondary : colors.textOnPrimary}
+                  color={colors.textOnPrimary}
                 />
               </TouchableOpacity>
             </View>
@@ -548,26 +623,37 @@ export function GoalDetailScreen({
         )}
 
         <View style={styles.taskSectionHeader}>
-          <Text style={styles.sectionTitle}>Fatores ({goal.tasks?.length || 0})</Text>
+          <Text style={styles.sectionTitle}>Fatores</Text>
           <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: accentColor + '22' }]}
-            onPress={() => setShowForm(!showForm)}
+            style={[
+              styles.addBtn,
+              { backgroundColor: showForm ? colors.surfaceAlt : colors.primaryLight },
+            ]}
+            onPress={() => {
+              setShowForm((p) => !p);
+              if (showForm) resetForm();
+            }}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons
               name={showForm ? 'close' : 'plus'}
               size={16}
-              color={accentColor}
+              color={showForm ? colors.textSecondary : colors.primaryDark}
             />
-            <Text style={[styles.addBtnLabel, { color: accentColor }]}>
-              {showForm ? 'Cancelar' : 'Adicionar'}
+            <Text
+              style={[
+                styles.addBtnLabel,
+                { color: showForm ? colors.textSecondary : colors.primaryDark },
+              ]}
+            >
+              {showForm ? 'Cancelar' : 'Novo fator'}
             </Text>
           </TouchableOpacity>
         </View>
 
         {showForm && (
           <Card style={styles.addForm}>
-            <Text style={styles.formLabel}>Tipo de fator</Text>
+            <Text style={styles.formLabel}>Tipo</Text>
             <View style={styles.typeRow}>
               {NEW_TASK_TYPE_OPTIONS.map((opt) => (
                 <TouchableOpacity
@@ -579,7 +665,7 @@ export function GoalDetailScreen({
                   <MaterialCommunityIcons
                     name={opt.icon as any}
                     size={14}
-                    color={newTaskType === opt.key ? colors.textOnPrimary : colors.textSecondary}
+                    color={newTaskType === opt.key ? colors.textOnPrimary : colors.primary}
                   />
                   <Text
                     style={[
@@ -593,20 +679,15 @@ export function GoalDetailScreen({
               ))}
             </View>
 
-            <Text style={styles.formLabel}>Nome *</Text>
+            <Text style={styles.formLabel}>Nome</Text>
             <View style={styles.inlineInput}>
               <TextInput
                 style={styles.inlineTextInput}
-                placeholder={
-                  newTaskType === 'focus_hours'
-                    ? 'Ex: Horas de estudo...'
-                    : newTaskType === 'wildcard'
-                      ? 'Ex: Aprovação no exame...'
-                      : 'Nome do hábito/tarefa...'
-                }
+                placeholder="Nome do fator..."
                 placeholderTextColor={colors.textDisabled}
                 value={taskTitle}
                 onChangeText={setTaskTitle}
+                maxLength={80}
               />
             </View>
 
@@ -617,60 +698,79 @@ export function GoalDetailScreen({
                   <TouchableOpacity
                     style={styles.counterBtn}
                     onPress={() => setTaskHours((p) => Math.max(1, p - 1))}
+                    onLongPress={() =>
+                      startContinuous(() => setTaskHours((p) => Math.max(1, p - 1)))
+                    }
+                    onPressOut={stopContinuous}
+                    delayLongPress={300}
                   >
                     <MaterialCommunityIcons name="minus" size={16} color={colors.textPrimary} />
                   </TouchableOpacity>
-                  <Text style={styles.counterValue}>{taskHours}h</Text>
+                  <EditableValue
+                    value={taskHours}
+                    onChange={setTaskHours}
+                    suffix="h"
+                    style={styles.counterValue}
+                    min={1}
+                  />
                   <TouchableOpacity
                     style={styles.counterBtn}
                     onPress={() => setTaskHours((p) => p + 1)}
+                    onLongPress={() => startContinuous(() => setTaskHours((p) => p + 1))}
+                    onPressOut={stopContinuous}
+                    delayLongPress={300}
                   >
                     <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.formLabel}>Tema (opcional)</Text>
                 {themes.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.themesRow}
-                  >
-                    <TouchableOpacity
-                      style={[styles.themeChip, !taskThemeId && styles.themeChipActive]}
-                      onPress={() => {
-                        setTaskThemeId(undefined);
-                        setTaskThemeName(undefined);
-                      }}
-                      activeOpacity={0.7}
+                  <>
+                    <Text style={styles.formLabel}>Tema de foco</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.themesRow}
                     >
-                      <Text
-                        style={[styles.themeChipLabel, !taskThemeId && styles.themeChipLabelActive]}
-                      >
-                        Todos
-                      </Text>
-                    </TouchableOpacity>
-                    {themes.map((t) => (
                       <TouchableOpacity
-                        key={t.id}
-                        style={[styles.themeChip, taskThemeId === t.id && styles.themeChipActive]}
+                        style={[styles.themeChip, !taskThemeId && styles.themeChipActive]}
                         onPress={() => {
-                          setTaskThemeId(t.id);
-                          setTaskThemeName(t.name);
+                          setTaskThemeId(undefined);
+                          setTaskThemeName(undefined);
                         }}
                         activeOpacity={0.7}
                       >
                         <Text
                           style={[
                             styles.themeChipLabel,
-                            taskThemeId === t.id && styles.themeChipLabelActive,
+                            !taskThemeId && styles.themeChipLabelActive,
                           ]}
                         >
-                          {t.name}
+                          Todos
                         </Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {themes.map((t) => (
+                        <TouchableOpacity
+                          key={t.id}
+                          style={[styles.themeChip, taskThemeId === t.id && styles.themeChipActive]}
+                          onPress={() => {
+                            setTaskThemeId(t.id);
+                            setTaskThemeName(t.name);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.themeChipLabel,
+                              taskThemeId === t.id && styles.themeChipLabelActive,
+                            ]}
+                          >
+                            {t.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
                 )}
               </>
             )}
@@ -727,7 +827,12 @@ export function GoalDetailScreen({
                       >
                         <MaterialCommunityIcons name="minus" size={16} color={colors.textPrimary} />
                       </TouchableOpacity>
-                      <Text style={styles.counterValue}>{taskRecCount}</Text>
+                      <EditableValue
+                        value={taskRecCount}
+                        onChange={setTaskRecCount}
+                        style={styles.counterValue}
+                        min={1}
+                      />
                       <TouchableOpacity
                         style={styles.counterBtn}
                         onPress={() => setTaskRecCount((p) => p + 1)}
@@ -769,11 +874,11 @@ export function GoalDetailScreen({
             )}
 
             <Button
-              label="Adicionar fator"
+              label="Adicionar"
               onPress={handleAddTask}
               variant="secondary"
               fullWidth
-              style={{ marginTop: spacing.sm }}
+              style={styles.saveButton}
             />
           </Card>
         )}
@@ -810,6 +915,7 @@ export function GoalDetailScreen({
           variant="secondary"
           fullWidth
           style={styles.actionButton}
+          disabled={isComplete}
         />
 
         <Button
@@ -830,17 +936,34 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.sm,
   },
-  headerCard: { borderTopWidth: 4 },
-  headerLeft: { flex: 1, gap: 4, paddingRight: spacing.md },
-  title: { ...typography.h2, color: colors.textPrimary },
-  description: { ...typography.sm, color: colors.textSecondary },
+  headerCard: {
+    borderTopWidth: 4,
+  },
+  headerLeft: {
+    flex: 1,
+    gap: 4,
+    paddingRight: spacing.md,
+  },
+  title: {
+    ...typography.h2,
+    color: colors.textPrimary,
+  },
+  description: {
+    ...typography.sm,
+    color: colors.textSecondary,
+  },
   period: {
     ...typography.xs,
     color: colors.textDisabled,
     marginTop: spacing.xs,
     textTransform: 'capitalize',
   },
-  badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: 4 },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -850,7 +973,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.full,
   },
-  badgeText: { ...typography.xs, fontWeight: '600' },
+  badgeText: {
+    ...typography.xs,
+    fontWeight: '600',
+  },
   progressBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -864,7 +990,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     overflow: 'hidden',
   },
-  progressBarFill: { height: '100%', borderRadius: radius.full },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: radius.full,
+  },
   progressPct: {
     ...typography.xs,
     color: colors.textSecondary,
@@ -872,15 +1001,28 @@ const styles = StyleSheet.create({
     minWidth: 36,
     textAlign: 'right',
   },
-  actionCard: { borderWidth: 1, borderRadius: radius.lg, overflow: 'hidden' },
+  actionCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
   actionCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     padding: spacing.md,
   },
-  actionCardTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  actionCardDesc: { ...typography.xs, color: colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  actionCardTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  actionCardDesc: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
   actionBtn: {
     width: 40,
     height: 40,
@@ -908,9 +1050,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.full,
   },
-  addBtnLabel: { ...typography.label },
-  addForm: { gap: spacing.sm, backgroundColor: colors.surfaceAlt },
-  formLabel: { ...typography.label, color: colors.textSecondary, marginTop: spacing.xs },
+  addBtnLabel: {
+    ...typography.label,
+  },
+  addForm: {
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  formLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   inlineInput: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -918,8 +1069,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
   },
-  inlineTextInput: { paddingVertical: spacing.sm, ...typography.body, color: colors.textPrimary },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  inlineTextInput: {
+    paddingVertical: spacing.sm,
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
   typeChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -931,16 +1090,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  typeChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
-  typeChipLabelActive: { color: colors.textOnPrimary },
+  typeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  typeChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  typeChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
   counterInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     justifyContent: 'center',
   },
-  counterInlineRow: { gap: spacing.xs },
+  counterInlineRow: {
+    gap: spacing.xs,
+  },
   counterBtn: {
     width: 28,
     height: 28,
@@ -957,7 +1127,11 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'center',
   },
-  themesRow: { flexDirection: 'row', gap: spacing.xs, paddingBottom: spacing.xs },
+  themesRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
   themeChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -966,9 +1140,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  themeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  themeChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
-  themeChipLabelActive: { color: colors.textOnPrimary },
+  themeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  themeChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  themeChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
   wildcardInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -977,8 +1160,17 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radius.md,
   },
-  wildcardInfoText: { ...typography.xs, color: colors.primaryDark, flex: 1, lineHeight: 15 },
-  recTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  wildcardInfoText: {
+    ...typography.xs,
+    color: colors.primaryDark,
+    flex: 1,
+    lineHeight: 15,
+  },
+  recTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
   recChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -987,10 +1179,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  recChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  recChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
-  recChipLabelActive: { color: colors.textOnPrimary },
-  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  recChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  recChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  recChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
   dayChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -999,25 +1204,65 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  dayChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  dayChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
-  dayChipLabelActive: { color: colors.textOnPrimary },
-  taskCard: { gap: spacing.sm },
-  taskCardDone: { borderColor: colors.success + '66', backgroundColor: colors.success + '0A' },
-  taskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  taskLeft: { flex: 1, gap: 2 },
-  taskTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  taskRec: { ...typography.xs, color: colors.textSecondary },
+  dayChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  dayChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  dayChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
+  taskCard: {
+    gap: spacing.sm,
+  },
+  taskCardDone: {
+    borderColor: colors.success + '66',
+    backgroundColor: colors.success + '0A',
+  },
+  taskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  taskLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  taskTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  taskRec: {
+    ...typography.xs,
+    color: colors.textSecondary,
+  },
   progressTrack: {
     height: 5,
     backgroundColor: colors.border,
     borderRadius: radius.full,
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', borderRadius: radius.full },
-  taskProgress: { ...typography.xs, color: colors.textSecondary },
-  taskControls: { flexDirection: 'row', gap: spacing.xs },
-  taskControlsRow: { flexDirection: 'row', gap: spacing.xs },
+  progressFill: {
+    height: '100%',
+    borderRadius: radius.full,
+  },
+  taskProgress: {
+    ...typography.xs,
+    color: colors.textSecondary,
+  },
+  taskControls: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  taskControlsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
   controlBtn: {
     width: 26,
     height: 26,
@@ -1035,8 +1280,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyCard: { padding: spacing.lg },
-  emptyText: { ...typography.sm, color: colors.textDisabled, textAlign: 'center', lineHeight: 20 },
-  actionButton: { marginTop: spacing.xs },
-  deleteButton: { marginTop: spacing.xs },
+  emptyCard: {
+    padding: spacing.lg,
+  },
+  emptyText: {
+    ...typography.sm,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  actionButton: {
+    marginTop: spacing.xs,
+  },
+  deleteButton: {
+    marginTop: spacing.xs,
+  },
+  saveButton: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+  },
 });

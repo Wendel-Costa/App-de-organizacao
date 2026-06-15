@@ -1,5 +1,4 @@
 import type { Goal, GoalTask } from '@/types/goal.types';
-import { colors } from '@/styles/theme';
 
 export function calcTaskProgress(task: GoalTask, tolerance: number, allowOverflow = false): number {
   if (task.targetCount === 0) return 1;
@@ -24,13 +23,30 @@ export function calcGoalProgress(goal: Goal): number {
   }
 
   if (regularTasks.length === 0) return 0;
+  const allowTaskOverflow = goal.allowOverflow || goal.allowBeyond100;
 
   const sum = regularTasks.reduce((acc, task) => {
-    return acc + calcTaskProgress(task, goal.tolerance, goal.allowOverflow);
+    return acc + calcTaskProgress(task, goal.tolerance, allowTaskOverflow);
   }, 0);
 
   const avg = sum / regularTasks.length;
   return goal.allowBeyond100 ? avg : Math.min(1, avg);
+}
+
+export function toleranceLabel(tolerance: number): string {
+  if (tolerance === 0) return 'Sem margem';
+  return `${Math.round(tolerance * 100)}% de margem`;
+}
+
+export function getLinearBarInfo(
+  progress: number,
+  accentColor: string,
+): { width: number; color: string } {
+  if (progress <= 1) return { width: progress, color: accentColor };
+  const lapProg = progress % 1 || 1;
+  if (progress <= 2) return { width: lapProg, color: '#08d120' };
+  if (progress <= 3) return { width: lapProg, color: '#03c2c5' };
+  return { width: lapProg, color: '#1a04c3' };
 }
 
 export function progressRingColor(
@@ -44,11 +60,6 @@ export function progressRingColor(
   if (progress <= 2) return { primary: baseColor, secondary: '#FFD700' };
   if (progress <= 3) return { primary: baseColor, secondary: '#00f7ff' };
   return { primary: baseColor, secondary: '#0015ff' };
-}
-
-export function toleranceLabel(tolerance: number): string {
-  if (tolerance === 0) return 'Sem margem';
-  return `${Math.round(tolerance * 100)}% de margem`;
 }
 
 export const TOLERANCE_OPTIONS = [

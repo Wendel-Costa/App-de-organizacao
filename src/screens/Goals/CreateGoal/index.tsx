@@ -78,6 +78,59 @@ interface CreateGoalScreenProps {
   initialGoal?: Goal;
 }
 
+function EditableValue({
+  value,
+  onChange,
+  suffix = '',
+  style,
+  min = 1,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+  style?: any;
+  min?: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+
+  function commit() {
+    const v = parseInt(text, 10);
+    if (!isNaN(v) && v >= min) onChange(v);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <TextInput
+        style={[style, { padding: 0, minWidth: 48, textAlign: 'center' }]}
+        value={text}
+        onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
+        keyboardType="number-pad"
+        autoFocus
+        onBlur={commit}
+        onSubmitEditing={commit}
+        returnKeyType="done"
+        selectTextOnFocus
+      />
+    );
+  }
+  return (
+    <TouchableOpacity
+      activeOpacity={0.6}
+      onPress={() => {
+        setText(String(value));
+        setEditing(true);
+      }}
+    >
+      <Text style={style}>
+        {value}
+        {suffix}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalScreenProps) {
   const isEditing = !!initialGoal;
   const { addGoal, editGoal } = useGoalStore();
@@ -111,6 +164,42 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   useEffect(() => {
     fetchThemes();
   }, []);
+
+  function hasUnsavedChanges() {
+    if (isEditing) {
+      return (
+        title !== (initialGoal?.title ?? '') ||
+        description !== (initialGoal?.description ?? '') ||
+        color !== (initialGoal?.color ?? COLORS[0]) ||
+        startDate !== initialGoal?.startDate ||
+        endDate !== initialGoal?.endDate
+      );
+    }
+    return title.trim().length > 0 || description.trim().length > 0 || localTasks.length > 0;
+  }
+
+  function handleBack() {
+    if (hasUnsavedChanges()) {
+      Alert.alert(
+        isEditing ? 'Descartar alterações?' : 'Descartar meta?',
+        'Você tem informações não salvas. Deseja voltar?',
+        [
+          { text: 'Continuar editando', style: 'cancel' },
+          { text: 'Descartar', style: 'destructive', onPress: onBack },
+        ],
+      );
+    } else {
+      onBack();
+    }
+  }
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [title, description, color, startDate, endDate, localTasks]);
 
   function toggleDay(day: RecurrenceDay) {
     setTaskRecDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
@@ -158,9 +247,8 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   }
 
   function localTaskLabel(task: LocalGoalTask): string {
-    if (task.type === 'focus_hours') {
+    if (task.type === 'focus_hours')
       return `${task.targetHours}h de foco${task.themeName ? ` · ${task.themeName}` : ''}`;
-    }
     if (task.type === 'wildcard') return 'Ação coringa';
     switch (task.recurrenceType) {
       case 'daily':
@@ -190,6 +278,15 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   }
 
   async function handleSave() {
+    if (showTaskForm && !isEditing) {
+      Alert.alert(
+        'Fator em andamento',
+        'Você tem um fator sendo criado. Finalize ou cancele-o antes de criar a meta.',
+        [{ text: 'Entendido' }],
+      );
+      return;
+    }
+
     if (!title.trim()) {
       Alert.alert('Atenção', 'O título da meta é obrigatório.');
       return;
@@ -233,11 +330,9 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           localTasks,
         );
 
-        if (createRewardToggle && rewardTitle.trim()) {
-          await addReward({
-            title: rewardTitle.trim(),
-            condition: { type: 'goal_completed', target: 1, period: 'anytime', goalId: goal.id },
-          });
+        if (createRewardToggle && !rewardTitle.trim()) {
+          Alert.alert('Atenção', 'Informe um nome para a recompensa.');
+          return;
         }
       }
 
@@ -252,7 +347,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
 
   return (
     <View style={globalStyles.screen}>
-      <Header title={isEditing ? 'Editar meta' : 'Nova meta'} onBack={onBack} />
+      <Header title={isEditing ? 'Editar meta' : 'Nova meta'} onBack={handleBack} />
 
       <ScrollView
         ref={scrollRef}
@@ -422,7 +517,13 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                       >
                         <MaterialCommunityIcons name="minus" size={18} color={colors.textPrimary} />
                       </TouchableOpacity>
-                      <Text style={styles.counterValue}>{newTaskHours}h</Text>
+                      <EditableValue
+                        value={newTaskHours}
+                        onChange={setNewTaskHours}
+                        suffix="h"
+                        style={styles.counterValue}
+                        min={1}
+                      />
                       <TouchableOpacity
                         style={styles.counterBtn}
                         onPress={() => setNewTaskHours((p) => p + 1)}
@@ -551,7 +652,12 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                               color={colors.textPrimary}
                             />
                           </TouchableOpacity>
-                          <Text style={styles.counterValue}>{taskRecCount}</Text>
+                          <EditableValue
+                            value={taskRecCount}
+                            onChange={setTaskRecCount}
+                            style={styles.counterValue}
+                            min={1}
+                          />
                           <TouchableOpacity
                             style={styles.counterBtn}
                             onPress={() => setTaskRecCount((p) => p + 1)}
