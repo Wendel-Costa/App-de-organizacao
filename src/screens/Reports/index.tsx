@@ -18,6 +18,21 @@ interface ReportsScreenProps {
   onBack: () => void;
 }
 
+const MONTH_NAMES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
 function formatHours(h: number): string {
   if (h === 0) return '0h';
   if (h < 1) return `${Math.round(h * 60)}min`;
@@ -28,6 +43,10 @@ function formatHours(h: number): string {
 
 export function ReportsScreen({ onBack }: ReportsScreenProps) {
   const [period, setPeriod] = useState<Period>('week');
+
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth()); // 0-indexed
 
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
   const { tasks, fetchTasks } = useTaskStore();
@@ -42,12 +61,29 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
 
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const weekly = getWeeklySummary(sessions, tasks);
-  const monthly = getMonthlySummary(sessions, tasks, goals, themes);
+  const monthly = getMonthlySummary(sessions, tasks, goals, themes, viewYear, viewMonth);
 
-  const monthName = new Date().toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric',
-  });
+  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  const isFirstMonth = viewYear < 2020;
+
+  function goToPrevMonth() {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  }
+
+  function goToNextMonth() {
+    if (isCurrentMonth) return;
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  }
 
   return (
     <View style={globalStyles.screen}>
@@ -69,7 +105,7 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
           activeOpacity={0.7}
         >
           <Text style={[styles.periodLabel, period === 'month' && styles.periodLabelActive]}>
-            Este mês
+            Mensal
           </Text>
         </TouchableOpacity>
       </View>
@@ -145,7 +181,38 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
 
         {period === 'month' && (
           <>
-            <Text style={styles.monthLabel}>{monthName}</Text>
+            <View style={styles.monthNav}>
+              <TouchableOpacity
+                onPress={goToPrevMonth}
+                style={styles.monthNavBtn}
+                activeOpacity={0.7}
+                disabled={isFirstMonth}
+              >
+                <MaterialCommunityIcons
+                  name="chevron-left"
+                  size={22}
+                  color={isFirstMonth ? colors.textDisabled : colors.textPrimary}
+                />
+              </TouchableOpacity>
+
+              <View style={styles.monthNavCenter}>
+                <Text style={styles.monthLabel}>{MONTH_NAMES[viewMonth]}</Text>
+                <Text style={styles.yearLabel}>{viewYear}</Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={goToNextMonth}
+                style={styles.monthNavBtn}
+                activeOpacity={0.7}
+                disabled={isCurrentMonth}
+              >
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={22}
+                  color={isCurrentMonth ? colors.textDisabled : colors.textPrimary}
+                />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.summaryRow}>
               <SummaryCard
@@ -172,7 +239,7 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
               <MaterialCommunityIcons name="clock-outline" size={20} color={colors.primary} />
               <View>
                 <Text style={styles.infoTitle}>{formatHours(monthly.avgDailyHours)} por dia</Text>
-                <Text style={styles.infoSub}>média de foco diário este mês</Text>
+                <Text style={styles.infoSub}>média de foco diário</Text>
               </View>
             </Card>
 
@@ -205,7 +272,7 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
 
             {monthly.goalsSummary.length > 0 && (
               <Card style={styles.chartCard}>
-                <Text style={styles.chartTitle}>Metas ativas</Text>
+                <Text style={styles.chartTitle}>Metas ativas no período</Text>
                 <View style={styles.goalsGrid}>
                   {monthly.goalsSummary.map((g, i) => (
                     <View key={i} style={styles.goalItem}>
@@ -222,9 +289,11 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
             {monthly.totalHours === 0 && monthly.totalTasks === 0 && (
               <Card style={styles.emptyCard}>
                 <MaterialCommunityIcons name="chart-bar" size={48} color={colors.textDisabled} />
-                <Text style={styles.emptyTitle}>Nenhum dado este mês</Text>
+                <Text style={styles.emptyTitle}>Nenhum dado neste mês</Text>
                 <Text style={styles.emptySub}>
-                  Comece a estudar e concluir tarefas para ver seus relatórios!
+                  {isCurrentMonth
+                    ? 'Comece a estudar e concluir tarefas para ver seus relatórios!'
+                    : 'Não há dados registrados para este mês.'}
                 </Text>
               </Card>
             )}
@@ -298,11 +367,32 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  monthNavBtn: {
+    padding: spacing.xs,
+  },
+  monthNavCenter: {
+    alignItems: 'center',
+  },
   monthLabel: {
     ...typography.h3,
     color: colors.textPrimary,
     textTransform: 'capitalize',
-    marginBottom: spacing.xs,
+  },
+  yearLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
 
   summaryRow: {

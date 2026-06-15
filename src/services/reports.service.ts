@@ -33,6 +33,8 @@ export interface MonthlySummary {
   focusByTheme: ThemeData[];
   goalsSummary: { title: string; progress: number; color: string }[];
   taskCompletionRate: number;
+  year: number;
+  month: number;
 }
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -62,11 +64,10 @@ function getWeekDates(): string[] {
   return dates;
 }
 
-function getMonthDates(): { start: string; end: string } {
-  const d = new Date();
+function getMonthDates(year: number, month: number): { start: string; end: string } {
   return {
-    start: localDateStr(new Date(d.getFullYear(), d.getMonth(), 1)),
-    end: localDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    start: localDateStr(new Date(year, month, 1)),
+    end: localDateStr(new Date(year, month + 1, 0)),
   };
 }
 
@@ -117,8 +118,14 @@ export function getMonthlySummary(
   tasks: Task[],
   goals: Goal[],
   themes: FocusTheme[],
+  year?: number,
+  month?: number,
 ): MonthlySummary {
-  const { start, end } = getMonthDates();
+  const now = new Date();
+  const y = year ?? now.getFullYear();
+  const m = month ?? now.getMonth();
+
+  const { start, end } = getMonthDates(y, m);
 
   const monthSessions = sessions.filter((s) => {
     const d = dateOf(s.startTime);
@@ -133,7 +140,7 @@ export function getMonthlySummary(
 
   const totalMinutes = monthSessions.reduce((acc, s) => acc + s.duration, 0);
   const totalHours = totalMinutes / 60;
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
   const avgDailyHours = totalHours / daysInMonth;
 
   const themeMap = new Map<string, number>();
@@ -159,7 +166,7 @@ export function getMonthlySummary(
   focusByTheme.sort((a, b) => b.minutes - a.minutes);
 
   const todayStr = localDateStr();
-  const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
+  const activeGoals = goals.filter((g) => g.startDate <= end && g.endDate >= start);
   const goalsSummary = activeGoals.map((g) => ({
     title: g.title,
     progress: calcGoalProgress(g),
@@ -177,5 +184,7 @@ export function getMonthlySummary(
     focusByTheme,
     goalsSummary,
     taskCompletionRate,
+    year: y,
+    month: m,
   };
 }
