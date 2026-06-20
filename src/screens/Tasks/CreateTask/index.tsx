@@ -65,7 +65,6 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
   const [loading, setLoading] = useState(false);
 
-  // Ref para focar o campo de subtarefa ao clicar em +
   const subtaskInputRef = useRef<TextInput>(null);
 
   function hasUnsavedChanges() {
@@ -107,7 +106,6 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
 
   function addSubtask() {
     if (!newSubtask.trim()) {
-      // Se o campo estiver vazio, apenas foca o input
       subtaskInputRef.current?.focus();
       return;
     }
@@ -122,6 +120,15 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   async function handleSave() {
     if (!title.trim()) {
       Alert.alert('Atenção', 'O título da tarefa é obrigatório.');
+      return;
+    }
+    if (newSubtask.trim()) {
+      Alert.alert(
+        'Subtarefa pendente',
+        'Existe uma subtarefa digitada que ainda não foi adicionada. Clique no botão "+" para adicioná-la antes de salvar.',
+      );
+
+      subtaskInputRef.current?.focus();
       return;
     }
     if (type === 'scheduled' && !scheduledDate) {
