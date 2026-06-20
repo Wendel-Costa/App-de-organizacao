@@ -22,10 +22,20 @@ import { ProgressRing } from '@/components/ProgressRing';
 import { CreateGoalScreen } from './CreateGoal';
 import { GoalDetailScreen } from './GoalDetail';
 import type { Goal, GoalTaskRecurrenceType } from '@/types/goal.types';
+import type { GoalTaskForToday } from '@/database/queries/goals.queries';
 import * as Haptics from 'expo-haptics';
 import { calcGoalProgress } from '@/services/goals.service';
 
 type Screen = 'list' | 'create' | 'detail';
+type TaskFilter = 'all' | 'daily' | 'weekly' | 'monthly' | 'free';
+
+const TASK_FILTERS: { key: TaskFilter; label: string }[] = [
+  { key: 'all', label: 'Todas' },
+  { key: 'daily', label: 'Diárias' },
+  { key: 'weekly', label: 'Semanais' },
+  { key: 'monthly', label: 'Mensais' },
+  { key: 'free', label: 'Livres' },
+];
 
 function recurrenceShortLabel(type: GoalTaskRecurrenceType, count: number): string {
   switch (type) {
@@ -42,12 +52,43 @@ function recurrenceShortLabel(type: GoalTaskRecurrenceType, count: number): stri
   }
 }
 
+function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolean {
+  const { task, isDue } = t;
+
+  if (task.type === 'wildcard') {
+    if (task.completedCount >= task.targetCount) return false;
+    if (filter === 'free') return true;
+    if (filter === 'all') return !task.completedToday;
+    return false;
+  }
+
+  if (!isDue) return false;
+
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'daily':
+      return task.recurrenceType === 'daily' || task.recurrenceType === 'specific_days';
+    case 'weekly':
+      return task.recurrenceType === 'times_per_week';
+    case 'monthly':
+      return task.recurrenceType === 'times_per_month';
+    case 'free':
+      return task.recurrenceType === 'none';
+    default:
+      return true;
+  }
+}
+
 export function GoalsScreen() {
   const { goals, todayGoalTasks, loading, fetchGoals, completeTask, uncompleteTask } =
     useGoalStore();
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showTodayTasks, setShowTodayTasks] = useState(true);
+  const [showAllGoals, setShowAllGoals] = useState(true);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
@@ -111,7 +152,7 @@ export function GoalsScreen() {
 
   const activeGoals = goals.filter((g) => !g.archived);
   const archivedGoals = goals.filter((g) => g.archived);
-  const dueTodayTasks = todayGoalTasks.filter((t) => t.isDue);
+  const visibleTodayTasks = todayGoalTasks.filter((t) => isTaskVisibleForFilter(t, taskFilter));
 
   return (
     <View style={globalStyles.screen}>
@@ -136,7 +177,7 @@ export function GoalsScreen() {
             />
           }
           ListEmptyComponent={
-            archivedGoals.length === 0 ? (
+            activeGoals.length === 0 && archivedGoals.length === 0 ? (
               <EmptyState
                 icon="flag-outline"
                 title="Nenhuma meta criada"
@@ -148,178 +189,233 @@ export function GoalsScreen() {
           }
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListHeaderComponent={
-            dueTodayTasks.length > 0 ? (
-              <View style={styles.todaySection}>
-                <Text style={styles.todaySectionTitle}>
-                  Hábitos e tarefas de hoje ({dueTodayTasks.length})
-                </Text>
+            activeGoals.length > 0 || archivedGoals.length > 0 ? (
+              <View style={styles.sectionsContainer}>
+                {activeGoals.length > 0 && (
+                  <View style={styles.todaySection}>
+                    <TouchableOpacity
+                      style={styles.sectionToggle}
+                      onPress={() => setShowTodayTasks((p) => !p)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.sectionToggleText}>Hábitos e tarefas de hoje</Text>
+                      <MaterialCommunityIcons
+                        name={showTodayTasks ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
 
-                {dueTodayTasks.map(({ task, goalTitle, goalColor }) => {
-                  const accent = goalColor ?? colors.primary;
-                  const canComplete =
-                    task.type === 'wildcard'
-                      ? !task.completedToday
-                      : task.recurrenceType === 'daily' || task.recurrenceType === 'specific_days'
-                        ? !task.completedToday
-                        : true;
-
-                  return (
-                    <Card key={task.id} style={[styles.todayTask, { borderLeftColor: accent }]}>
-                      <View style={globalStyles.rowBetween}>
-                        <View style={styles.todayTaskLeft}>
-                          <Text style={styles.todayTaskGoal}>{goalTitle}</Text>
-                          <View style={styles.todayTaskTitleRow}>
-                            {task.type === 'wildcard' && (
-                              <MaterialCommunityIcons
-                                name="lightning-bolt"
-                                size={14}
-                                color="#FFD700"
-                              />
-                            )}
-                            <Text style={styles.todayTaskTitle}>{task.title}</Text>
-                          </View>
-                          {task.type !== 'wildcard' && (
-                            <Text style={styles.todayTaskRec}>
-                              {recurrenceShortLabel(task.recurrenceType, task.recurrenceCount)}
-                              {' · '}
-                              {task.completedCount}/{task.targetCount} total
-                            </Text>
-                          )}
-                        </View>
-
-                        <View style={styles.todayTaskActions}>
-                          {(task.completedToday ||
-                            task.completionsThisWeek > 0 ||
-                            task.completionsThisMonth > 0) && (
-                            <TouchableOpacity
-                              style={styles.undoBtn}
-                              onPress={() => handleUncompleteTask(task.goalId, task.id)}
-                              activeOpacity={0.7}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                              <MaterialCommunityIcons
-                                name="undo"
-                                size={16}
-                                color={colors.textDisabled}
-                              />
-                            </TouchableOpacity>
-                          )}
+                    {showTodayTasks && (
+                      <View style={styles.filterRow}>
+                        {TASK_FILTERS.map((f) => (
                           <TouchableOpacity
+                            key={f.key}
                             style={[
-                              styles.doneBtn,
-                              { backgroundColor: accent },
-                              !canComplete && styles.doneBtnDisabled,
+                              styles.filterChip,
+                              taskFilter === f.key && styles.filterChipActive,
                             ]}
-                            onPress={() => handleCompleteTask(task.goalId, task.id)}
-                            disabled={!canComplete}
-                            activeOpacity={0.8}
+                            onPress={() => setTaskFilter(f.key)}
+                            activeOpacity={0.7}
                           >
-                            <MaterialCommunityIcons
-                              name={
-                                task.completedToday
-                                  ? 'check'
-                                  : task.type === 'wildcard'
-                                    ? 'lightning-bolt'
-                                    : 'plus'
-                              }
-                              size={18}
-                              color={colors.textOnPrimary}
-                            />
+                            <Text
+                              style={[
+                                styles.filterChipText,
+                                taskFilter === f.key && styles.filterChipTextActive,
+                              ]}
+                            >
+                              {f.label}
+                            </Text>
                           </TouchableOpacity>
-                        </View>
+                        ))}
                       </View>
+                    )}
 
-                      {task.type !== 'wildcard' && (
-                        <View style={styles.miniProgress}>
-                          <View
-                            style={[
-                              styles.miniProgressFill,
-                              {
-                                width: `${Math.min(task.completedCount / task.targetCount, 1) * 100}%`,
-                                backgroundColor: accent,
-                              },
-                            ]}
-                          />
-                        </View>
-                      )}
-                    </Card>
-                  );
-                })}
+                    {showTodayTasks &&
+                      (visibleTodayTasks.length === 0 ? (
+                        <Text style={styles.filterEmptyText}>Nenhuma tarefa no momento</Text>
+                      ) : (
+                        visibleTodayTasks.map(({ task, goalTitle, goalColor }) => {
+                          const accent = goalColor ?? colors.primary;
+                          const canComplete =
+                            task.type === 'wildcard'
+                              ? !task.completedToday
+                              : task.recurrenceType === 'daily' ||
+                                  task.recurrenceType === 'specific_days'
+                                ? !task.completedToday
+                                : true;
+
+                          return (
+                            <Card
+                              key={task.id}
+                              style={[styles.todayTask, { borderLeftColor: accent }]}
+                            >
+                              <View style={globalStyles.rowBetween}>
+                                <View style={styles.todayTaskLeft}>
+                                  <Text style={styles.todayTaskGoal}>{goalTitle}</Text>
+                                  <View style={styles.todayTaskTitleRow}>
+                                    {task.type === 'wildcard' && (
+                                      <MaterialCommunityIcons
+                                        name="lightning-bolt"
+                                        size={14}
+                                        color="#FFD700"
+                                      />
+                                    )}
+                                    <Text style={styles.todayTaskTitle}>{task.title}</Text>
+                                  </View>
+                                  {task.type !== 'wildcard' && (
+                                    <Text style={styles.todayTaskRec}>
+                                      {recurrenceShortLabel(
+                                        task.recurrenceType,
+                                        task.recurrenceCount,
+                                      )}
+                                      {' · '}
+                                      {task.completedCount}/{task.targetCount} total
+                                    </Text>
+                                  )}
+                                </View>
+
+                                <View style={styles.todayTaskActions}>
+                                  {(task.completedToday ||
+                                    task.completionsThisWeek > 0 ||
+                                    task.completionsThisMonth > 0) && (
+                                    <TouchableOpacity
+                                      style={styles.undoBtn}
+                                      onPress={() => handleUncompleteTask(task.goalId, task.id)}
+                                      activeOpacity={0.7}
+                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                      <MaterialCommunityIcons
+                                        name="undo"
+                                        size={16}
+                                        color={colors.textDisabled}
+                                      />
+                                    </TouchableOpacity>
+                                  )}
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.doneBtn,
+                                      { backgroundColor: accent },
+                                      !canComplete && styles.doneBtnDisabled,
+                                    ]}
+                                    onPress={() => handleCompleteTask(task.goalId, task.id)}
+                                    disabled={!canComplete}
+                                    activeOpacity={0.8}
+                                  >
+                                    <MaterialCommunityIcons
+                                      name={
+                                        task.completedToday
+                                          ? 'check'
+                                          : task.type === 'wildcard'
+                                            ? 'lightning-bolt'
+                                            : 'plus'
+                                      }
+                                      size={18}
+                                      color={colors.textOnPrimary}
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+
+                              {task.type !== 'wildcard' && (
+                                <View style={styles.miniProgress}>
+                                  <View
+                                    style={[
+                                      styles.miniProgressFill,
+                                      {
+                                        width: `${Math.min(task.completedCount / task.targetCount, 1) * 100}%`,
+                                        backgroundColor: accent,
+                                      },
+                                    ]}
+                                  />
+                                </View>
+                              )}
+                            </Card>
+                          );
+                        })
+                      ))}
+                  </View>
+                )}
 
                 {activeGoals.length > 0 && (
-                  <Text style={styles.goalsListTitle}>Todas as metas</Text>
+                  <TouchableOpacity
+                    style={styles.sectionToggle}
+                    onPress={() => setShowAllGoals((p) => !p)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.sectionToggleText}>Todas as metas</Text>
+                    <MaterialCommunityIcons
+                      name={showAllGoals ? 'chevron-up' : 'chevron-down'}
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {showAllGoals &&
+                  activeGoals.map((item) => (
+                    <GoalCard
+                      key={item.id}
+                      goal={item}
+                      onPress={(g) => {
+                        setSelectedGoal(g);
+                        setScreen('detail');
+                      }}
+                    />
+                  ))}
+
+                {archivedGoals.length > 0 && (
+                  <View style={styles.archivedSection}>
+                    <TouchableOpacity
+                      style={styles.sectionToggle}
+                      onPress={() => setShowArchived((p) => !p)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.sectionToggleText}>Metas concluídas</Text>
+                      <MaterialCommunityIcons
+                        name={showArchived ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+
+                    {showArchived &&
+                      archivedGoals.map((goal) => {
+                        const progress = calcGoalProgress(goal);
+                        const accent = goal.color ?? colors.primary;
+                        return (
+                          <TouchableOpacity
+                            key={goal.id}
+                            style={styles.archivedCard}
+                            onPress={() => {
+                              setSelectedGoal(goal);
+                              setScreen('detail');
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <View style={[styles.archivedDot, { backgroundColor: accent }]} />
+                            <View style={styles.archivedInfo}>
+                              <Text style={styles.archivedTitle} numberOfLines={1}>
+                                {goal.title}
+                              </Text>
+                              <Text style={styles.archivedDates}>
+                                {new Date(goal.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </Text>
+                            </View>
+                            <ProgressRing progress={progress} size={40} color={accent} />
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
                 )}
               </View>
-            ) : activeGoals.length > 0 ? (
-              <Text style={styles.goalsListTitle}>Todas as metas</Text>
             ) : null
           }
-          ListFooterComponent={
-            archivedGoals.length > 0 ? (
-              <View style={styles.archivedSection}>
-                <TouchableOpacity
-                  style={styles.archivedHeader}
-                  onPress={() => setShowArchived((p) => !p)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name="archive-outline"
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={styles.archivedHeaderText}>
-                    Metas concluídas ({archivedGoals.length})
-                  </Text>
-                  <MaterialCommunityIcons
-                    name={showArchived ? 'chevron-up' : 'chevron-down'}
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-
-                {showArchived &&
-                  archivedGoals.map((goal) => {
-                    const progress = calcGoalProgress(goal);
-                    const accent = goal.color ?? colors.primary;
-                    return (
-                      <TouchableOpacity
-                        key={goal.id}
-                        style={styles.archivedCard}
-                        onPress={() => {
-                          setSelectedGoal(goal);
-                          setScreen('detail');
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <View style={[styles.archivedDot, { backgroundColor: accent }]} />
-                        <View style={styles.archivedInfo}>
-                          <Text style={styles.archivedTitle} numberOfLines={1}>
-                            {goal.title}
-                          </Text>
-                          <Text style={styles.archivedDates}>
-                            {new Date(goal.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </Text>
-                        </View>
-                        <ProgressRing progress={progress} size={40} color={accent} />
-                      </TouchableOpacity>
-                    );
-                  })}
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <GoalCard
-              goal={item}
-              onPress={(g) => {
-                setSelectedGoal(g);
-                setScreen('detail');
-              }}
-            />
-          )}
+          renderItem={() => null}
         />
       )}
     </View>
@@ -329,14 +425,56 @@ export function GoalsScreen() {
 const styles = StyleSheet.create({
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
 
-  todaySection: { marginBottom: spacing.md, gap: spacing.sm },
-  todaySectionTitle: {
+  sectionsContainer: { gap: spacing.md },
+
+  todaySection: { gap: spacing.sm },
+
+  sectionToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  sectionToggleText: {
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: spacing.xs,
   },
+
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  filterChip: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: colors.textOnPrimary,
+  },
+  filterEmptyText: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+
   todayTask: { borderLeftWidth: 4, gap: spacing.sm, paddingVertical: spacing.sm },
   todayTaskLeft: { flex: 1, gap: 2 },
   todayTaskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -374,28 +512,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   miniProgressFill: { height: '100%', borderRadius: radius.full },
-  goalsListTitle: {
-    ...typography.label,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
 
-  archivedSection: { marginTop: spacing.xl, gap: spacing.sm },
-  archivedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  archivedHeaderText: { ...typography.label, color: colors.textSecondary, flex: 1 },
+  archivedSection: { gap: spacing.sm },
   archivedCard: {
     flexDirection: 'row',
     alignItems: 'center',

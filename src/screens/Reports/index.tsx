@@ -46,7 +46,7 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
 
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth()); // 0-indexed
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
 
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
   const { tasks, fetchTasks } = useTaskStore();
