@@ -17,7 +17,7 @@ export async function getAllRewards(): Promise<Reward[]> {
 }
 
 export async function createReward(
-  data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+  data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt' | 'archived'>,
 ): Promise<Reward> {
   const id = generateId();
   const createdAt = now();
@@ -35,14 +35,23 @@ export async function createReward(
     conditionCustomStart: data.condition.customStartDate,
     conditionCustomEnd: data.condition.customEndDate,
     unlocked: 0,
+    archived: 0,
     createdAt,
   });
 
-  return { ...data, id, unlocked: false, createdAt };
+  return { ...data, id, unlocked: false, archived: false, createdAt };
 }
 
 export async function unlockReward(id: string): Promise<void> {
   await db.update(rewards).set({ unlocked: 1, unlockedAt: now() }).where(eq(rewards.id, id));
+}
+
+export async function archiveReward(id: string): Promise<void> {
+  await db.update(rewards).set({ archived: 1 }).where(eq(rewards.id, id));
+}
+
+export async function unarchiveReward(id: string): Promise<void> {
+  await db.update(rewards).set({ archived: 0 }).where(eq(rewards.id, id));
 }
 
 export async function deleteReward(id: string): Promise<void> {
@@ -51,7 +60,7 @@ export async function deleteReward(id: string): Promise<void> {
 
 export async function updateReward(
   id: string,
-  data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+  data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt' | 'archived'>,
 ): Promise<void> {
   await db
     .update(rewards)
@@ -87,6 +96,7 @@ function rowToReward(row: typeof rewards.$inferSelect): Reward {
     },
     unlocked: row.unlocked === 1,
     unlockedAt: row.unlockedAt ?? undefined,
+    archived: row.archived === 1,
     createdAt: row.createdAt,
   };
 }

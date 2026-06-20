@@ -1,4 +1,4 @@
-import { db, sqlite } from '../index';
+import { db } from '../index';
 import { sql } from 'drizzle-orm';
 
 export async function runMigrations() {
@@ -109,7 +109,12 @@ export async function runMigrations() {
       condition_custom_end   TEXT,
       unlocked               INTEGER NOT NULL DEFAULT 0,
       unlocked_at            TEXT,
+      archived               INTEGER NOT NULL DEFAULT 0,
       created_at             TEXT NOT NULL
     )
   `);
+
+  try {
+    await db.run(sql`ALTER TABLE rewards ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`);
+  } catch (_) {}
 }

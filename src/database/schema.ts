@@ -100,5 +100,6 @@ export const rewards = sqliteTable('rewards', {
   conditionCustomEnd: text('condition_custom_end'),
   unlocked: int('unlocked').notNull().default(0),
   unlockedAt: text('unlocked_at'),
+  archived: int('archived').notNull().default(0),
   createdAt: text('created_at').notNull(),
 });

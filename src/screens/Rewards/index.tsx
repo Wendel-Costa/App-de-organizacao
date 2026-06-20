@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   BackHandler,
+  findNodeHandle,
+  UIManager,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -43,9 +45,94 @@ const PERIOD_OPTIONS: { key: RewardPeriod; label: string }[] = [
   { key: 'custom', label: 'Período personalizado' },
 ];
 
+function EditableValue({
+  value,
+  onChange,
+  suffix = '',
+  style,
+  min = 1,
+  scrollViewRef,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+  style?: any;
+  min?: number;
+  scrollViewRef?: React.RefObject<ScrollView | null>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState('');
+  const containerRef = useRef<View>(null);
+
+  function commit() {
+    const v = parseInt(text, 10);
+    if (!isNaN(v) && v >= min) onChange(v);
+    setEditing(false);
+  }
+
+  function scrollIntoView() {
+    requestAnimationFrame(() => {
+      const scrollNode = scrollViewRef?.current ? findNodeHandle(scrollViewRef.current) : null;
+      const containerNode = containerRef.current ? findNodeHandle(containerRef.current) : null;
+      if (!scrollNode || !containerNode) return;
+      UIManager.measureLayout(
+        containerNode,
+        scrollNode,
+        () => {},
+        (_x: number, y: number) => {
+          scrollViewRef?.current?.scrollTo({ y: Math.max(y - 160, 0), animated: true });
+        },
+      );
+    });
+  }
+
+  if (editing) {
+    return (
+      <View ref={containerRef} collapsable={false}>
+        <TextInput
+          style={[style, { padding: 0, minWidth: 60, textAlign: 'center' }]}
+          value={text}
+          onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          autoFocus
+          onFocus={scrollIntoView}
+          onBlur={commit}
+          onSubmitEditing={commit}
+          returnKeyType="done"
+          selectTextOnFocus
+        />
+      </View>
+    );
+  }
+  return (
+    <View ref={containerRef} collapsable={false}>
+      <TouchableOpacity
+        activeOpacity={0.6}
+        onPress={() => {
+          setText(String(value));
+          setEditing(true);
+        }}
+      >
+        <Text style={style}>
+          {value}
+          {suffix}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export function RewardsScreen() {
-  const { rewards, loading, fetchRewards, addReward, editReward, removeReward, checkAndUnlock } =
-    useRewardStore();
+  const {
+    rewards,
+    loading,
+    fetchRewards,
+    addReward,
+    editReward,
+    removeReward,
+    checkAndUnlock,
+    unarchiveReward,
+  } = useRewardStore();
 
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
   const { tasks, fetchTasks } = useTaskStore();
@@ -54,20 +141,7 @@ export function RewardsScreen() {
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
   type Screen = 'list' | 'create' | 'detail';
   const [screen, setScreen] = useState<Screen>('list');
-
-  useFocusEffect(
-    useCallback(() => {
-      const onBack = () => {
-        if (screen === 'create' || screen === 'detail') {
-          setScreen('list');
-          return true;
-        }
-        return false;
-      };
-      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
-      return () => sub.remove();
-    }, [screen]),
-  );
+  const [showArchivedRewards, setShowArchivedRewards] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -83,6 +157,9 @@ export function RewardsScreen() {
   const [saving, setSaving] = useState(false);
 
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetchRewards();
@@ -102,8 +179,73 @@ export function RewardsScreen() {
     }
   }, [sessions, tasks, goals]);
 
-  const unlocked = rewards.filter((r) => r.unlocked);
-  const locked = rewards.filter((r) => !r.unlocked);
+  useEffect(() => {
+    return () => {
+      stopContinuous();
+    };
+  }, []);
+
+  function startContinuous(action: () => void) {
+    longPressIntervalRef.current = setInterval(action, 150);
+  }
+
+  function stopContinuous() {
+    if (longPressIntervalRef.current) {
+      clearInterval(longPressIntervalRef.current);
+      longPressIntervalRef.current = null;
+    }
+  }
+
+  function hasUnsavedChanges() {
+    if (editingReward)
+      return title !== editingReward.title || description !== (editingReward.description ?? '');
+    return title.trim().length > 0;
+  }
+
+  function handleBack() {
+    if (hasUnsavedChanges()) {
+      Alert.alert(
+        editingReward ? 'Descartar alterações?' : 'Descartar recompensa?',
+        'Você tem informações não salvas. Deseja voltar?',
+        [
+          { text: 'Continuar editando', style: 'cancel' },
+          {
+            text: 'Descartar',
+            style: 'destructive',
+            onPress: () => {
+              resetForm();
+              setScreen('list');
+            },
+          },
+        ],
+      );
+    } else {
+      resetForm();
+      setScreen('list');
+    }
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        if (screen === 'create') {
+          handleBack();
+          return true;
+        }
+        if (screen === 'detail') {
+          setScreen('list');
+          return true;
+        }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [screen, title, description, editingReward]),
+  );
+
+  const activeUnlocked = rewards.filter((r) => r.unlocked && !r.archived);
+  const locked = rewards.filter((r) => !r.unlocked && !r.archived);
+  const archivedRewards = rewards.filter((r) => r.archived);
 
   function resetForm() {
     setTitle('');
@@ -154,38 +296,27 @@ export function RewardsScreen() {
 
     setSaving(true);
     try {
-      if (editingReward) {
-        await editReward(editingReward.id, {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          condition: {
-            type: conditionType,
-            target,
-            period,
-            themeId: selectedThemeId,
-            taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
-            goalId: selectedGoalId,
-            customStartDate: period === 'custom' ? customStart : undefined,
-            customEndDate: period === 'custom' ? customEnd : undefined,
-          },
-        });
+      const conditionData = {
+        type: conditionType,
+        target,
+        period,
+        themeId: selectedThemeId,
+        taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
+        goalId: selectedGoalId,
+        customStartDate: period === 'custom' ? customStart : undefined,
+        customEndDate: period === 'custom' ? customEnd : undefined,
+      };
+      const rewardData = {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        condition: conditionData,
+      };
 
+      if (editingReward) {
+        await editReward(editingReward.id, rewardData);
         setEditingReward(null);
       } else {
-        await addReward({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          condition: {
-            type: conditionType,
-            target,
-            period,
-            themeId: selectedThemeId,
-            taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
-            goalId: selectedGoalId,
-            customStartDate: period === 'custom' ? customStart : undefined,
-            customEndDate: period === 'custom' ? customEnd : undefined,
-          },
-        });
+        await addReward(rewardData);
       }
 
       resetForm();
@@ -229,10 +360,7 @@ export function RewardsScreen() {
       <View style={globalStyles.screen}>
         <Header
           title={editingReward ? 'Editar recompensa' : 'Nova recompensa'}
-          onBack={() => {
-            resetForm();
-            setScreen('list');
-          }}
+          onBack={handleBack}
         />
 
         <Modal visible={showTaskModal} transparent animationType="slide">
@@ -275,6 +403,7 @@ export function RewardsScreen() {
         </Modal>
 
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -453,14 +582,27 @@ export function RewardsScreen() {
                 <TouchableOpacity
                   style={styles.counterBtn}
                   onPress={() => setTarget((p) => Math.max(1, p - 1))}
+                  onLongPress={() => startContinuous(() => setTarget((p) => Math.max(1, p - 1)))}
+                  onPressOut={stopContinuous}
+                  delayLongPress={300}
                 >
                   <MaterialCommunityIcons name="minus" size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.counterValue}>
-                  {target}
-                  {conditionType === 'focus_hours' ? 'h' : ''}
-                </Text>
-                <TouchableOpacity style={styles.counterBtn} onPress={() => setTarget((p) => p + 1)}>
+                <EditableValue
+                  value={target}
+                  onChange={setTarget}
+                  suffix={conditionType === 'focus_hours' ? 'h' : ''}
+                  style={styles.counterValue}
+                  min={1}
+                  scrollViewRef={scrollRef}
+                />
+                <TouchableOpacity
+                  style={styles.counterBtn}
+                  onPress={() => setTarget((p) => p + 1)}
+                  onLongPress={() => startContinuous(() => setTarget((p) => p + 1))}
+                  onPressOut={stopContinuous}
+                  delayLongPress={300}
+                >
                   <MaterialCommunityIcons name="plus" size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
               </View>
@@ -544,13 +686,13 @@ export function RewardsScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {unlocked.length > 0 && (
+          {activeUnlocked.length > 0 && (
             <>
               <View style={styles.sectionHeader}>
                 <MaterialCommunityIcons name="trophy" size={16} color={colors.primary} />
-                <Text style={styles.sectionTitle}>Desbloqueadas ({unlocked.length})</Text>
+                <Text style={styles.sectionTitle}>Desbloqueadas ({activeUnlocked.length})</Text>
               </View>
-              {unlocked.map((r) => (
+              {activeUnlocked.map((r) => (
                 <RewardCard
                   key={r.id}
                   reward={r}
@@ -570,7 +712,10 @@ export function RewardsScreen() {
           {locked.length > 0 && (
             <>
               <View
-                style={[styles.sectionHeader, { marginTop: unlocked.length > 0 ? spacing.lg : 0 }]}
+                style={[
+                  styles.sectionHeader,
+                  { marginTop: activeUnlocked.length > 0 ? spacing.lg : 0 },
+                ]}
               >
                 <MaterialCommunityIcons
                   name="lock-outline"
@@ -594,6 +739,59 @@ export function RewardsScreen() {
                 />
               ))}
             </>
+          )}
+
+          {archivedRewards.length > 0 && (
+            <View style={styles.archivedSection}>
+              <TouchableOpacity
+                style={styles.archivedHeader}
+                onPress={() => setShowArchivedRewards((p) => !p)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name="archive-outline"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.archivedHeaderText}>
+                  Recompensas guardadas ({archivedRewards.length})
+                </Text>
+                <MaterialCommunityIcons
+                  name={showArchivedRewards ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {showArchivedRewards &&
+                archivedRewards.map((r) => (
+                  <View key={r.id} style={styles.archivedCard}>
+                    <TouchableOpacity
+                      style={styles.archivedCardInner}
+                      onPress={() => {
+                        setSelectedReward(r);
+                        setScreen('detail');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="trophy" size={18} color="#B8860B" />
+                      <Text style={styles.archivedTitle} numberOfLines={1}>
+                        {r.title}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => unarchiveReward(r.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialCommunityIcons
+                        name="archive-arrow-up-outline"
+                        size={16}
+                        color={colors.textDisabled}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+            </View>
           )}
         </ScrollView>
       )}
@@ -858,5 +1056,47 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+
+  archivedSection: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  archivedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  archivedHeaderText: {
+    ...typography.label,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  archivedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  archivedCardInner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  archivedTitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    flex: 1,
   },
 });

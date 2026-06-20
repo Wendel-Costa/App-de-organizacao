@@ -8,6 +8,8 @@ import {
   createReward,
   updateReward,
   unlockReward,
+  archiveReward,
+  unarchiveReward,
   deleteReward,
 } from '@/database/queries/rewards.queries';
 
@@ -19,14 +21,16 @@ interface RewardState {
 
   fetchRewards: () => Promise<void>;
   addReward: (
-    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt' | 'archived'>,
   ) => Promise<Reward>;
   removeReward: (id: string) => Promise<void>;
   checkAndUnlock: (sessions: FocusSession[], tasks: Task[], goals: Goal[]) => Promise<Reward[]>;
   editReward: (
     id: string,
-    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt'>,
+    data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt' | 'archived'>,
   ) => Promise<void>;
+  archiveReward: (id: string) => Promise<void>;
+  unarchiveReward: (id: string) => Promise<void>;
 }
 
 export const useRewardStore = create<RewardState>((set, get) => ({
@@ -82,6 +86,20 @@ export const useRewardStore = create<RewardState>((set, get) => ({
     await updateReward(id, data);
     set((state) => ({
       rewards: state.rewards.map((r) => (r.id === id ? { ...r, ...data } : r)),
+    }));
+  },
+
+  archiveReward: async (id) => {
+    await archiveReward(id);
+    set((state) => ({
+      rewards: state.rewards.map((r) => (r.id === id ? { ...r, archived: true } : r)),
+    }));
+  },
+
+  unarchiveReward: async (id) => {
+    await unarchiveReward(id);
+    set((state) => ({
+      rewards: state.rewards.map((r) => (r.id === id ? { ...r, archived: false } : r)),
     }));
   },
 }));

@@ -24,5 +24,6 @@ export interface Reward {
   condition: RewardCondition;
   unlocked: boolean;
   unlockedAt?: string;
+  archived: boolean;
   createdAt: string;
 }

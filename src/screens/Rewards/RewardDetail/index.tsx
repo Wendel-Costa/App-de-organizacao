@@ -31,7 +31,7 @@ export function RewardDetailScreen({
   onEdit,
   onDeleted,
 }: RewardDetailScreenProps) {
-  const { removeReward } = useRewardStore();
+  const { removeReward, archiveReward } = useRewardStore();
 
   const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
@@ -57,6 +57,23 @@ export function RewardDetailScreen({
         },
       },
     ]);
+  }
+
+  function handleArchive() {
+    Alert.alert(
+      'Guardar recompensa',
+      'A recompensa será movida para a seção "Guardadas". Ela não será apagada e você ainda poderá acessá-la.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Guardar',
+          onPress: async () => {
+            await archiveReward(reward.id);
+            onDeleted();
+          },
+        },
+      ],
+    );
   }
 
   return (
@@ -88,6 +105,27 @@ export function RewardDetailScreen({
           <Text style={styles.title}>{reward.title}</Text>
           {reward.description && <Text style={styles.description}>{reward.description}</Text>}
         </Card>
+
+        {reward.unlocked && !reward.archived && (
+          <Card style={[styles.archiveCard, { borderColor: '#FFD700' + '55' }]}>
+            <View style={styles.archiveCardContent}>
+              <MaterialCommunityIcons name="archive-check-outline" size={22} color="#B8860B" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.archiveCardTitle}>Guardar recompensa</Text>
+                <Text style={styles.archiveCardDesc}>
+                  Mover para a seção "Guardadas" sem excluir
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.archiveIconBtn, { backgroundColor: '#FFD700' }]}
+                onPress={handleArchive}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="archive-outline" size={18} color="#2A2318" />
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
 
         <Text style={styles.sectionTitle}>Condição</Text>
         <Card style={styles.infoCard}>
@@ -184,6 +222,35 @@ const styles = StyleSheet.create({
   mainCard: { gap: spacing.sm },
   title: { ...typography.h2, color: colors.textPrimary },
   description: { ...typography.body, color: colors.textSecondary, lineHeight: 22 },
+  archiveCard: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  archiveCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  archiveCardTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  archiveCardDesc: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  archiveIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sectionTitle: {
     ...typography.label,
     color: colors.textSecondary,
