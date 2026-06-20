@@ -11,6 +11,7 @@ import { TimelineBar } from '@/components/TimelineBar';
 import { ManualRegisterScreen } from '../ActiveFocus/ManualRegister';
 import { ScrollView } from 'react-native-gesture-handler';
 import { localDateStr, dateOf } from '@/utils/date';
+import { TimePicker } from '@/components/TimePicker';
 
 interface FocusHistoryScreenProps {
   onBack: () => void;
@@ -38,11 +39,36 @@ function getCurrentWeekRange() {
   return { startOfWeek, endOfWeek };
 }
 
+function toHHMM(date: Date): string {
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function parseHHMM(timeStr: string, baseDate: Date): Date | null {
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h > 23 || m > 59) return null;
+  const d = new Date(baseDate);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
-  const { sessions, themes, fetchSessions, fetchThemes, removeSession, editSessionTheme } =
-    useFocusStore();
+  const {
+    sessions,
+    themes,
+    fetchSessions,
+    fetchThemes,
+    removeSession,
+    editSessionTheme,
+    editSessionTime,
+  } = useFocusStore();
   const [showManual, setShowManual] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
+  const [editingTimeSession, setEditingTimeSession] = useState<string | null>(null);
+  const [editStartStr, setEditStartStr] = useState('');
+  const [editEndStr, setEditEndStr] = useState('');
   const [selectedDate, setSelectedDate] = useState(localDateStr());
 
   useEffect(() => {
@@ -67,6 +93,59 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: () => removeSession(id) },
     ]);
+  }
+
+  function openEditTime(sessionId: string) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    setEditStartStr(toHHMM(new Date(session.startTime)));
+    setEditEndStr(toHHMM(new Date(session.endTime)));
+    setEditingTimeSession(sessionId);
+    setEditingSession(null);
+  }
+
+  async function handleSaveTime(sessionId: string) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    const baseDate = new Date(session.startTime);
+    const newStart = parseHHMM(editStartStr, baseDate);
+    const newEnd = parseHHMM(editEndStr, baseDate);
+
+    if (!newStart || !newEnd) {
+      Alert.alert('Formato inválido', 'Use o formato HH:MM (ex: 09:30).');
+      return;
+    }
+    if (newEnd <= newStart) {
+      Alert.alert('Horário inválido', 'O horário de fim deve ser depois do início.');
+      return;
+    }
+
+    const hasConflict = sessions.some((s) => {
+      if (s.id === sessionId) return false;
+
+      const sessionStart = new Date(s.startTime);
+      const sessionEnd = new Date(s.endTime);
+
+      const sameDay =
+        sessionStart.toISOString().split('T')[0] === newStart.toISOString().split('T')[0];
+
+      if (!sameDay) return false;
+
+      return newStart < sessionEnd && newEnd > sessionStart;
+    });
+
+    if (hasConflict) {
+      Alert.alert(
+        'Conflito de horário',
+        'Já existe uma sessão registrada nesse horário neste dia.',
+      );
+      return;
+    }
+
+    const duration = Math.round((newEnd.getTime() - newStart.getTime()) / 60000);
+    await editSessionTime(sessionId, newStart.toISOString(), newEnd.toISOString(), duration);
+    setEditingTimeSession(null);
   }
 
   const daySessions = sessions.filter((s) => dateOf(s.startTime) === selectedDate);
@@ -167,8 +246,30 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                   <Text style={styles.sessionDuration}>{formatDuration(item.duration)}</Text>
                   {item.isManual && <Text style={styles.manualBadge}>manual</Text>}
 
+                  {item.isManual && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        editingTimeSession === item.id
+                          ? setEditingTimeSession(null)
+                          : openEditTime(item.id)
+                      }
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MaterialCommunityIcons
+                        name="clock-edit-outline"
+                        size={16}
+                        color={
+                          editingTimeSession === item.id ? colors.primary : colors.textSecondary
+                        }
+                      />
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
-                    onPress={() => setEditingSession(editingSession === item.id ? null : item.id)}
+                    onPress={() => {
+                      setEditingTimeSession(null);
+                      setEditingSession(editingSession === item.id ? null : item.id);
+                    }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <MaterialCommunityIcons
@@ -190,6 +291,32 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {editingTimeSession === item.id && (
+                <View style={styles.timeEditor}>
+                  <View style={styles.timeEditorRow}>
+                    <View style={styles.timeEditorField}>
+                      <TimePicker label="Início" value={editStartStr} onChange={setEditStartStr} />
+                    </View>
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={18}
+                      color={colors.textDisabled}
+                      style={{ marginTop: 18 }}
+                    />
+                    <View style={styles.timeEditorField}>
+                      <TimePicker label="Fim" value={editEndStr} onChange={setEditEndStr} />
+                    </View>
+                    <TouchableOpacity
+                      style={styles.timeEditorSave}
+                      onPress={() => handleSaveTime(item.id)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="check" size={18} color={colors.textOnPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
               {editingSession === item.id && (
                 <View style={styles.themeSelector}>
@@ -354,4 +481,25 @@ const styles = StyleSheet.create({
   themeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
   themeChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
   themeChipLabelActive: { color: colors.textOnPrimary },
+
+  timeEditor: {
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  timeEditorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  timeEditorField: {
+    flex: 1,
+  },
+  timeEditorSave: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    alignSelf: 'flex-end',
+  },
 });

@@ -100,6 +100,18 @@ export async function updateSessionTheme(
     .where(eq(focusSessions.id, id));
 }
 
+export async function updateSessionTime(
+  id: string,
+  startTime: string,
+  endTime: string,
+  duration: number,
+): Promise<void> {
+  await db
+    .update(focusSessions)
+    .set({ startTime, endTime, duration })
+    .where(eq(focusSessions.id, id));
+}
+
 function rowToSession(row: typeof focusSessions.$inferSelect): FocusSession {
   return {
     id: row.id,
