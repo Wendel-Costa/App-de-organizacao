@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
@@ -44,11 +44,29 @@ export function HomeScreen() {
   const { sessions, fetchSessions, mode, setMode, fetchThemes } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
   const { name } = useSettingsStore();
+  const navigation = useNavigation<any>();
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActiveFocus, setShowActiveFocus] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [homeScreen, setHomeScreen] = useState<'home' | 'detail' | 'edit'>('home');
+
+  const hasOverlayRef = useRef(false);
+  hasOverlayRef.current = showSettings || showReports || homeScreen !== 'home' || showActiveFocus;
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (e: any) => {
+      if (hasOverlayRef.current) {
+        e.preventDefault?.();
+        setShowSettings(false);
+        setShowReports(false);
+        setShowActiveFocus(false);
+        setHomeScreen('home');
+        setSelectedTask(null);
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {
