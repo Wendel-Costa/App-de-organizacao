@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -65,6 +65,9 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
   const [loading, setLoading] = useState(false);
 
+  // Ref para focar o campo de subtarefa ao clicar em +
+  const subtaskInputRef = useRef<TextInput>(null);
+
   function hasUnsavedChanges() {
     if (isEditing) return false;
     return title.trim().length > 0 || description.trim().length > 0 || subtasks.length > 0;
@@ -103,7 +106,11 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   }
 
   function addSubtask() {
-    if (!newSubtask.trim()) return;
+    if (!newSubtask.trim()) {
+      // Se o campo estiver vazio, apenas foca o input
+      subtaskInputRef.current?.focus();
+      return;
+    }
     setSubtasks((prev) => [...prev, { title: newSubtask.trim(), completed: false }]);
     setNewSubtask('');
   }
@@ -316,12 +323,12 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         )}
 
         <Text style={styles.label}>Subtarefas</Text>
-        <Text style={styles.sublabel}>Escreva no campo abaixo e toque em + para adicionar</Text>
 
         <View style={styles.subtaskInput}>
           <TextInput
+            ref={subtaskInputRef}
             style={styles.subtaskTextInput}
-            placeholder="Ex: Ler capítulo 1..."
+            placeholder="Adicionar subtarefa..."
             placeholderTextColor={colors.textDisabled}
             value={newSubtask}
             onChangeText={setNewSubtask}
@@ -330,14 +337,13 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           />
           <TouchableOpacity
             onPress={addSubtask}
-            style={[styles.subtaskAddButton, !newSubtask.trim() && styles.subtaskAddButtonDisabled]}
-            disabled={!newSubtask.trim()}
+            style={styles.subtaskAddButton}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons
               name="plus"
               size={22}
-              color={newSubtask.trim() ? colors.primaryDark : colors.textDisabled}
+              color={newSubtask.trim() ? colors.primaryDark : colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -511,6 +517,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
+    marginTop: spacing.xs,
   },
   subtaskTitle: {
     flex: 1,
@@ -520,11 +527,4 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.xl,
   },
-  sublabel: {
-    ...typography.xs,
-    color: colors.textDisabled,
-    marginBottom: spacing.xs,
-    marginTop: -spacing.xs,
-  },
-  subtaskAddButtonDisabled: { opacity: 0.4 },
 });
