@@ -66,6 +66,9 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 
   switch (filter) {
     case 'all':
+      if (task.recurrenceType === 'none' && task.completedToday) {
+        return false;
+      }
       return true;
     case 'daily':
       return task.recurrenceType === 'daily' || task.recurrenceType === 'specific_days';

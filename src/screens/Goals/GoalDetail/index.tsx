@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Alert,
   TextInput,
+  findNodeHandle,
+  UIManager,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -86,15 +88,18 @@ function EditableValue({
   suffix = '',
   style,
   min = 1,
+  scrollViewRef,
 }: {
   value: number;
   onChange: (v: number) => void;
   suffix?: string;
   style?: any;
   min?: number;
+  scrollViewRef?: React.RefObject<ScrollView | null>;
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  const containerRef = useRef<View>(null);
 
   function commit() {
     const v = parseInt(text, 10);
@@ -102,34 +107,55 @@ function EditableValue({
     setEditing(false);
   }
 
+  function scrollIntoView() {
+    requestAnimationFrame(() => {
+      const scrollNode = scrollViewRef?.current ? findNodeHandle(scrollViewRef.current) : null;
+      const containerNode = containerRef.current ? findNodeHandle(containerRef.current) : null;
+      if (!scrollNode || !containerNode) return;
+      UIManager.measureLayout(
+        containerNode,
+        scrollNode,
+        () => {},
+        (_x: number, y: number) => {
+          scrollViewRef?.current?.scrollTo({ y: Math.max(y - 160, 0), animated: true });
+        },
+      );
+    });
+  }
+
   if (editing) {
     return (
-      <TextInput
-        style={[style, { padding: 0, minWidth: 40, textAlign: 'center' }]}
-        value={text}
-        onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
-        keyboardType="number-pad"
-        autoFocus
-        onBlur={commit}
-        onSubmitEditing={commit}
-        returnKeyType="done"
-        selectTextOnFocus
-      />
+      <View ref={containerRef} collapsable={false}>
+        <TextInput
+          style={[style, { padding: 0, minWidth: 40, textAlign: 'center' }]}
+          value={text}
+          onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          autoFocus
+          onFocus={scrollIntoView}
+          onBlur={commit}
+          onSubmitEditing={commit}
+          returnKeyType="done"
+          selectTextOnFocus
+        />
+      </View>
     );
   }
   return (
-    <TouchableOpacity
-      activeOpacity={0.6}
-      onPress={() => {
-        setText(String(value));
-        setEditing(true);
-      }}
-    >
-      <Text style={style}>
-        {value}
-        {suffix}
-      </Text>
-    </TouchableOpacity>
+    <View ref={containerRef} collapsable={false}>
+      <TouchableOpacity
+        activeOpacity={0.6}
+        onPress={() => {
+          setText(String(value));
+          setEditing(true);
+        }}
+      >
+        <Text style={style}>
+          {value}
+          {suffix}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -171,6 +197,7 @@ export function GoalDetailScreen({
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
+  const scrollRef = useRef<ScrollView>(null);
   const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -487,7 +514,12 @@ export function GoalDetailScreen({
         rightAction={{ icon: 'pencil-outline', onPress: () => setShowEdit(true) }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Card elevated style={[styles.headerCard, { borderTopColor: accentColor }]}>
           <View style={globalStyles.rowBetween}>
             <View style={styles.headerLeft}>
@@ -712,6 +744,7 @@ export function GoalDetailScreen({
                     suffix="h"
                     style={styles.counterValue}
                     min={1}
+                    scrollViewRef={scrollRef}
                   />
                   <TouchableOpacity
                     style={styles.counterBtn}
@@ -824,6 +857,11 @@ export function GoalDetailScreen({
                       <TouchableOpacity
                         style={styles.counterBtn}
                         onPress={() => setTaskRecCount((p) => Math.max(1, p - 1))}
+                        onLongPress={() =>
+                          startContinuous(() => setTaskRecCount((p) => Math.max(1, p - 1)))
+                        }
+                        onPressOut={stopContinuous}
+                        delayLongPress={300}
                       >
                         <MaterialCommunityIcons name="minus" size={16} color={colors.textPrimary} />
                       </TouchableOpacity>
@@ -832,10 +870,14 @@ export function GoalDetailScreen({
                         onChange={setTaskRecCount}
                         style={styles.counterValue}
                         min={1}
+                        scrollViewRef={scrollRef}
                       />
                       <TouchableOpacity
                         style={styles.counterBtn}
                         onPress={() => setTaskRecCount((p) => p + 1)}
+                        onLongPress={() => startContinuous(() => setTaskRecCount((p) => p + 1))}
+                        onPressOut={stopContinuous}
+                        delayLongPress={300}
                       >
                         <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
                       </TouchableOpacity>
