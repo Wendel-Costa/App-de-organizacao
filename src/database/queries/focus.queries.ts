@@ -1,4 +1,4 @@
-import { eq, desc, gte, lte, and } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { db } from '../index';
 import { focusSessions, focusThemes } from '../schema';
 import type { FocusSession, FocusTheme } from '@/types/focus.types';
@@ -32,34 +32,6 @@ export async function deleteTheme(id: string): Promise<void> {
 
 export async function getAllSessions(): Promise<FocusSession[]> {
   const rows = await db.select().from(focusSessions).orderBy(desc(focusSessions.startTime));
-  return rows.map(rowToSession);
-}
-
-export async function getSessionsForDate(date: string): Promise<FocusSession[]> {
-  const start = `${date}T00:00:00.000Z`;
-  const end = `${date}T23:59:59.999Z`;
-  const rows = await db
-    .select()
-    .from(focusSessions)
-    .where(and(gte(focusSessions.startTime, start), lte(focusSessions.startTime, end)))
-    .orderBy(desc(focusSessions.startTime));
-  return rows.map(rowToSession);
-}
-
-export async function getSessionsForRange(
-  startDate: string,
-  endDate: string,
-): Promise<FocusSession[]> {
-  const rows = await db
-    .select()
-    .from(focusSessions)
-    .where(
-      and(
-        gte(focusSessions.startTime, `${startDate}T00:00:00.000Z`),
-        lte(focusSessions.startTime, `${endDate}T23:59:59.999Z`),
-      ),
-    )
-    .orderBy(desc(focusSessions.startTime));
   return rows.map(rowToSession);
 }
 

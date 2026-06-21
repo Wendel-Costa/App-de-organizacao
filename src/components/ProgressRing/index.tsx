@@ -134,7 +134,4 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textSecondary,
   },
-  star: {
-    lineHeight: undefined,
-  },
 });

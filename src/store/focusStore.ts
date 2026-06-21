@@ -7,7 +7,6 @@ import {
   createTheme,
   deleteSession,
   deleteTheme,
-  getSessionsForDate,
   updateSessionTheme,
   updateSessionTime,
 } from '@/database/queries/focus.queries';
@@ -33,7 +32,6 @@ interface FocusState {
   addTheme: (name: string, color?: string) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
   removeTheme: (id: string) => Promise<void>;
-  getTodaySessions: () => Promise<FocusSession[]>;
   editSessionTheme: (id: string, themeId?: string, themeName?: string) => Promise<void>;
   editSessionTime: (
     id: string,
@@ -101,11 +99,6 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   removeTheme: async (id) => {
     await deleteTheme(id);
     set((state) => ({ themes: state.themes.filter((t) => t.id !== id) }));
-  },
-
-  getTodaySessions: async () => {
-    const today = new Date().toISOString().split('T')[0];
-    return getSessionsForDate(today);
   },
 
   setMode: (mode) => set({ mode }),

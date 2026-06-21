@@ -49,19 +49,6 @@ export function getLinearBarInfo(
   return { width: lapProg, color: '#1a04c3' };
 }
 
-export function progressRingColor(
-  progress: number,
-  baseColor: string,
-): {
-  primary: string;
-  secondary?: string;
-} {
-  if (progress <= 1) return { primary: baseColor };
-  if (progress <= 2) return { primary: baseColor, secondary: '#FFD700' };
-  if (progress <= 3) return { primary: baseColor, secondary: '#00f7ff' };
-  return { primary: baseColor, secondary: '#0015ff' };
-}
-
 export const TOLERANCE_OPTIONS = [
   { value: 0, label: 'Sem margem', description: '100% das tarefas' },
   { value: 0.1, label: '10%', description: '90% das tarefas' },

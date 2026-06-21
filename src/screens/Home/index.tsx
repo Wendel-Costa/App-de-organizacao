@@ -41,7 +41,7 @@ function getFormattedDate() {
 
 export function HomeScreen() {
   const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
-  const { sessions, fetchSessions, mode, setMode, fetchThemes } = useFocusStore();
+  const { sessions, fetchSessions, setMode, fetchThemes } = useFocusStore();
   const { goals, fetchGoals } = useGoalStore();
   const { name } = useSettingsStore();
   const navigation = useNavigation<any>();

@@ -44,7 +44,7 @@ const filters: { key: Filter; label: string }[] = [
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
   const { fetchThemes } = useFocusStore();
-  const { goals, todayGoalTasks, fetchGoals, completeTask, uncompleteTask } = useGoalStore();
+  const { todayGoalTasks, fetchGoals, completeTask, uncompleteTask } = useGoalStore();
 
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');

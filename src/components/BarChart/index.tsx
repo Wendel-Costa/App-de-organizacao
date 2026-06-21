@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, spacing, radius, typography } from '@/styles/theme';
+import { colors, spacing, radius } from '@/styles/theme';
 
 interface BarData {
   label: string;

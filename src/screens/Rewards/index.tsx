@@ -22,7 +22,6 @@ import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useGoalStore } from '@/store/goalStore';
 import { Header } from '@/components/Header';
-import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { RewardCard } from '@/components/RewardCard';
 import { EmptyState } from '@/components/EmptyState';

@@ -389,8 +389,6 @@ export async function getGoalTasksForToday(allGoals: Goal[]): Promise<GoalTaskFo
     'saturday',
   ] as const;
   const todayWeekday = WEEKDAYS[new Date().getDay()];
-  const week = getWeekRange();
-  const month = getMonthRange();
 
   const result: GoalTaskForToday[] = [];
 

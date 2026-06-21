@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Goal, GoalTask, LocalGoalTask } from '@/types/goal.types';
+import type { Goal, LocalGoalTask } from '@/types/goal.types';
 import {
   getAllGoals,
   createGoal,

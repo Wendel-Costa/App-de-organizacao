@@ -9,14 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useSettingsStore } from '@/store/settingsStore';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onDone: () => void;

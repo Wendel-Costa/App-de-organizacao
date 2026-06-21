@@ -37,7 +37,6 @@ export interface MonthlySummary {
   month: number;
 }
 
-const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const THEME_PALETTE = [
   '#5B9BD5',
   '#5DB88A',
@@ -165,7 +164,6 @@ export function getMonthlySummary(
   });
   focusByTheme.sort((a, b) => b.minutes - a.minutes);
 
-  const todayStr = localDateStr();
   const activeGoals = goals.filter((g) => g.startDate <= end && g.endDate >= start);
   const goalsSummary = activeGoals.map((g) => ({
     title: g.title,
