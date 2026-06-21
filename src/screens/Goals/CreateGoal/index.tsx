@@ -359,6 +359,11 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           archived: initialGoal.archived,
         });
       } else {
+        if (createRewardToggle && !rewardTitle.trim()) {
+          Alert.alert('Atenção', 'Informe um nome para a recompensa.');
+          return;
+        }
+
         const goal = await addGoal(
           {
             title: title.trim(),
@@ -374,9 +379,11 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           localTasks,
         );
 
-        if (createRewardToggle && !rewardTitle.trim()) {
-          Alert.alert('Atenção', 'Informe um nome para a recompensa.');
-          return;
+        if (createRewardToggle) {
+          await addReward({
+            title: rewardTitle.trim(),
+            condition: { type: 'goal_completed', target: 1, period: 'anytime', goalId: goal.id },
+          });
         }
       }
 
