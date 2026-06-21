@@ -113,8 +113,4 @@ export async function runMigrations() {
       created_at             TEXT NOT NULL
     )
   `);
-
-  try {
-    await db.run(sql`ALTER TABLE rewards ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`);
-  } catch (_) {}
 }
