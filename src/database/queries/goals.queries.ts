@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../index';
-import { goals, goalTasks, goalTaskCompletions, focusSessions } from '../schema';
+import { goals, goalTasks, goalTaskCompletions, focusSessions, focusThemes } from '../schema';
 import type {
   Goal,
   GoalTask,
@@ -36,6 +36,16 @@ function getWeekRange() {
 
 function getMonthRange() {
   return { start: localMonthStart(), end: localMonthEnd() };
+}
+
+function parseThemeIds(row: { themeIds: string | null; themeId: string | null }): string[] {
+  if (row.themeIds) {
+    try {
+      const parsed = JSON.parse(row.themeIds);
+      if (Array.isArray(parsed)) return parsed.filter((id): id is string => typeof id === 'string');
+    } catch {}
+  }
+  return row.themeId ? [row.themeId] : [];
 }
 
 export function calculateTargetCount(
@@ -81,10 +91,13 @@ export async function getAllGoals(): Promise<Goal[]> {
   const taskRows = await db.select().from(goalTasks);
   const completionRows = await db.select().from(goalTaskCompletions);
   const sessionRows = await db.select().from(focusSessions);
+  const themeRows = await db.select().from(focusThemes);
 
   const todayStr = today();
   const week = getWeekRange();
   const month = getMonthRange();
+
+  const themeNameById = new Map(themeRows.map((t) => [t.id, t.name]));
 
   const completionsByTaskId = new Map<string, typeof completionRows>();
   for (const c of completionRows) {
@@ -98,6 +111,7 @@ export async function getAllGoals(): Promise<Goal[]> {
 
   for (const t of taskRows) {
     const taskType = (t.type ?? 'habit') as GoalTaskType;
+    const themeIds = parseThemeIds(t);
     let completedCount = 0,
       completedToday = false,
       completionsThisWeek = 0,
@@ -109,7 +123,8 @@ export async function getAllGoals(): Promise<Goal[]> {
         const relevantSessions = sessionRows.filter((s) => {
           const date = dateOf(s.startTime);
           const inPeriod = date >= goal.startDate && date <= goal.endDate;
-          const matchTheme = t.themeId ? s.themeId === t.themeId : true;
+          const matchTheme =
+            themeIds.length > 0 ? (s.themeId ? themeIds.includes(s.themeId) : false) : true;
           return inPeriod && matchTheme;
         });
 
@@ -143,34 +158,44 @@ export async function getAllGoals(): Promise<Goal[]> {
       recurrenceType: (t.recurrenceType as GoalTaskRecurrenceType) ?? 'none',
       recurrenceCount: t.recurrenceCount ?? 1,
       recurrenceDays: t.recurrenceDays ? JSON.parse(t.recurrenceDays) : [],
-      themeId: t.themeId ?? undefined,
-      themeName: t.themeName ?? undefined,
+      themeIds: themeIds.length > 0 ? themeIds : undefined,
+      themeNames:
+        themeIds.length > 0
+          ? themeIds.map((id) => themeNameById.get(id) ?? '(tema removido)')
+          : undefined,
     });
   }
 
-  return goalRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    description: row.description ?? undefined,
-    startDate: row.startDate,
-    endDate: row.endDate,
-    color: row.color ?? undefined,
-    tolerance: row.tolerance ?? 0,
-    allowOverflow: Boolean(row.allowOverflow),
-    allowBeyond100: Boolean(row.allowBeyond100),
-    archived: Boolean(row.archived),
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    tasks: tasksByGoalId.get(row.id) ?? [],
-  }));
+  return goalRows
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description ?? undefined,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      color: row.color ?? undefined,
+      tolerance: row.tolerance ?? 0,
+      allowOverflow: Boolean(row.allowOverflow),
+      allowBeyond100: Boolean(row.allowBeyond100),
+      archived: Boolean(row.archived),
+      order: row.sortOrder ?? 0,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      tasks: tasksByGoalId.get(row.id) ?? [],
+    }))
+    .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
 }
 
 export async function createGoal(
-  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
   localTasks: LocalGoalTask[],
 ): Promise<Goal> {
   const id = generateId();
   const timestamp = now();
+
+  const existing = await db.select().from(goals);
+  const maxOrder = existing.reduce((m, g) => Math.max(m, g.sortOrder ?? 0), 0);
+  const order = existing.length > 0 ? maxOrder + 1 : 0;
 
   await db.insert(goals).values({
     id,
@@ -183,6 +208,7 @@ export async function createGoal(
     allowOverflow: data.allowOverflow ? 1 : 0,
     allowBeyond100: data.allowBeyond100 ? 1 : 0,
     archived: 0,
+    sortOrder: order,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
@@ -211,8 +237,7 @@ export async function createGoal(
       title: lt.title,
       targetCount,
       type: taskType,
-      themeId: lt.themeId ?? null,
-      themeName: lt.themeName ?? null,
+      themeIds: lt.themeIds?.length ? JSON.stringify(lt.themeIds) : null,
       recurrenceType: taskType === 'habit' ? lt.recurrenceType : 'none',
       recurrenceCount: taskType === 'habit' ? lt.recurrenceCount : 1,
       recurrenceDays: lt.recurrenceDays?.length ? JSON.stringify(lt.recurrenceDays) : null,
@@ -231,8 +256,8 @@ export async function createGoal(
       recurrenceType: lt.recurrenceType,
       recurrenceCount: lt.recurrenceCount,
       recurrenceDays: lt.recurrenceDays,
-      themeId: lt.themeId,
-      themeName: lt.themeName,
+      themeIds: lt.themeIds,
+      themeNames: lt.themeNames,
     });
   }
 
@@ -240,6 +265,7 @@ export async function createGoal(
     ...data,
     id,
     archived: false,
+    order,
     tasks: savedTasks,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -248,7 +274,7 @@ export async function createGoal(
 
 export async function updateGoal(
   id: string,
-  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
 ): Promise<void> {
   await db
     .update(goals)
@@ -285,6 +311,12 @@ export async function deleteGoal(id: string): Promise<void> {
   await db.delete(goals).where(eq(goals.id, id));
 }
 
+export async function reorderGoals(orderedIds: string[]): Promise<void> {
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.update(goals).set({ sortOrder: i }).where(eq(goals.id, orderedIds[i]));
+  }
+}
+
 export async function addGoalTask(
   goalId: string,
   startDate: string,
@@ -312,8 +344,7 @@ export async function addGoalTask(
     title: local.title,
     targetCount,
     type: taskType,
-    themeId: local.themeId ?? null,
-    themeName: local.themeName ?? null,
+    themeIds: local.themeIds?.length ? JSON.stringify(local.themeIds) : null,
     recurrenceType: taskType === 'habit' ? local.recurrenceType : 'none',
     recurrenceCount: taskType === 'habit' ? local.recurrenceCount : 1,
     recurrenceDays: local.recurrenceDays?.length ? JSON.stringify(local.recurrenceDays) : null,
@@ -332,8 +363,8 @@ export async function addGoalTask(
     recurrenceType: local.recurrenceType,
     recurrenceCount: local.recurrenceCount,
     recurrenceDays: local.recurrenceDays,
-    themeId: local.themeId,
-    themeName: local.themeName,
+    themeIds: local.themeIds,
+    themeNames: local.themeNames,
   };
 }
 

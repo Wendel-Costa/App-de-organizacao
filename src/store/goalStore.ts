@@ -12,6 +12,7 @@ import {
   updateGoal,
   archiveGoal,
   setAllowBeyond100,
+  reorderGoals,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
 
@@ -22,12 +23,12 @@ interface GoalState {
 
   fetchGoals: () => Promise<void>;
   addGoal: (
-    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
     tasks: LocalGoalTask[],
   ) => Promise<Goal>;
   editGoal: (
     id: string,
-    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks'>,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
   ) => Promise<void>;
   removeGoal: (id: string) => Promise<void>;
   archiveGoal: (id: string) => Promise<void>;
@@ -42,6 +43,7 @@ interface GoalState {
   completeTask: (goalId: string, taskId: string) => Promise<void>;
   uncompleteTask: (goalId: string, taskId: string) => Promise<void>;
   refreshTodayTasks: () => Promise<void>;
+  reorderGoals: (orderedIds: string[]) => Promise<void>;
 }
 
 export const useGoalStore = create<GoalState>((set, get) => ({
@@ -162,5 +164,20 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   refreshTodayTasks: async () => {
     const today = await getGoalTasksForToday(get().goals);
     set({ todayGoalTasks: today });
+  },
+
+  reorderGoals: async (orderedIds) => {
+    set((s) => {
+      const byId = new Map(s.goals.map((g) => [g.id, g]));
+      const reordered = orderedIds
+        .map((id, index) => {
+          const g = byId.get(id);
+          return g ? { ...g, order: index } : null;
+        })
+        .filter((g): g is Goal => g !== null);
+      const untouched = s.goals.filter((g) => !orderedIds.includes(g.id));
+      return { goals: [...reordered, ...untouched].sort((a, b) => a.order - b.order) };
+    });
+    await reorderGoals(orderedIds);
   },
 }));

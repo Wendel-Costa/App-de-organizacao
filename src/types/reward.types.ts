@@ -25,5 +25,6 @@ export interface Reward {
   unlocked: boolean;
   unlockedAt?: string;
   archived: boolean;
+  order: number;
   createdAt: string;
 }

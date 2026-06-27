@@ -22,8 +22,8 @@ export interface GoalTask {
   recurrenceType: GoalTaskRecurrenceType;
   recurrenceCount: number;
   recurrenceDays: RecurrenceDay[];
-  themeId?: string;
-  themeName?: string;
+  themeIds?: string[];
+  themeNames?: string[];
 }
 
 export interface Goal {
@@ -38,6 +38,7 @@ export interface Goal {
   allowOverflow: boolean;
   allowBeyond100: boolean;
   archived: boolean;
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +49,7 @@ export interface LocalGoalTask {
   recurrenceType: GoalTaskRecurrenceType;
   recurrenceCount: number;
   recurrenceDays: RecurrenceDay[];
-  themeId?: string;
-  themeName?: string;
+  themeIds?: string[];
+  themeNames?: string[];
   targetHours?: number;
 }
