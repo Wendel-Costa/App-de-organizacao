@@ -60,6 +60,7 @@ export const goals = sqliteTable('goals', {
   allowOverflow: int('allow_overflow').notNull().default(0),
   allowBeyond100: int('allow_beyond_100').notNull().default(0),
   archived: int('archived').notNull().default(0),
+  sortOrder: real('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -72,6 +73,7 @@ export const goalTasks = sqliteTable('goal_tasks', {
   type: text('type').notNull().default('habit'),
   themeId: text('theme_id'),
   themeName: text('theme_name'),
+  themeIds: text('theme_ids'),
   recurrenceType: text('recurrence_type').notNull().default('none'),
   recurrenceCount: int('recurrence_count').notNull().default(1),
   recurrenceDays: text('recurrence_days'),
@@ -101,5 +103,24 @@ export const rewards = sqliteTable('rewards', {
   unlocked: int('unlocked').notNull().default(0),
   unlockedAt: text('unlocked_at'),
   archived: int('archived').notNull().default(0),
+  sortOrder: real('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull(),
+});
+
+//histórico de tarefas concluídas (vou utilizar em atualizações futuras)
+
+export const taskCompletions = sqliteTable('task_completions', {
+  id: text('id').primaryKey(),
+  originalTaskId: text('original_task_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  type: text('type').notNull(),
+  priority: text('priority'),
+  recurrenceDays: text('recurrence_days'),
+  goalId: text('goal_id'),
+  themeId: text('theme_id'),
+  subtasksSnapshot: text('subtasks_snapshot'),
+  completedAt: text('completed_at').notNull(),
+  createdAt: text('created_at').notNull(),
+  savedAt: text('saved_at').notNull(),
 });

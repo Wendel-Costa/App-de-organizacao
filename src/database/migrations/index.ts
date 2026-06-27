@@ -65,6 +65,7 @@ export async function runMigrations() {
       allow_overflow   INTEGER NOT NULL DEFAULT 0,
       allow_beyond_100 INTEGER NOT NULL DEFAULT 0,
       archived         INTEGER NOT NULL DEFAULT 0,
+      sort_order       REAL NOT NULL DEFAULT 0,
       created_at       TEXT NOT NULL,
       updated_at       TEXT NOT NULL
     )
@@ -79,6 +80,7 @@ export async function runMigrations() {
       type             TEXT NOT NULL DEFAULT 'habit',
       theme_id         TEXT,
       theme_name       TEXT,
+      theme_ids        TEXT,
       recurrence_type  TEXT NOT NULL DEFAULT 'none',
       recurrence_count INTEGER NOT NULL DEFAULT 1,
       recurrence_days  TEXT
@@ -110,7 +112,26 @@ export async function runMigrations() {
       unlocked               INTEGER NOT NULL DEFAULT 0,
       unlocked_at            TEXT,
       archived               INTEGER NOT NULL DEFAULT 0,
+      sort_order             REAL NOT NULL DEFAULT 0,
       created_at             TEXT NOT NULL
+    )
+  `);
+
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS task_completions (
+      id                TEXT PRIMARY KEY,
+      original_task_id  TEXT NOT NULL,
+      title             TEXT NOT NULL,
+      description       TEXT,
+      type              TEXT NOT NULL,
+      priority          TEXT,
+      recurrence_days   TEXT,
+      goal_id           TEXT,
+      theme_id          TEXT,
+      subtasks_snapshot TEXT,
+      completed_at      TEXT NOT NULL,
+      created_at        TEXT NOT NULL,
+      saved_at          TEXT NOT NULL
     )
   `);
 }
