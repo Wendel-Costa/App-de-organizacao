@@ -7,7 +7,10 @@ import {
   deleteTask,
   toggleTaskComplete,
   toggleSubtaskComplete,
+  rolloverTask,
 } from '@/database/queries/tasks.queries';
+import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
+import { getRecurringTasksToRollover } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
   scheduleDueDateWarning,
@@ -36,7 +39,20 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   fetchTasks: async () => {
     set({ loading: true });
     try {
-      const tasks = await getAllTasks();
+      let tasks = await getAllTasks();
+
+      // Tarefas recorrentes concluídas em um dia anterior "virram a página":
+      // a tarefa antiga já está salva no histórico (foi salva no momento da
+      // conclusão, em toggleComplete) e agora é substituída por uma tarefa
+      // nova e independente para a recorrência de hoje.
+      const toRollover = getRecurringTasksToRollover(tasks);
+      if (toRollover.length > 0) {
+        for (const task of toRollover) {
+          await rolloverTask(task).catch(() => {});
+        }
+        tasks = await getAllTasks();
+      }
+
       set({ tasks, loading: false });
     } catch {
       set({ loading: false });
@@ -107,6 +123,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   toggleComplete: async (id, completed) => {
     try {
+      const taskBefore = get().tasks.find((t) => t.id === id);
+
       await toggleTaskComplete(id, completed);
       const now = new Date().toISOString();
       set((state) => ({
@@ -124,6 +142,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
       if (completed) {
         cancelTaskNotifications(id).catch(() => {});
+
+        if (taskBefore?.type === 'recurring') {
+          saveTaskCompletion({
+            ...taskBefore,
+            completed: true,
+            updatedAt: now,
+            completedAt: now,
+          }).catch(() => {});
+        }
 
         try {
           const { sessions } = useFocusStore.getState();

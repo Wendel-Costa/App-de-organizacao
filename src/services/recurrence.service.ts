@@ -56,6 +56,15 @@ export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
   });
 }
 
+export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
+  const todayStr = getTodayString();
+  return tasks.filter((task) => {
+    if (task.type !== 'recurring' || !task.completed) return false;
+    const completedDate = dateOf(task.completedAt ?? task.updatedAt);
+    return completedDate !== todayStr;
+  });
+}
+
 export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[] {
   const today = getTodayString();
 
