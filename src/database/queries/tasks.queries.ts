@@ -124,6 +124,26 @@ export async function deleteTask(id: string): Promise<void> {
   await db.delete(tasks).where(eq(tasks.id, id));
 }
 
+export async function rolloverTask(oldTask: Task): Promise<Task> {
+  const fresh = await createTask({
+    title: oldTask.title,
+    description: oldTask.description,
+    type: oldTask.type,
+    priority: oldTask.priority,
+    completed: false,
+    scheduledDate: undefined,
+    dueDate: oldTask.dueDate,
+    recurrenceDays: oldTask.recurrenceDays,
+    goalId: oldTask.goalId,
+    themeId: oldTask.themeId,
+    subtasks: oldTask.subtasks?.map((s) => ({ id: s.id, title: s.title, completed: false })),
+  });
+
+  await deleteTask(oldTask.id);
+
+  return fresh;
+}
+
 function rowToTask(row: typeof tasks.$inferSelect, subs: (typeof subtasks.$inferSelect)[]): Task {
   return {
     id: row.id,
