@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
 import type { Task } from '@/types/task.types';
+import type { GoalTaskForToday } from '@/database/queries/goals.queries';
 import {
   getTodayString,
   getTodayWeekday,
@@ -40,6 +41,27 @@ const filters: { key: Filter; label: string }[] = [
   { key: 'anytime', label: 'Livre' },
   { key: 'recurring', label: 'Rotina' },
 ];
+
+function isGoalTaskDueForTasksToday(t: GoalTaskForToday): boolean {
+  const { task } = t;
+
+  if (task.type === 'wildcard') return false;
+
+  switch (task.recurrenceType) {
+    case 'none':
+      return !task.completedToday;
+    case 'daily':
+      return !task.completedToday;
+    case 'times_per_week':
+      return task.completionsThisWeek < task.recurrenceCount && !task.completedToday;
+    case 'times_per_month':
+      return task.completionsThisMonth < task.recurrenceCount && !task.completedToday;
+    case 'specific_days':
+      return task.recurrenceDays.includes(getTodayWeekday()) && !task.completedToday;
+    default:
+      return false;
+  }
+}
 
 export function TasksScreen() {
   const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
@@ -116,7 +138,8 @@ export function TasksScreen() {
     ? completedSorted
     : completedSorted.slice(0, COMPLETED_LIMIT);
 
-  const dueTodayGoalTasks = filter === 'today' ? todayGoalTasks.filter((t) => t.isDue) : [];
+  const dueTodayGoalTasks =
+    filter === 'today' ? todayGoalTasks.filter(isGoalTaskDueForTasksToday) : [];
 
   function handlePress(task: Task) {
     setSelectedTask(task);

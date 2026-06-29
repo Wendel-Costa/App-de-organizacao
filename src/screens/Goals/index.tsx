@@ -67,7 +67,7 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
   switch (filter) {
     case 'all':
       if (task.recurrenceType === 'none' && task.completedToday) {
-        return false;
+        return true;
       }
       return true;
     case 'daily':
@@ -308,7 +308,7 @@ export function GoalsScreen() {
                                     <MaterialCommunityIcons
                                       name={
                                         task.completedToday
-                                          ? 'check'
+                                          ? 'plus'
                                           : task.type === 'wildcard'
                                             ? 'lightning-bolt'
                                             : 'plus'
