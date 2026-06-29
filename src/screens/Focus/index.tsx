@@ -78,7 +78,14 @@ export function FocusScreen() {
         placeholder="Ex: Matemática, Leitura..."
         confirmLabel="Criar"
         onConfirm={(name) => {
-          addTheme(name);
+          const themeName = name.trim();
+
+          if (themeName.length > 50) {
+            Alert.alert('Nome muito longo', 'O nome do tema deve ter no máximo 50 caracteres.');
+            return;
+          }
+
+          addTheme(themeName);
           setShowThemeModal(false);
         }}
         onCancel={() => setShowThemeModal(false)}
@@ -173,12 +180,11 @@ export function FocusScreen() {
           </Card>
         )}
 
-        <Text style={styles.sectionTitle}>Tema de foco</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.themesRow}
-        >
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Tema de foco</Text>
+        </View>
+
+        <View style={styles.themesGrid}>
           <TouchableOpacity
             style={[styles.themeChip, !selectedTheme && styles.themeChipActive]}
             onPress={() => setSelectedTheme(null)}
@@ -189,35 +195,46 @@ export function FocusScreen() {
             </Text>
           </TouchableOpacity>
 
-          {themes.map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              style={[styles.themeChip, selectedTheme?.id === t.id && styles.themeChipActive]}
-              onPress={() => setSelectedTheme(t)}
-              onLongPress={() => {
-                Alert.alert('Excluir tema', `Excluir "${t.name}"?`, [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Excluir', style: 'destructive', onPress: () => removeTheme(t.id) },
-                ]);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[styles.themeLabel, selectedTheme?.id === t.id && styles.themeLabelActive]}
+          {themes.map((t) => {
+            const active = selectedTheme?.id === t.id;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                style={[styles.themeChip, active && styles.themeChipActive]}
+                onPress={() => setSelectedTheme(t)}
+                onLongPress={() => {
+                  Alert.alert('Excluir tema', `Excluir "${t.name}"?`, [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Excluir', style: 'destructive', onPress: () => removeTheme(t.id) },
+                  ]);
+                }}
+                activeOpacity={0.7}
               >
-                {t.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[styles.themeLabel, active && styles.themeLabelActive]}
+                  numberOfLines={1}
+                >
+                  {t.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           <TouchableOpacity
-            style={styles.themeAddButton}
+            style={styles.themeAddChip}
             onPress={() => setShowThemeModal(true)}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="plus" size={18} color={colors.primaryDark} />
+            <MaterialCommunityIcons name="plus" size={16} color={colors.primaryDark} />
+            <Text style={styles.themeAddLabel}>Novo tema</Text>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
+
+        {themes.length === 0 && (
+          <Text style={styles.themesEmptyText}>
+            Crie temas para organizar seus períodos de foco, como Trabalho, Estudo ou Leitura.
+          </Text>
+        )}
 
         <Button
           label="Iniciar sessão de foco"
@@ -317,14 +334,30 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.sm,
   },
 
-  themesRow: {
+  sectionTitleRow: {
     flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: spacing.xs,
-    paddingBottom: spacing.xs,
+  },
+  themeHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+  },
+
+  themesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   themeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.full,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
@@ -334,21 +367,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primaryDark,
   },
+  themeDot: {
+    width: 9,
+    height: 9,
+    borderRadius: radius.full,
+  },
   themeLabel: {
     ...typography.label,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   themeLabelActive: {
     color: colors.textOnPrimary,
   },
-  themeAddButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+  themeAddChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.full,
     backgroundColor: colors.primaryLight,
     borderWidth: 1,
     borderColor: colors.primaryDark,
-    justifyContent: 'center',
+    borderStyle: 'dashed',
+  },
+  themeAddLabel: {
+    ...typography.label,
+    color: colors.primaryDark,
+  },
+  themesEmptyText: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontStyle: 'italic',
+    marginTop: spacing.xs,
   },
   startButton: {
     marginTop: spacing.xl,

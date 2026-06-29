@@ -227,8 +227,10 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                     size={20}
                     color={colors.primary}
                   />
-                  <View>
-                    <Text style={styles.sessionTheme}>{item.themeName ?? 'Foco geral'}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sessionTheme} numberOfLines={1} ellipsizeMode="tail">
+                      {item.themeName ?? 'Foco geral'}
+                    </Text>
                     <Text style={styles.sessionTime}>
                       {new Date(item.startTime).toLocaleTimeString('pt-BR', {
                         hour: '2-digit',
@@ -359,6 +361,8 @@ export function FocusHistoryScreen({ onBack }: FocusHistoryScreenProps) {
                             styles.themeChipLabel,
                             item.themeId === t.id && styles.themeChipLabelActive,
                           ]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
                         >
                           {t.name}
                         </Text>
@@ -409,16 +413,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   sectionTitle: {
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+    flex: 1,
   },
   dayTotal: {
     ...typography.label,
     color: colors.primaryDark,
+    flexShrink: 0,
   },
   emptyDayText: {
     ...typography.sm,
@@ -439,6 +446,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textPrimary,
     fontWeight: '600',
+    flexShrink: 1,
   },
   sessionTime: {
     ...typography.xs,
@@ -477,9 +485,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,
+    maxWidth: 170,
   },
   themeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  themeChipLabel: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
+  themeChipLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   themeChipLabelActive: { color: colors.textOnPrimary },
 
   timeEditor: {

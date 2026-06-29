@@ -146,7 +146,9 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
                   { backgroundColor: THEME_PALETTE[i % THEME_PALETTE.length] },
                 ]}
               />
-              <Text style={styles.legendText}>{t.name}</Text>
+              <Text style={styles.legendText} numberOfLines={1} ellipsizeMode="tail">
+                {t.name}
+              </Text>
             </View>
           ))}
         </View>
@@ -235,6 +237,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    maxWidth: 170,
   },
   legendDot: {
     width: 10,
@@ -244,6 +247,7 @@ const styles = StyleSheet.create({
   legendText: {
     ...typography.xs,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   emptyText: {
     ...typography.sm,

@@ -107,7 +107,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
     >
       <View style={styles.themeRow}>
         <MaterialCommunityIcons name="circle" size={10} color={accentColor} />
-        <Text style={styles.themeText}>
+        <Text style={styles.themeText} numberOfLines={1}>
           {selectedTheme ? selectedTheme.name : 'Foco geral'}
           {mode === 'pomodoro' && isOnBreak ? ' · Pausa' : ''}
         </Text>
@@ -182,7 +182,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
 
       <View style={styles.tasksSection}>
         <View style={styles.tasksSectionHeader}>
-          <Text style={styles.tasksSectionTitle}>
+          <Text style={styles.tasksSectionTitle} numberOfLines={1}>
             {selectedTheme ? `Tarefas · ${selectedTheme.name}` : 'Tarefas de hoje'}
           </Text>
           <TouchableOpacity
@@ -270,8 +270,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    maxWidth: '100%',
   },
   themeText: {
+    flexShrink: 1,
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
@@ -357,8 +359,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   tasksSectionTitle: {
+    flex: 1,
+    flexShrink: 1,
     ...typography.label,
     color: colors.textSecondary,
     textTransform: 'uppercase',
@@ -367,6 +372,7 @@ const styles = StyleSheet.create({
   addTaskButton: {
     width: 28,
     height: 28,
+    flexShrink: 0,
     borderRadius: radius.full,
     backgroundColor: colors.primaryLight,
     alignItems: 'center',
