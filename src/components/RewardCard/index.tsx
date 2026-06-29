@@ -14,9 +14,18 @@ interface RewardCardProps {
   goals: Goal[];
   onDelete: (id: string) => void;
   onPress: (reward: Reward) => void;
+  draggable?: boolean;
 }
 
-export function RewardCard({ reward, sessions, tasks, goals, onDelete, onPress }: RewardCardProps) {
+export function RewardCard({
+  reward,
+  sessions,
+  tasks,
+  goals,
+  onDelete,
+  onPress,
+  draggable,
+}: RewardCardProps) {
   const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
 

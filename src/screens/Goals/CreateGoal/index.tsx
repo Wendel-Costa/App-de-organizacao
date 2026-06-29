@@ -181,8 +181,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [newTaskHours, setNewTaskHours] = useState(10);
-  const [newTaskThemeId, setNewTaskThemeId] = useState<string | undefined>();
-  const [newTaskThemeName, setNewTaskThemeName] = useState<string | undefined>();
+  const [newTaskThemeIds, setNewTaskThemeIds] = useState<string[]>([]);
   const [createRewardToggle, setCreateRewardToggle] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -256,8 +255,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
     setTaskRecCount(1);
     setTaskRecDays([]);
     setNewTaskHours(10);
-    setNewTaskThemeId(undefined);
-    setNewTaskThemeName(undefined);
+    setNewTaskThemeIds([]);
   }
 
   function handleAddTask() {
@@ -270,14 +268,25 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
       return;
     }
 
+    const selectedThemeNames =
+      newTaskType === 'focus_hours'
+        ? newTaskThemeIds
+            .map((id) => themes.find((t) => t.id === id)?.name)
+            .filter((n): n is string => !!n)
+        : undefined;
+
     const newTask: LocalGoalTask = {
       title: taskTitle.trim(),
       type: newTaskType,
       recurrenceType: newTaskType === 'habit' ? taskRecType : 'none',
       recurrenceCount: newTaskType === 'habit' ? taskRecCount : 1,
       recurrenceDays: newTaskType === 'habit' ? taskRecDays : [],
-      themeId: newTaskType === 'focus_hours' ? newTaskThemeId : undefined,
-      themeName: newTaskType === 'focus_hours' ? newTaskThemeName : undefined,
+      themeIds:
+        newTaskType === 'focus_hours' && newTaskThemeIds.length > 0 ? newTaskThemeIds : undefined,
+      themeNames:
+        newTaskType === 'focus_hours' && selectedThemeNames?.length
+          ? selectedThemeNames
+          : undefined,
       targetHours: newTaskType === 'focus_hours' ? newTaskHours : undefined,
     };
 
@@ -291,8 +300,10 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   }
 
   function localTaskLabel(task: LocalGoalTask): string {
-    if (task.type === 'focus_hours')
-      return `${task.targetHours}h de foco${task.themeName ? ` · ${task.themeName}` : ''}`;
+    if (task.type === 'focus_hours') {
+      const themesLabel = task.themeNames?.length ? ` · ${task.themeNames.join(', ')}` : '';
+      return `${task.targetHours}h de foco${themesLabel}`;
+    }
     if (task.type === 'wildcard') return 'Ação coringa';
     switch (task.recurrenceType) {
       case 'daily':
@@ -592,58 +603,70 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                       </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.formLabel}>Tema de foco (opcional)</Text>
+                    <Text style={styles.formLabel}>Temas de foco (opcional)</Text>
+                    <Text style={styles.formHint}>
+                      Selecione um ou mais temas. As horas contadas serão a soma de todos eles.
+                    </Text>
                     {themes.length === 0 ? (
                       <Text style={styles.noThemesText}>
                         Nenhum tema criado ainda. Crie temas na aba Foco.
                       </Text>
                     ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.themesRow}
-                      >
+                      <View style={styles.themesWrap}>
                         <TouchableOpacity
-                          style={[styles.themeChip, !newTaskThemeId && styles.themeChipActive]}
-                          onPress={() => {
-                            setNewTaskThemeId(undefined);
-                            setNewTaskThemeName(undefined);
-                          }}
+                          style={[
+                            styles.themeChip,
+                            newTaskThemeIds.length === 0 && styles.themeChipActive,
+                          ]}
+                          onPress={() => setNewTaskThemeIds([])}
                           activeOpacity={0.7}
                         >
                           <Text
                             style={[
                               styles.themeChipLabel,
-                              !newTaskThemeId && styles.themeChipLabelActive,
+                              newTaskThemeIds.length === 0 && styles.themeChipLabelActive,
                             ]}
                           >
                             Todos
                           </Text>
                         </TouchableOpacity>
-                        {themes.map((t) => (
-                          <TouchableOpacity
-                            key={t.id}
-                            style={[
-                              styles.themeChip,
-                              newTaskThemeId === t.id && styles.themeChipActive,
-                            ]}
-                            onPress={() => {
-                              setNewTaskThemeId(t.id);
-                              setNewTaskThemeName(t.name);
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <Text
-                              style={[
-                                styles.themeChipLabel,
-                                newTaskThemeId === t.id && styles.themeChipLabelActive,
-                              ]}
+                        {themes.map((t) => {
+                          const selected = newTaskThemeIds.includes(t.id);
+                          return (
+                            <TouchableOpacity
+                              key={t.id}
+                              style={[styles.themeChip, selected && styles.themeChipActive]}
+                              onPress={() =>
+                                setNewTaskThemeIds((prev) =>
+                                  prev.includes(t.id)
+                                    ? prev.filter((id) => id !== t.id)
+                                    : [...prev, t.id],
+                                )
+                              }
+                              activeOpacity={0.7}
                             >
-                              {t.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                              {t.color && (
+                                <View style={[styles.themeChipDot, { backgroundColor: t.color }]} />
+                              )}
+                              <Text
+                                style={[
+                                  styles.themeChipLabel,
+                                  selected && styles.themeChipLabelActive,
+                                ]}
+                              >
+                                {t.name}
+                              </Text>
+                              {selected && (
+                                <MaterialCommunityIcons
+                                  name="check"
+                                  size={13}
+                                  color={colors.textOnPrimary}
+                                />
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
                     )}
                   </>
                 )}
@@ -1052,12 +1075,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  themesRow: {
+  formHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginBottom: spacing.xs,
+  },
+  themesWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.xs,
     paddingBottom: spacing.xs,
   },
   themeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.full,
@@ -1068,6 +1100,11 @@ const styles = StyleSheet.create({
   themeChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primaryDark,
+  },
+  themeChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.full,
   },
   themeChipLabel: {
     ...typography.xs,

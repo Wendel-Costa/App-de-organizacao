@@ -15,7 +15,7 @@ export interface FocusSession {
   mode: FocusMode;
   startTime: string;
   endTime: string;
-  duration: number; //em minutos
+  duration: number;
   isManual: boolean;
   pomodoroRounds?: number;
   createdAt: string;

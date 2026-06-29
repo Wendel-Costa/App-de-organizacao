@@ -17,6 +17,7 @@ import { useGoalStore } from '@/store/goalStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { GoalCard } from '@/components/GoalCard';
+import { DraggableList } from '@/components/DraggableList';
 import { EmptyState } from '@/components/EmptyState';
 import { ProgressRing } from '@/components/ProgressRing';
 import { CreateGoalScreen } from './CreateGoal';
@@ -57,9 +58,8 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 
   if (task.type === 'wildcard') {
     if (task.completedCount >= task.targetCount) return false;
-    if (filter === 'free') return true;
-    if (filter === 'all') return !task.completedToday;
-    return false;
+
+    return filter === 'free';
   }
 
   if (!isDue) return false;
@@ -84,7 +84,7 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 }
 
 export function GoalsScreen() {
-  const { goals, todayGoalTasks, loading, fetchGoals, completeTask, uncompleteTask } =
+  const { goals, todayGoalTasks, loading, fetchGoals, completeTask, uncompleteTask, reorderGoals } =
     useGoalStore();
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
@@ -355,17 +355,23 @@ export function GoalsScreen() {
                   </TouchableOpacity>
                 )}
 
-                {showAllGoals &&
-                  activeGoals.map((item) => (
-                    <GoalCard
-                      key={item.id}
-                      goal={item}
-                      onPress={(g) => {
-                        setSelectedGoal(g);
-                        setScreen('detail');
-                      }}
-                    />
-                  ))}
+                {showAllGoals && (
+                  <DraggableList
+                    data={activeGoals}
+                    keyExtractor={(item) => item.id}
+                    onReorder={(newOrder) => reorderGoals(newOrder.map((g) => g.id))}
+                    renderItem={(item) => (
+                      <GoalCard
+                        goal={item}
+                        draggable={activeGoals.length > 1}
+                        onPress={(g) => {
+                          setSelectedGoal(g);
+                          setScreen('detail');
+                        }}
+                      />
+                    )}
+                  />
+                )}
 
                 {archivedGoals.length > 0 && (
                   <View style={styles.archivedSection}>
@@ -515,6 +521,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   miniProgressFill: { height: '100%', borderRadius: radius.full },
+
+  dragHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontStyle: 'italic',
+    marginTop: -spacing.xs,
+  },
 
   archivedSection: { gap: spacing.sm },
   archivedCard: {

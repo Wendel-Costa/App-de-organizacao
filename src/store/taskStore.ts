@@ -41,10 +41,6 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       let tasks = await getAllTasks();
 
-      // Tarefas recorrentes concluídas em um dia anterior "virram a página":
-      // a tarefa antiga já está salva no histórico (foi salva no momento da
-      // conclusão, em toggleComplete) e agora é substituída por uma tarefa
-      // nova e independente para a recorrência de hoje.
       const toRollover = getRecurringTasksToRollover(tasks);
       if (toRollover.length > 0) {
         for (const task of toRollover) {

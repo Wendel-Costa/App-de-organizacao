@@ -8,6 +8,7 @@ import type { Goal } from '@/types/goal.types';
 interface GoalCardProps {
   goal: Goal;
   onPress: (goal: Goal) => void;
+  draggable?: boolean;
 }
 
 function getDaysRemaining(endDate: string): number {
@@ -16,7 +17,7 @@ function getDaysRemaining(endDate: string): number {
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
 }
 
-export function GoalCard({ goal, onPress }: GoalCardProps) {
+export function GoalCard({ goal, onPress, draggable }: GoalCardProps) {
   const progress = calcGoalProgress(goal);
   const daysLeft = getDaysRemaining(goal.endDate);
   const accentColor = goal.color ?? colors.primary;
@@ -117,5 +118,8 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  dragHandle: {
+    marginLeft: -spacing.xs,
   },
 });

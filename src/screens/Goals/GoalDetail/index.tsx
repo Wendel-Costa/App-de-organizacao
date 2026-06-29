@@ -192,8 +192,7 @@ export function GoalDetailScreen({
   const [taskRecCount, setTaskRecCount] = useState(1);
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [taskHours, setTaskHours] = useState(10);
-  const [taskThemeId, setTaskThemeId] = useState<string | undefined>();
-  const [taskThemeName, setTaskThemeName] = useState<string | undefined>();
+  const [taskThemeIds, setTaskThemeIds] = useState<string[]>([]);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
@@ -234,8 +233,7 @@ export function GoalDetailScreen({
     setTaskRecCount(1);
     setTaskRecDays([]);
     setTaskHours(10);
-    setTaskThemeId(undefined);
-    setTaskThemeName(undefined);
+    setTaskThemeIds([]);
   }
 
   async function handleAddTask() {
@@ -248,14 +246,24 @@ export function GoalDetailScreen({
       return;
     }
 
+    const selectedThemeNames =
+      newTaskType === 'focus_hours'
+        ? taskThemeIds
+            .map((id) => themes.find((t) => t.id === id)?.name)
+            .filter((n): n is string => !!n)
+        : undefined;
+
     const local: LocalGoalTask = {
       title: taskTitle.trim(),
       type: newTaskType,
       recurrenceType: newTaskType === 'habit' ? taskRecType : 'none',
       recurrenceCount: newTaskType === 'habit' ? taskRecCount : 1,
       recurrenceDays: newTaskType === 'habit' ? taskRecDays : [],
-      themeId: newTaskType === 'focus_hours' ? taskThemeId : undefined,
-      themeName: newTaskType === 'focus_hours' ? taskThemeName : undefined,
+      themeIds: newTaskType === 'focus_hours' && taskThemeIds.length > 0 ? taskThemeIds : undefined,
+      themeNames:
+        newTaskType === 'focus_hours' && selectedThemeNames?.length
+          ? selectedThemeNames
+          : undefined,
       targetHours: newTaskType === 'focus_hours' ? taskHours : undefined,
     };
 
@@ -398,7 +406,7 @@ export function GoalDetailScreen({
                 <Text style={styles.taskTitle}>{task.title}</Text>
               </View>
               <Text style={styles.taskRec}>
-                Foco{task.themeName ? ` em ${task.themeName}` : ''}
+                Foco{task.themeNames?.length ? ` em ${task.themeNames.join(', ')}` : ''}
                 {' · '}
                 {task.completedCount}h / {task.targetCount}h
               </Text>
@@ -759,50 +767,65 @@ export function GoalDetailScreen({
 
                 {themes.length > 0 && (
                   <>
-                    <Text style={styles.formLabel}>Tema de foco</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.themesRow}
-                    >
+                    <Text style={styles.formLabel}>Temas de foco</Text>
+                    <Text style={styles.formHint}>
+                      Selecione um ou mais temas. As horas contadas serão a soma de todos eles.
+                    </Text>
+                    <View style={styles.themesWrap}>
                       <TouchableOpacity
-                        style={[styles.themeChip, !taskThemeId && styles.themeChipActive]}
-                        onPress={() => {
-                          setTaskThemeId(undefined);
-                          setTaskThemeName(undefined);
-                        }}
+                        style={[
+                          styles.themeChip,
+                          taskThemeIds.length === 0 && styles.themeChipActive,
+                        ]}
+                        onPress={() => setTaskThemeIds([])}
                         activeOpacity={0.7}
                       >
                         <Text
                           style={[
                             styles.themeChipLabel,
-                            !taskThemeId && styles.themeChipLabelActive,
+                            taskThemeIds.length === 0 && styles.themeChipLabelActive,
                           ]}
                         >
                           Todos
                         </Text>
                       </TouchableOpacity>
-                      {themes.map((t) => (
-                        <TouchableOpacity
-                          key={t.id}
-                          style={[styles.themeChip, taskThemeId === t.id && styles.themeChipActive]}
-                          onPress={() => {
-                            setTaskThemeId(t.id);
-                            setTaskThemeName(t.name);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={[
-                              styles.themeChipLabel,
-                              taskThemeId === t.id && styles.themeChipLabelActive,
-                            ]}
+                      {themes.map((t) => {
+                        const selected = taskThemeIds.includes(t.id);
+                        return (
+                          <TouchableOpacity
+                            key={t.id}
+                            style={[styles.themeChip, selected && styles.themeChipActive]}
+                            onPress={() =>
+                              setTaskThemeIds((prev) =>
+                                prev.includes(t.id)
+                                  ? prev.filter((id) => id !== t.id)
+                                  : [...prev, t.id],
+                              )
+                            }
+                            activeOpacity={0.7}
                           >
-                            {t.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                            {t.color && (
+                              <View style={[styles.themeChipDot, { backgroundColor: t.color }]} />
+                            )}
+                            <Text
+                              style={[
+                                styles.themeChipLabel,
+                                selected && styles.themeChipLabelActive,
+                              ]}
+                            >
+                              {t.name}
+                            </Text>
+                            {selected && (
+                              <MaterialCommunityIcons
+                                name="check"
+                                size={13}
+                                color={colors.textOnPrimary}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </>
                 )}
               </>
@@ -1169,12 +1192,20 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: 'center',
   },
-  themesRow: {
+  formHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+  },
+  themesWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.xs,
     paddingBottom: spacing.xs,
   },
   themeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
@@ -1185,6 +1216,11 @@ const styles = StyleSheet.create({
   themeChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primaryDark,
+  },
+  themeChipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.full,
   },
   themeChipLabel: {
     ...typography.xs,

@@ -18,8 +18,14 @@
       },
       "package": "com.wendeldavi.focusflow"
     },
-    "platforms": ["android"],
-    "plugins": ["expo-sqlite", "@react-native-community/datetimepicker"],
+    "platforms": [
+      "android"
+    ],
+    "plugins": [
+      "expo-sqlite",
+      "@react-native-community/datetimepicker",
+      "expo-font"
+    ],
     "extra": {
       "eas": {
         "projectId": "39f6c4b9-4b5b-42de-aa23-ff7c04057557"

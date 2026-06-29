@@ -26,6 +26,7 @@ import { Button } from '@/components/Button';
 import { RewardCard } from '@/components/RewardCard';
 import { EmptyState } from '@/components/EmptyState';
 import { DatePicker } from '@/components/DatePicker';
+import { DraggableList } from '@/components/DraggableList';
 import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
 import { RewardDetailScreen } from './RewardDetail';
 
@@ -131,6 +132,7 @@ export function RewardsScreen() {
     removeReward,
     checkAndUnlock,
     unarchiveReward,
+    reorderRewards,
   } = useRewardStore();
 
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
@@ -691,20 +693,26 @@ export function RewardsScreen() {
                 <MaterialCommunityIcons name="trophy" size={16} color={colors.primary} />
                 <Text style={styles.sectionTitle}>Desbloqueadas ({activeUnlocked.length})</Text>
               </View>
-              {activeUnlocked.map((r) => (
-                <RewardCard
-                  key={r.id}
-                  reward={r}
-                  sessions={sessions}
-                  tasks={tasks}
-                  goals={goals}
-                  onDelete={handleDelete}
-                  onPress={(reward) => {
-                    setSelectedReward(reward);
-                    setScreen('detail');
-                  }}
-                />
-              ))}
+              <DraggableList
+                data={activeUnlocked}
+                keyExtractor={(r) => r.id}
+                gap={spacing.sm}
+                onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
+                renderItem={(r) => (
+                  <RewardCard
+                    reward={r}
+                    sessions={sessions}
+                    tasks={tasks}
+                    goals={goals}
+                    onDelete={handleDelete}
+                    draggable={activeUnlocked.length > 1}
+                    onPress={(reward) => {
+                      setSelectedReward(reward);
+                      setScreen('detail');
+                    }}
+                  />
+                )}
+              />
             </>
           )}
 
@@ -723,20 +731,26 @@ export function RewardsScreen() {
                 />
                 <Text style={styles.sectionTitle}>Em progresso ({locked.length})</Text>
               </View>
-              {locked.map((r) => (
-                <RewardCard
-                  key={r.id}
-                  reward={r}
-                  sessions={sessions}
-                  tasks={tasks}
-                  goals={goals}
-                  onDelete={handleDelete}
-                  onPress={(reward) => {
-                    setSelectedReward(reward);
-                    setScreen('detail');
-                  }}
-                />
-              ))}
+              <DraggableList
+                data={locked}
+                keyExtractor={(r) => r.id}
+                gap={spacing.sm}
+                onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
+                renderItem={(r) => (
+                  <RewardCard
+                    reward={r}
+                    sessions={sessions}
+                    tasks={tasks}
+                    goals={goals}
+                    onDelete={handleDelete}
+                    draggable={locked.length > 1}
+                    onPress={(reward) => {
+                      setSelectedReward(reward);
+                      setScreen('detail');
+                    }}
+                  />
+                )}
+              />
             </>
           )}
 
@@ -1055,6 +1069,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+  dragHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontStyle: 'italic',
+    marginBottom: spacing.sm,
   },
 
   archivedSection: {
