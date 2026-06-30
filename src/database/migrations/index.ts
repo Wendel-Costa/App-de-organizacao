@@ -13,6 +13,7 @@ export async function runMigrations() {
       scheduled_date  TEXT,
       due_date        TEXT,
       recurrence_days TEXT,
+      recurrence_interval  INTEGER,
       goal_id         TEXT,
       theme_id        TEXT,
       completed_at    TEXT,

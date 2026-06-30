@@ -1,11 +1,7 @@
 import type { RecurrenceDay } from './task.types';
 
 export type GoalTaskRecurrenceType =
-  | 'none'
-  | 'daily'
-  | 'times_per_week'
-  | 'times_per_month'
-  | 'specific_days';
+  'none' | 'daily' | 'times_per_week' | 'times_per_month' | 'specific_days' | 'every_x_days';
 
 export type GoalTaskType = 'habit' | 'focus_hours' | 'wildcard';
 
@@ -22,6 +18,7 @@ export interface GoalTask {
   recurrenceType: GoalTaskRecurrenceType;
   recurrenceCount: number;
   recurrenceDays: RecurrenceDay[];
+  lastCompletedDate?: string;
   themeIds?: string[];
   themeNames?: string[];
 }

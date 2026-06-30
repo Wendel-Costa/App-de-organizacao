@@ -12,6 +12,7 @@ export const tasks = sqliteTable('tasks', {
   scheduledDate: text('scheduled_date'),
   dueDate: text('due_date'),
   recurrenceDays: text('recurrence_days'),
+  recurrenceInterval: int('recurrence_interval'),
   goalId: text('goal_id'),
   themeId: text('theme_id'),
   createdAt: text('created_at').notNull(),

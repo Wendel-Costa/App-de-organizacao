@@ -10,7 +10,10 @@ import {
   rolloverTask,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
-import { getRecurringTasksToRollover } from '@/services/recurrence.service';
+import {
+  getRecurringTasksToRollover,
+  getEveryXDaysTasksToReset,
+} from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
   scheduleDueDateWarning,
@@ -40,6 +43,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ loading: true });
     try {
       let tasks = await getAllTasks();
+
+      const toReset = getEveryXDaysTasksToReset(tasks);
+      if (toReset.length > 0) {
+        for (const task of toReset) {
+          await toggleTaskComplete(task.id, false).catch(() => {});
+        }
+        tasks = await getAllTasks();
+      }
 
       const toRollover = getRecurringTasksToRollover(tasks);
       if (toRollover.length > 0) {

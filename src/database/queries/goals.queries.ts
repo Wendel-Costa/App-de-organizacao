@@ -79,6 +79,10 @@ export function calculateTargetCount(
       }
       return count;
     }
+    case 'every_x_days': {
+      const interval = Math.max(1, recurrenceCount);
+      return Math.max(1, Math.floor(days / interval));
+    }
     default:
       return recurrenceCount;
   }
@@ -144,6 +148,15 @@ export async function getAllGoals(): Promise<Goal[]> {
       ).length;
     }
 
+    const allComps = completionsByTaskId.get(t.id) ?? [];
+    const lastCompletedDate =
+      allComps.length > 0
+        ? allComps.reduce(
+            (latest, c) => (c.completedDate > latest ? c.completedDate : latest),
+            allComps[0].completedDate,
+          )
+        : undefined;
+
     if (!tasksByGoalId.has(t.goalId)) tasksByGoalId.set(t.goalId, []);
     tasksByGoalId.get(t.goalId)!.push({
       id: t.id,
@@ -158,6 +171,7 @@ export async function getAllGoals(): Promise<Goal[]> {
       recurrenceType: (t.recurrenceType as GoalTaskRecurrenceType) ?? 'none',
       recurrenceCount: t.recurrenceCount ?? 1,
       recurrenceDays: t.recurrenceDays ? JSON.parse(t.recurrenceDays) : [],
+      lastCompletedDate,
       themeIds: themeIds.length > 0 ? themeIds : undefined,
       themeNames:
         themeIds.length > 0
@@ -452,6 +466,17 @@ export async function getGoalTasksForToday(allGoals: Goal[]): Promise<GoalTaskFo
             isDue =
               task.recurrenceDays.includes(todayWeekday as RecurrenceDay) && !task.completedToday;
             break;
+          case 'every_x_days': {
+            if (!task.lastCompletedDate) {
+              isDue = true;
+            } else {
+              const lastDate = new Date(task.lastCompletedDate + 'T12:00:00');
+              const todayDate = new Date(todayStr + 'T12:00:00');
+              const daysSince = Math.round((todayDate.getTime() - lastDate.getTime()) / 86400000);
+              isDue = daysSince >= task.recurrenceCount;
+            }
+            break;
+          }
         }
       }
 

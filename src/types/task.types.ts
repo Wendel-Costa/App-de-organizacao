@@ -10,7 +10,8 @@ export type RecurrenceDay =
   | 'friday'
   | 'saturday'
   | 'sunday'
-  | 'daily';
+  | 'daily'
+  | 'every_x_days';
 
 export interface SubTask {
   id: string;
@@ -28,6 +29,7 @@ export interface Task {
   scheduledDate?: string;
   dueDate?: string;
   recurrenceDays?: RecurrenceDay[];
+  recurrenceInterval?: number;
   subtasks?: SubTask[];
   goalId?: string;
   themeId?: string;
