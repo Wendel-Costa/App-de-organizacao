@@ -19,6 +19,8 @@ import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
 import type { Task, TaskType, Priority, RecurrenceDay, SubTask } from '@/types/task.types';
 
+type RecurrenceMode = 'weekdays' | 'interval';
+
 const RECURRENCE_DAYS: { key: RecurrenceDay; label: string }[] = [
   { key: 'monday', label: 'Seg' },
   { key: 'tuesday', label: 'Ter' },
@@ -55,9 +57,20 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
     initialTask?.scheduledDate,
   );
   const [dueDate, setDueDate] = useState<string | undefined>(initialTask?.dueDate);
+
+  const initialMode: RecurrenceMode = initialTask?.recurrenceDays?.includes('every_x_days')
+    ? 'interval'
+    : 'weekdays';
+  const [recurrenceMode, setRecurrenceMode] = useState<RecurrenceMode>(initialMode);
   const [recurrenceDays, setRecurrenceDays] = useState<RecurrenceDay[]>(
-    initialTask?.recurrenceDays ?? [],
+    initialTask?.recurrenceDays?.includes('every_x_days')
+      ? []
+      : (initialTask?.recurrenceDays ?? []),
   );
+  const [recurrenceInterval, setRecurrenceInterval] = useState(
+    initialTask?.recurrenceInterval ?? 2,
+  );
+
   const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>(
     initialTask?.subtasks?.map((s) => ({ title: s.title, completed: s.completed })) ?? [],
   );
@@ -66,6 +79,18 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   const [loading, setLoading] = useState(false);
 
   const subtaskInputRef = useRef<TextInput>(null);
+  const longPressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startContinuous(action: () => void) {
+    longPressRef.current = setInterval(action, 150);
+  }
+  function stopContinuous() {
+    if (longPressRef.current) {
+      clearInterval(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }
+  useEffect(() => () => stopContinuous(), []);
 
   function hasUnsavedChanges() {
     if (isEditing) return false;
@@ -135,13 +160,26 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
       Alert.alert('Atenção', 'Informe a data agendada para essa tarefa.');
       return;
     }
-    if (type === 'recurring' && recurrenceDays.length === 0) {
-      Alert.alert('Atenção', 'Selecione pelo menos um dia de recorrência.');
-      return;
+    if (type === 'recurring') {
+      if (recurrenceMode === 'weekdays' && recurrenceDays.length === 0) {
+        Alert.alert('Atenção', 'Selecione pelo menos um dia de recorrência.');
+        return;
+      }
+      if (recurrenceMode === 'interval' && recurrenceInterval < 1) {
+        Alert.alert('Atenção', 'O intervalo deve ser de pelo menos 1 dia.');
+        return;
+      }
     }
 
     setLoading(true);
     try {
+      const finalRecurrenceDays: RecurrenceDay[] | undefined =
+        type === 'recurring'
+          ? recurrenceMode === 'interval'
+            ? ['every_x_days']
+            : recurrenceDays
+          : undefined;
+
       const data = {
         title: title.trim(),
         description: description.trim() || undefined,
@@ -150,7 +188,9 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         completed: initialTask?.completed ?? false,
         scheduledDate: type === 'scheduled' ? scheduledDate : undefined,
         dueDate,
-        recurrenceDays: type === 'recurring' ? recurrenceDays : undefined,
+        recurrenceDays: finalRecurrenceDays,
+        recurrenceInterval:
+          type === 'recurring' && recurrenceMode === 'interval' ? recurrenceInterval : undefined,
         subtasks: subtasks.map((s, i) => ({ ...s, id: String(i) })),
         themeId: selectedThemeId,
       };
@@ -238,24 +278,136 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
 
         {type === 'recurring' && (
           <>
-            <Text style={styles.label}>Dias de recorrência *</Text>
-            <View style={styles.daysRow}>
-              {RECURRENCE_DAYS.map((d) => {
-                const active = recurrenceDays.includes(d.key);
-                return (
-                  <TouchableOpacity
-                    key={d.key}
-                    style={[styles.dayChip, active && styles.dayChipActive]}
-                    onPress={() => toggleRecurrenceDay(d.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.dayChipLabel, active && styles.dayChipLabelActive]}>
-                      {d.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <Text style={styles.label}>Modo de recorrência</Text>
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                style={[styles.modeChip, recurrenceMode === 'weekdays' && styles.modeChipActive]}
+                onPress={() => setRecurrenceMode('weekdays')}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name="calendar-week"
+                  size={15}
+                  color={
+                    recurrenceMode === 'weekdays' ? colors.textOnPrimary : colors.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.modeChipLabel,
+                    recurrenceMode === 'weekdays' && styles.modeChipLabelActive,
+                  ]}
+                >
+                  Dias da semana
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeChip, recurrenceMode === 'interval' && styles.modeChipActive]}
+                onPress={() => setRecurrenceMode('interval')}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name="calendar-refresh"
+                  size={15}
+                  color={
+                    recurrenceMode === 'interval' ? colors.textOnPrimary : colors.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.modeChipLabel,
+                    recurrenceMode === 'interval' && styles.modeChipLabelActive,
+                  ]}
+                >
+                  A cada X dias
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {recurrenceMode === 'weekdays' && (
+              <>
+                <Text style={styles.label}>Dias de recorrência *</Text>
+                <View style={styles.daysRow}>
+                  {RECURRENCE_DAYS.map((d) => {
+                    const active = recurrenceDays.includes(d.key);
+                    return (
+                      <TouchableOpacity
+                        key={d.key}
+                        style={[styles.dayChip, active && styles.dayChipActive]}
+                        onPress={() => toggleRecurrenceDay(d.key)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.dayChipLabel, active && styles.dayChipLabelActive]}>
+                          {d.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {recurrenceMode === 'interval' && (
+              <>
+                <Text style={styles.label}>Repetir a cada quantos dias? *</Text>
+                <Text style={styles.intervalHint}>
+                  A tarefa voltará automaticamente após esse número de dias da última conclusão.
+                </Text>
+                <View style={styles.counterRow}>
+                  <TouchableOpacity
+                    style={styles.counterBtn}
+                    onPress={() => setRecurrenceInterval((p) => Math.max(1, p - 1))}
+                    onLongPress={() =>
+                      startContinuous(() => setRecurrenceInterval((p) => Math.max(1, p - 1)))
+                    }
+                    onPressOut={stopContinuous}
+                    delayLongPress={300}
+                  >
+                    <MaterialCommunityIcons name="minus" size={20} color={colors.textPrimary} />
+                  </TouchableOpacity>
+
+                  <View style={styles.counterValueWrapper}>
+                    <Text style={styles.counterValue}>{recurrenceInterval}</Text>
+                    <Text style={styles.counterUnit}>
+                      {recurrenceInterval === 1 ? 'dia' : 'dias'}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.counterBtn}
+                    onPress={() => setRecurrenceInterval((p) => p + 1)}
+                    onLongPress={() => startContinuous(() => setRecurrenceInterval((p) => p + 1))}
+                    onPressOut={stopContinuous}
+                    delayLongPress={300}
+                  >
+                    <MaterialCommunityIcons name="plus" size={20} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.presetsRow}>
+                  {[2, 3, 7, 14, 30].map((n) => (
+                    <TouchableOpacity
+                      key={n}
+                      style={[
+                        styles.presetChip,
+                        recurrenceInterval === n && styles.presetChipActive,
+                      ]}
+                      onPress={() => setRecurrenceInterval(n)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.presetLabel,
+                          recurrenceInterval === n && styles.presetLabelActive,
+                        ]}
+                      >
+                        {n === 7 ? '1 sem' : n === 14 ? '2 sem' : n === 30 ? '1 mês' : `${n}d`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
           </>
         )}
 
@@ -435,6 +587,34 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
   },
 
+  modeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  modeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  modeChipLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  modeChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
+
   daysRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -457,6 +637,68 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   dayChipLabelActive: {
+    color: colors.textOnPrimary,
+  },
+
+  intervalHint: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginBottom: spacing.sm,
+  },
+  counterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xl,
+    paddingVertical: spacing.sm,
+  },
+  counterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  counterValueWrapper: {
+    alignItems: 'center',
+    minWidth: 64,
+  },
+  counterValue: {
+    fontSize: 40,
+    fontWeight: '200',
+    color: colors.textPrimary,
+    lineHeight: 46,
+  },
+  counterUnit: {
+    ...typography.xs,
+    color: colors.textSecondary,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+    marginTop: spacing.sm,
+  },
+  presetChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  presetChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  presetLabel: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
+  presetLabelActive: {
     color: colors.textOnPrimary,
   },
 

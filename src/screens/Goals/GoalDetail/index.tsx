@@ -42,6 +42,7 @@ const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
   { key: 'times_per_week', label: 'Por semana' },
   { key: 'times_per_month', label: 'Por mês' },
   { key: 'specific_days', label: 'Dias espec.' },
+  { key: 'every_x_days', label: 'A cada X dias' },
   { key: 'none', label: 'Total' },
 ];
 
@@ -75,6 +76,8 @@ function recurrenceLabel(
       return `${count}x por mês`;
     case 'specific_days':
       return days.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).join(', ');
+    case 'every_x_days':
+      return `A cada ${count} dia(s)`;
     case 'none':
       return `${count}x no período total`;
     default:
@@ -891,6 +894,42 @@ export function GoalDetailScreen({
                       <EditableValue
                         value={taskRecCount}
                         onChange={setTaskRecCount}
+                        style={styles.counterValue}
+                        min={1}
+                        scrollViewRef={scrollRef}
+                      />
+                      <TouchableOpacity
+                        style={styles.counterBtn}
+                        onPress={() => setTaskRecCount((p) => p + 1)}
+                        onLongPress={() => startContinuous(() => setTaskRecCount((p) => p + 1))}
+                        onPressOut={stopContinuous}
+                        delayLongPress={300}
+                      >
+                        <MaterialCommunityIcons name="plus" size={16} color={colors.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {taskRecType === 'every_x_days' && (
+                  <View style={styles.counterInlineRow}>
+                    <Text style={styles.formLabel}>Repetir a cada quantos dias?</Text>
+                    <View style={styles.counterInline}>
+                      <TouchableOpacity
+                        style={styles.counterBtn}
+                        onPress={() => setTaskRecCount((p) => Math.max(1, p - 1))}
+                        onLongPress={() =>
+                          startContinuous(() => setTaskRecCount((p) => Math.max(1, p - 1)))
+                        }
+                        onPressOut={stopContinuous}
+                        delayLongPress={300}
+                      >
+                        <MaterialCommunityIcons name="minus" size={16} color={colors.textPrimary} />
+                      </TouchableOpacity>
+                      <EditableValue
+                        value={taskRecCount}
+                        onChange={setTaskRecCount}
+                        suffix={taskRecCount === 1 ? ' dia' : ' dias'}
                         style={styles.counterValue}
                         min={1}
                         scrollViewRef={scrollRef}

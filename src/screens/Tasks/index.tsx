@@ -49,7 +49,7 @@ function isGoalTaskDueForTasksToday(t: GoalTaskForToday): boolean {
 
   switch (task.recurrenceType) {
     case 'none':
-      return !task.completedToday;
+      return task.completedCount < task.targetCount;
     case 'daily':
       return !task.completedToday;
     case 'times_per_week':
@@ -58,6 +58,13 @@ function isGoalTaskDueForTasksToday(t: GoalTaskForToday): boolean {
       return task.completionsThisMonth < task.recurrenceCount && !task.completedToday;
     case 'specific_days':
       return task.recurrenceDays.includes(getTodayWeekday()) && !task.completedToday;
+    case 'every_x_days': {
+      if (!task.lastCompletedDate) return true;
+      const lastDate = new Date(task.lastCompletedDate + 'T12:00:00');
+      const today = new Date(getTodayString() + 'T12:00:00');
+      const daysSince = Math.round((today.getTime() - lastDate.getTime()) / 86400000);
+      return daysSince >= task.recurrenceCount;
+    }
     default:
       return false;
   }
@@ -116,6 +123,9 @@ export function TasksScreen() {
     if (filter === 'today') {
       if (t.type === 'scheduled') return t.scheduledDate === todayStr;
       if (t.type === 'recurring') {
+        if (t.recurrenceDays?.includes('every_x_days')) {
+          return !t.completed;
+        }
         const today = getTodayWeekday();
         return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
       }
