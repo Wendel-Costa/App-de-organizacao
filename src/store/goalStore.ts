@@ -162,8 +162,9 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   refreshTodayTasks: async () => {
-    const today = await getGoalTasksForToday(get().goals);
-    set({ todayGoalTasks: today });
+    const freshGoals = await getAllGoals();
+    const today = await getGoalTasksForToday(freshGoals);
+    set({ goals: freshGoals, todayGoalTasks: today });
   },
 
   reorderGoals: async (orderedIds) => {

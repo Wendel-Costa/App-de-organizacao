@@ -121,6 +121,11 @@ export async function toggleSubtaskComplete(id: string, completed: boolean): Pro
     .where(eq(subtasks.id, id));
 }
 
+export async function resetTaskSubtasks(taskId: string): Promise<void> {
+  await db.update(subtasks).set({ completed: 0 }).where(eq(subtasks.taskId, taskId));
+  await db.update(tasks).set({ updatedAt: now() }).where(eq(tasks.id, taskId));
+}
+
 export async function deleteTask(id: string): Promise<void> {
   await db.delete(subtasks).where(eq(subtasks.taskId, id));
   await db.delete(tasks).where(eq(tasks.id, id));

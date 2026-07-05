@@ -35,23 +35,18 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
 
   return tasks.filter((task) => {
     if (task.type === 'anytime') {
-      if (task.completed) {
-        return dateOf(task.updatedAt) === today;
-      }
+      if (task.completed) return dateOf(task.updatedAt) === today;
       return true;
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (task.recurrenceDays?.includes('every_x_days')) {
-        return !task.completed;
-      }
+      if (task.recurrenceDays?.includes('every_x_days')) return !task.completed;
       const todayWeekday = getTodayWeekday();
-      const isDueToday =
+      return (
         task.recurrenceDays?.includes('daily') ||
         task.recurrenceDays?.includes(todayWeekday) ||
-        false;
-      if (!isDueToday) return false;
-      return true;
+        false
+      );
     }
     return false;
   });
@@ -64,9 +59,7 @@ export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
         if (isEveryXDaysDue(task)) return { ...task, completed: false };
       } else {
         const completedDate = dateOf(task.updatedAt);
-        if (completedDate !== todayStr) {
-          return { ...task, completed: false };
-        }
+        if (completedDate !== todayStr) return { ...task, completed: false };
       }
     }
     return task;
@@ -80,6 +73,17 @@ export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
     if (task.recurrenceDays?.includes('every_x_days')) return false;
     const completedDate = dateOf(task.completedAt ?? task.updatedAt);
     return completedDate !== todayStr;
+  });
+}
+
+export function getRecurringTasksWithStaleSubtasks(tasks: Task[]): Task[] {
+  const todayStr = getTodayString();
+  return tasks.filter((task) => {
+    if (task.type !== 'recurring') return false;
+    if (task.completed) return false;
+    if (task.recurrenceDays?.includes('every_x_days')) return false;
+    if (!task.subtasks?.some((s) => s.completed)) return false;
+    return dateOf(task.updatedAt) !== todayStr;
   });
 }
 
@@ -109,9 +113,7 @@ export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (task.recurrenceDays?.includes('every_x_days')) {
-        return !task.completed;
-      }
+      if (task.recurrenceDays?.includes('every_x_days')) return !task.completed;
       const todayWeekday = getTodayWeekday();
 
       return (

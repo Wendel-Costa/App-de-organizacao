@@ -8,11 +8,13 @@ import {
   toggleTaskComplete,
   toggleSubtaskComplete,
   rolloverTask,
+  resetTaskSubtasks,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
 import {
   getRecurringTasksToRollover,
   getEveryXDaysTasksToReset,
+  getRecurringTasksWithStaleSubtasks,
 } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
@@ -48,6 +50,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       if (toReset.length > 0) {
         for (const task of toReset) {
           await toggleTaskComplete(task.id, false).catch(() => {});
+          if (task.subtasks?.some((s) => s.completed)) {
+            await resetTaskSubtasks(task.id).catch(() => {});
+          }
+        }
+        tasks = await getAllTasks();
+      }
+
+      const toResetSubtasks = getRecurringTasksWithStaleSubtasks(tasks);
+      if (toResetSubtasks.length > 0) {
+        for (const task of toResetSubtasks) {
+          await resetTaskSubtasks(task.id).catch(() => {});
         }
         tasks = await getAllTasks();
       }
