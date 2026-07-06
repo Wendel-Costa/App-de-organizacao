@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FocusSession, FocusTheme, FocusMode, FocusStatus } from '@/types/focus.types';
 import {
   getAllSessions,
@@ -10,6 +11,8 @@ import {
   updateSessionTheme,
   updateSessionTime,
 } from '@/database/queries/focus.queries';
+
+const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
 
 interface FocusState {
   sessions: FocusSession[];
@@ -25,6 +28,7 @@ interface FocusState {
   isOnBreak: boolean;
   pomodoroWorkMinutes: number;
   pomodoroBreakMinutes: number;
+  geralThemeHidden: boolean;
 
   fetchSessions: () => Promise<void>;
   fetchThemes: () => Promise<void>;
@@ -50,6 +54,9 @@ interface FocusState {
   setPomodoroConfig: (workMinutes: number, breakMinutes: number) => void;
 
   recalculateFromStart: () => void;
+
+  fetchGeralThemeVisibility: () => Promise<void>;
+  removeGeralTheme: () => Promise<void>;
 }
 
 function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boolean {
@@ -70,6 +77,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   isOnBreak: false,
   pomodoroWorkMinutes: 25,
   pomodoroBreakMinutes: 5,
+  geralThemeHidden: false,
 
   fetchSessions: async () => {
     const sessions = await getAllSessions();
@@ -248,5 +256,25 @@ export const useFocusStore = create<FocusState>((set, get) => ({
         s.id === id ? { ...s, startTime, endTime, duration } : s,
       ),
     }));
+  },
+
+  fetchGeralThemeVisibility: async () => {
+    try {
+      const value = await AsyncStorage.getItem(GERAL_THEME_HIDDEN_KEY);
+      set({ geralThemeHidden: value === 'true' });
+    } catch {
+      set({ geralThemeHidden: false });
+    }
+  },
+  removeGeralTheme: async () => {
+    try {
+      await AsyncStorage.setItem(GERAL_THEME_HIDDEN_KEY, 'true');
+    } catch {}
+
+    const { selectedTheme, themes } = get();
+    set({
+      geralThemeHidden: true,
+      selectedTheme: selectedTheme === null ? (themes[0] ?? null) : selectedTheme,
+    });
   },
 }));

@@ -38,11 +38,15 @@ export function FocusScreen() {
     pomodoroWorkMinutes,
     pomodoroBreakMinutes,
     setPomodoroConfig,
+    geralThemeHidden,
+    fetchGeralThemeVisibility,
+    removeGeralTheme,
   } = useFocusStore();
 
   useFocusEffect(
     useCallback(() => {
       fetchThemes();
+      fetchGeralThemeVisibility();
     }, []),
   );
 
@@ -185,15 +189,23 @@ export function FocusScreen() {
         </View>
 
         <View style={styles.themesGrid}>
-          <TouchableOpacity
-            style={[styles.themeChip, !selectedTheme && styles.themeChipActive]}
-            onPress={() => setSelectedTheme(null)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.themeLabel, !selectedTheme && styles.themeLabelActive]}>
-              Geral
-            </Text>
-          </TouchableOpacity>
+          {!geralThemeHidden && (
+            <TouchableOpacity
+              style={[styles.themeChip, !selectedTheme && styles.themeChipActive]}
+              onPress={() => setSelectedTheme(null)}
+              onLongPress={() => {
+                Alert.alert('Excluir tema', 'Excluir "Geral"?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Excluir', style: 'destructive', onPress: () => removeGeralTheme() },
+                ]);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.themeLabel, !selectedTheme && styles.themeLabelActive]}>
+                Geral
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {themes.map((t) => {
             const active = selectedTheme?.id === t.id;
@@ -230,7 +242,7 @@ export function FocusScreen() {
           </TouchableOpacity>
         </View>
 
-        {themes.length === 0 && (
+        {themes.length === 0 && geralThemeHidden && (
           <Text style={styles.themesEmptyText}>
             Crie temas para organizar seus períodos de foco, como Trabalho, Estudo ou Leitura.
           </Text>
