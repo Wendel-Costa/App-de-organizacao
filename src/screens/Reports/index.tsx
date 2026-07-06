@@ -399,25 +399,20 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
                 return (
                   <View style={styles.historyItem}>
                     <View style={[styles.historyDot, { backgroundColor: badge.color }]} />
-                    <View style={styles.historyItemContent}>
-                      <Text style={styles.historyItemTitle} numberOfLines={1}>
-                        {record.title}
+                    <Text style={styles.historyItemTitle} numberOfLines={1}>
+                      {record.title}
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: badge.color + '22' }]}>
+                      <Text style={[styles.badgeText, { color: badge.color }]} numberOfLines={1}>
+                        {badge.label}
                       </Text>
-                      <View style={styles.historyItemMeta}>
-                        <View style={[styles.badge, { backgroundColor: badge.color + '22' }]}>
-                          <Text style={[styles.badgeText, { color: badge.color }]}>
-                            {badge.label}
-                          </Text>
-                        </View>
-                        <Text style={styles.historyItemTime}>{formatTime(record.completedAt)}</Text>
-                      </View>
                     </View>
-                    <MaterialCommunityIcons name="check-circle" size={18} color={colors.mint} />
+                    <Text style={styles.historyItemTime}>{formatTime(record.completedAt)}</Text>
                   </View>
                 );
               }}
               SectionSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
-              ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+              ItemSeparatorComponent={() => <View style={{ height: spacing.xs }} />}
             />
           )}
         </View>
@@ -598,15 +593,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  historyDot: { width: 8, height: 8, borderRadius: radius.full, marginTop: 2 },
-  historyItemContent: { flex: 1, gap: 3 },
-  historyItemTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  historyItemMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  badge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
+  historyDot: { width: 8, height: 8, borderRadius: radius.full },
+  historyItemTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  badge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    flexShrink: 0,
+  },
   badgeText: { ...typography.xs, fontWeight: '600' },
-  historyItemTime: { ...typography.xs, color: colors.textDisabled },
-  itemSeparator: { height: 1, backgroundColor: colors.border, marginLeft: 20 },
+  historyItemTime: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    minWidth: 40,
+    textAlign: 'right',
+  },
   historyEmpty: {
     flex: 1,
     alignItems: 'center',
