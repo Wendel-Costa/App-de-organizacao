@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 import type { Reward } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
@@ -79,6 +80,7 @@ export const useRewardStore = create<RewardState>((set, get) => ({
             : r,
         ),
       }));
+      Alert.alert('🏆 Recompensa desbloqueada!', newlyUnlocked.map((r) => r.title).join('\n'));
     }
 
     return newlyUnlocked;

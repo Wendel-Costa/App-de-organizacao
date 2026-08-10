@@ -50,16 +50,14 @@ export async function createTask(
   });
 
   if (data.subtasks?.length) {
-    await Promise.all(
-      data.subtasks.map((sub) =>
-        db.insert(subtasks).values({
-          id: generateId(),
-          taskId: id,
-          title: sub.title,
-          completed: sub.completed ? 1 : 0,
-        }),
-      ),
-    );
+    for (const sub of data.subtasks) {
+      await db.insert(subtasks).values({
+        id: generateId(),
+        taskId: id,
+        title: sub.title,
+        completed: sub.completed ? 1 : 0,
+      });
+    }
   }
 
   const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, id));
@@ -67,7 +65,7 @@ export async function createTask(
   return rowToTask(row[0], subs);
 }
 
-export async function updateTask(id: string, data: Partial<Task>): Promise<void> {
+export async function updateTask(id: string, data: Partial<Task>): Promise<Task> {
   await db
     .update(tasks)
     .set({
@@ -89,18 +87,20 @@ export async function updateTask(id: string, data: Partial<Task>): Promise<void>
   if (data.subtasks !== undefined) {
     await db.delete(subtasks).where(eq(subtasks.taskId, id));
     if (data.subtasks.length > 0) {
-      await Promise.all(
-        data.subtasks.map((sub) =>
-          db.insert(subtasks).values({
-            id: generateId(),
-            taskId: id,
-            title: sub.title,
-            completed: sub.completed ? 1 : 0,
-          }),
-        ),
-      );
+      for (const sub of data.subtasks) {
+        await db.insert(subtasks).values({
+          id: generateId(),
+          taskId: id,
+          title: sub.title,
+          completed: sub.completed ? 1 : 0,
+        });
+      }
     }
   }
+
+  const subs = await db.select().from(subtasks).where(eq(subtasks.taskId, id));
+  const row = await db.select().from(tasks).where(eq(tasks.id, id));
+  return rowToTask(row[0], subs);
 }
 
 export async function toggleTaskComplete(id: string, completed: boolean): Promise<void> {
@@ -119,6 +119,10 @@ export async function toggleSubtaskComplete(id: string, completed: boolean): Pro
     .update(subtasks)
     .set({ completed: completed ? 1 : 0 })
     .where(eq(subtasks.id, id));
+}
+
+export async function touchTaskCreatedAt(taskId: string): Promise<void> {
+  await db.update(tasks).set({ createdAt: now() }).where(eq(tasks.id, taskId));
 }
 
 export async function resetTaskSubtasks(taskId: string): Promise<void> {

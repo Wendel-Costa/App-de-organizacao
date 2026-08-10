@@ -172,11 +172,7 @@ export function RewardsScreen() {
 
   useEffect(() => {
     if (rewards.length > 0 && (sessions.length > 0 || tasks.length > 0)) {
-      checkAndUnlock(sessions, tasks, goals).then((newOnes) => {
-        if (newOnes.length > 0) {
-          Alert.alert('🏆 Recompensa desbloqueada!', newOnes.map((r) => r.title).join('\n'));
-        }
-      });
+      checkAndUnlock(sessions, tasks, goals);
     }
   }, [sessions, tasks, goals]);
 

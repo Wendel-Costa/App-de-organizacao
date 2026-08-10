@@ -15,6 +15,9 @@ import {
   reorderGoals,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
+import { useFocusStore } from '@/store/focusStore';
+import { useTaskStore } from '@/store/taskStore';
+import { useRewardStore } from '@/store/rewardStore';
 
 interface GoalState {
   goals: Goal[];
@@ -134,6 +137,12 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       ),
     }));
     await get().refreshTodayTasks();
+
+    try {
+      const { sessions } = useFocusStore.getState();
+      const { tasks } = useTaskStore.getState();
+      useRewardStore.getState().checkAndUnlock(sessions, tasks, get().goals).catch(() => {});
+    } catch {}
   },
 
   uncompleteTask: async (goalId, taskId) => {

@@ -11,6 +11,9 @@ import {
   updateSessionTheme,
   updateSessionTime,
 } from '@/database/queries/focus.queries';
+import { useTaskStore } from '@/store/taskStore';
+import { useGoalStore } from '@/store/goalStore';
+import { useRewardStore } from '@/store/rewardStore';
 
 const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
 
@@ -208,6 +211,13 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       pomodoroRounds: 0,
       isOnBreak: false,
     });
+
+    try {
+      await useGoalStore.getState().refreshTodayTasks();
+      const { tasks } = useTaskStore.getState();
+      const { goals } = useGoalStore.getState();
+      useRewardStore.getState().checkAndUnlock(get().sessions, tasks, goals).catch(() => {});
+    } catch {}
 
     return { conflict: false };
   },
