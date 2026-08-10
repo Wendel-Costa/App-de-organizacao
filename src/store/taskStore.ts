@@ -9,12 +9,14 @@ import {
   toggleSubtaskComplete,
   rolloverTask,
   resetTaskSubtasks,
+  touchTaskCreatedAt,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
 import {
   getRecurringTasksToRollover,
   getEveryXDaysTasksToReset,
   getRecurringTasksWithStaleSubtasks,
+  getRecurringTasksToRefreshCreatedDate,
 } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
@@ -65,6 +67,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         tasks = await getAllTasks();
       }
 
+      const toRefreshCreatedDate = getRecurringTasksToRefreshCreatedDate(tasks);
+      if (toRefreshCreatedDate.length > 0) {
+        for (const task of toRefreshCreatedDate) {
+          await touchTaskCreatedAt(task.id).catch(() => {});
+        }
+        tasks = await getAllTasks();
+      }
+
       const toRollover = getRecurringTasksToRollover(tasks);
       if (toRollover.length > 0) {
         for (const task of toRollover) {
@@ -108,9 +118,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   editTask: async (id, data) => {
     try {
-      await updateTask(id, data);
+      const savedTask = await updateTask(id, data);
       set((state) => ({
-        tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)),
+        tasks: state.tasks.map((t) => (t.id === id ? savedTask : t)),
       }));
 
       await cancelTaskNotifications(id).catch(() => {});

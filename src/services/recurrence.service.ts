@@ -76,6 +76,15 @@ export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
   });
 }
 
+export function getRecurringTasksToRefreshCreatedDate(tasks: Task[]): Task[] {
+  const todayStr = getTodayString();
+  return tasks.filter((task) => {
+    if (task.type !== 'recurring' || task.completed) return false;
+    if (task.recurrenceDays?.includes('every_x_days')) return false;
+    return dateOf(task.createdAt) !== todayStr;
+  });
+}
+
 export function getRecurringTasksWithStaleSubtasks(tasks: Task[]): Task[] {
   const todayStr = getTodayString();
   return tasks.filter((task) => {
