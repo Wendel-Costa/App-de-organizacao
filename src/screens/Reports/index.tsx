@@ -13,6 +13,7 @@ import { ProgressRing } from '@/components/ProgressRing';
 import { getWeeklySummary, getMonthlySummary } from '@/services/reports.service';
 import { getAllTaskCompletions } from '@/database/queries/taskHistory.queries';
 import type { CompletedTaskRecord } from '@/types/taskHistory.types';
+import { localDateStr, dateOf } from '@/utils/date';
 
 type Period = 'week' | 'month' | 'history';
 type HistoryFilter = 'all' | 'recurring' | 'every_x_days';
@@ -56,12 +57,12 @@ function formatTime(iso: string): string {
 }
 
 function dateKey(iso: string): string {
-  return iso.split('T')[0];
+  return dateOf(iso);
 }
 
 function friendlyDateHeader(dateStr: string): string {
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const today = localDateStr();
+  const yesterday = localDateStr(new Date(Date.now() - 86400000));
   if (dateStr === today) return 'Hoje';
   if (dateStr === yesterday) return 'Ontem';
   const d = new Date(dateStr + 'T12:00:00');

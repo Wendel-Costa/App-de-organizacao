@@ -35,6 +35,7 @@ import {
   toleranceLabel,
   getLinearBarInfo,
 } from '@/services/goals.service';
+import { localDateStr } from '@/utils/date';
 import { CreateGoalScreen } from '../CreateGoal';
 
 const RECURRENCE_OPTIONS: { key: GoalTaskRecurrenceType; label: string }[] = [
@@ -60,6 +61,23 @@ const NEW_TASK_TYPE_OPTIONS: { key: GoalTaskType; label: string; icon: string }[
   { key: 'habit', label: 'Hábito / Tarefa', icon: 'checkbox-marked-outline' },
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
   { key: 'wildcard', label: 'Coringa', icon: 'lightning-bolt' },
+];
+
+const TASK_START_MODE_OPTIONS: {
+  key: 'goal_start' | 'task_creation';
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'goal_start',
+    label: 'Início da meta',
+    description: 'Conta desde o primeiro dia da meta',
+  },
+  {
+    key: 'task_creation',
+    label: 'Criação da tarefa',
+    description: 'Conta a partir do dia em que a tarefa for criada',
+  },
 ];
 
 function recurrenceLabel(
@@ -196,6 +214,7 @@ export function GoalDetailScreen({
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [taskHours, setTaskHours] = useState(10);
   const [taskThemeIds, setTaskThemeIds] = useState<string[]>([]);
+  const [taskStartMode, setTaskStartMode] = useState<'goal_start' | 'task_creation'>('task_creation');
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
@@ -237,6 +256,7 @@ export function GoalDetailScreen({
     setTaskRecDays([]);
     setTaskHours(10);
     setTaskThemeIds([]);
+    setTaskStartMode('task_creation');
   }
 
   async function handleAddTask() {
@@ -270,7 +290,10 @@ export function GoalDetailScreen({
       targetHours: newTaskType === 'focus_hours' ? taskHours : undefined,
     };
 
-    await addTask(goal.id, goal.startDate, goal.endDate, local);
+    const todayStr = localDateStr();
+    const effectiveStart = taskStartMode === 'goal_start' ? goal.startDate : todayStr;
+
+    await addTask(goal.id, effectiveStart, goal.endDate, local);
     resetForm();
     setShowForm(false);
   }
@@ -720,6 +743,49 @@ export function GoalDetailScreen({
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+            
+            <Text style={styles.formLabel}>Base de cálculo</Text>
+            <Text style={styles.formHint}>
+              Escolha a partir de qual data o período desta tarefa deve começar.
+            </Text>
+
+            <View style={styles.startModeRow}>
+              {TASK_START_MODE_OPTIONS.map((opt) => {
+                const selected = taskStartMode === opt.key;
+
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.startModeCard,
+                      selected && styles.startModeCardActive,
+                    ]}
+                    onPress={() => setTaskStartMode(opt.key)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.startModeHeader}>
+                      <MaterialCommunityIcons
+                        name={selected ? 'radiobox-marked' : 'radiobox-blank'}
+                        size={18}
+                        color={selected ? colors.primary : colors.textDisabled}
+                      />
+                      <Text
+                        style={[
+                          styles.startModeLabel,
+                          selected && styles.startModeLabelActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.startModeDescription}>
+                      {opt.description}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={styles.formLabel}>Nome</Text>
@@ -1415,5 +1481,40 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,
+  },
+
+  startModeRow: {
+    gap: spacing.xs,
+  },
+  startModeCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  startModeCardActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  startModeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  startModeLabel: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  startModeLabelActive: {
+    color: colors.primaryDark,
+  },
+  startModeDescription: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginTop: 3,
+    marginLeft: 22,
   },
 });
