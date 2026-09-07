@@ -62,7 +62,7 @@ export default function App() {
     <GestureHandlerRootView style={globalStyles.flex}>
       <SafeAreaProvider>
         <Navigation />
-        <StatusBar style="auto" backgroundColor={colors.background} />
+        <StatusBar style="auto" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
