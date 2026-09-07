@@ -23,6 +23,13 @@ import {
 } from '@/services/notifications.service';
 import { useSettingsStore } from '@/store/settingsStore';
 
+import {
+  awardProductiveAction,
+  getGamificationConfig,
+  pointsForTaskLevel,
+  reverseLatestProductiveAction,
+} from '@/services/gamification.service';
+
 interface TaskState {
   tasks: Task[];
   loading: boolean;
@@ -168,6 +175,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             completedAt: now,
           }).catch(() => {});
         }
+
+        const config = await getGamificationConfig();
+        await awardProductiveAction(
+          'task_completion',
+          id,
+          pointsForTaskLevel(taskBefore?.scoreLevel, config),
+          { metadata: { scoreLevel: taskBefore?.scoreLevel ?? 1 } },
+        );
+      } else {
+        await reverseLatestProductiveAction('task_completion', id);
       }
     } catch (e) {
       throw e;

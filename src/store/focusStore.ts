@@ -11,6 +11,14 @@ import {
   updateSessionTheme,
   updateSessionTime,
 } from '@/database/queries/focus.queries';
+
+import {
+  awardProductiveAction,
+  getGamificationConfig,
+  pointsForFocusDuration,
+  reverseLatestProductiveAction,
+  rescoreFocusSession,
+} from '@/services/gamification.service';
 import { dateOf } from '@/utils/date';
 
 const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
@@ -93,6 +101,18 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   addSession: async (data) => {
     const session = await createSession(data);
     set((state) => ({ sessions: [session, ...state.sessions] }));
+
+    const config = await getGamificationConfig();
+    const points = pointsForFocusDuration(session.duration, config.pointsPerFocusHour);
+    if (points > 0) {
+      await awardProductiveAction('focus_session', session.id, points, {
+        metadata: {
+          durationMinutes: session.duration,
+          pointsPerHour: config.pointsPerFocusHour,
+          mode: session.mode,
+        },
+      });
+    }
   },
 
   addTheme: async (name, color) => {
@@ -102,6 +122,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   removeSession: async (id) => {
     await deleteSession(id);
+    await reverseLatestProductiveAction('focus_session', id);
     set((state) => ({ sessions: state.sessions.filter((s) => s.id !== id) }));
   },
 
@@ -252,6 +273,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   editSessionTime: async (id, startTime, endTime, duration) => {
     await updateSessionTime(id, startTime, endTime, duration);
+    await rescoreFocusSession(id, duration);
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === id ? { ...s, startTime, endTime, duration } : s,

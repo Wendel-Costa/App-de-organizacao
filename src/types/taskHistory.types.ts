@@ -1,4 +1,4 @@
-import type { Priority, RecurrenceDay, SubTask, TaskType } from './task.types';
+import type { ScoreLevel, RecurrenceDay, SubTask, TaskType } from './task.types';
 
 export interface CompletedTaskRecord {
   id: string;
@@ -6,7 +6,7 @@ export interface CompletedTaskRecord {
   title: string;
   description?: string;
   type: TaskType;
-  priority?: Priority;
+  scoreLevel?: ScoreLevel;
   recurrenceDays?: RecurrenceDay[];
   goalId?: string;
   themeId?: string;

@@ -1,6 +1,6 @@
 export type TaskType = 'anytime' | 'scheduled' | 'recurring';
 
-export type Priority = 'high' | 'medium' | 'low';
+export type ScoreLevel = 1 | 2 | 3;
 
 export type RecurrenceDay =
   | 'monday'
@@ -24,7 +24,7 @@ export interface Task {
   title: string;
   description?: string;
   type: TaskType;
-  priority?: Priority;
+  scoreLevel?: ScoreLevel;
   completed: boolean;
   scheduledDate?: string;
   dueDate?: string;
