@@ -1,3 +1,4 @@
+import { localDateStr } from '@/utils/date';
 import { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -23,6 +24,7 @@ import { DatePicker } from '@/components/DatePicker';
 import type { Goal, GoalTaskRecurrenceType, GoalTaskType, LocalGoalTask } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
 import { TOLERANCE_OPTIONS } from '@/services/goals.service';
+import { useNotebookStore } from '@/store/notebookStore';
 
 const COLORS = [
   '#F5C518',
@@ -53,6 +55,12 @@ const TASK_TYPE_OPTIONS: { key: GoalTaskType; label: string; icon: string; desc:
     label: 'Coringa',
     icon: 'lightning-bolt',
     desc: 'Ao concluir, a meta vai para 100%',
+  },
+  {
+    key: 'notebook',
+    label: 'Caderno',
+    icon: 'book-open-page-variant-outline',
+    desc: 'Progresso real de um caderno de estudos',
   },
 ];
 
@@ -163,10 +171,11 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   const { addGoal, editGoal } = useGoalStore();
   const { addReward } = useRewardStore();
   const { themes, fetchThemes } = useFocusStore();
+  const { notebooks, fetchNotebooks } = useNotebookStore();
   const [title, setTitle] = useState(initialGoal?.title ?? '');
   const [description, setDesc] = useState(initialGoal?.description ?? '');
   const [startDate, setStartDate] = useState<string | undefined>(
-    initialGoal?.startDate ?? new Date().toISOString().split('T')[0],
+    initialGoal?.startDate ?? localDateStr(),
   );
   const [endDate, setEndDate] = useState<string | undefined>(initialGoal?.endDate);
   const [color, setColor] = useState(initialGoal?.color ?? COLORS[0]);
@@ -183,6 +192,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [newTaskHours, setNewTaskHours] = useState(10);
   const [newTaskThemeIds, setNewTaskThemeIds] = useState<string[]>([]);
+  const [selectedNotebookId, setSelectedNotebookId] = useState<string | undefined>();
   const [createRewardToggle, setCreateRewardToggle] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -190,6 +200,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
 
   useEffect(() => {
     fetchThemes();
+    fetchNotebooks();
   }, []);
 
   useEffect(() => {
@@ -257,6 +268,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
     setTaskRecDays([]);
     setNewTaskHours(10);
     setNewTaskThemeIds([]);
+    setSelectedNotebookId(undefined);
   }
 
   function handleAddTask() {
@@ -269,6 +281,11 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
       return;
     }
 
+    if (newTaskType === 'notebook' && !selectedNotebookId) {
+      Alert.alert('Atenção', 'Selecione um caderno para este fator.');
+      return;
+    }
+
     const selectedThemeNames =
       newTaskType === 'focus_hours'
         ? newTaskThemeIds
@@ -277,7 +294,10 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
         : undefined;
 
     const newTask: LocalGoalTask = {
-      title: taskTitle.trim(),
+      title:
+        newTaskType === 'notebook'
+          ? (notebooks.find((n) => n.id === selectedNotebookId)?.title ?? taskTitle.trim())
+          : taskTitle.trim(),
       type: newTaskType,
       recurrenceType: newTaskType === 'habit' ? taskRecType : 'none',
       recurrenceCount: newTaskType === 'habit' ? taskRecCount : 1,
@@ -289,6 +309,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           ? selectedThemeNames
           : undefined,
       targetHours: newTaskType === 'focus_hours' ? newTaskHours : undefined,
+      notebookId: newTaskType === 'notebook' ? selectedNotebookId : undefined,
     };
 
     setLocalTasks((prev) => [...prev, newTask]);
@@ -571,6 +592,43 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                   onChangeText={setTaskTitle}
                   maxLength={80}
                 />
+
+                {newTaskType === 'notebook' && (
+                  <>
+                    <Text style={styles.formLabel}>Caderno</Text>
+                    <TouchableOpacity
+                      style={styles.taskTypeRow}
+                      onPress={() =>
+                        Alert.alert('Selecionar caderno', 'Escolha um caderno:', [
+                          ...notebooks.map((n) => ({
+                            text: n.title,
+                            onPress: () => {
+                              setSelectedNotebookId(n.id);
+                              setTaskTitle(n.title);
+                            },
+                          })),
+                          { text: 'Cancelar', style: 'cancel' as const },
+                        ])
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons
+                        name="book-open-page-variant-outline"
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.taskTypeLabel}>
+                        {notebooks.find((n) => n.id === selectedNotebookId)?.title ??
+                          'Selecionar caderno'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={18}
+                        color={colors.textDisabled}
+                      />
+                    </TouchableOpacity>
+                  </>
+                )}
 
                 {newTaskType === 'focus_hours' && (
                   <>

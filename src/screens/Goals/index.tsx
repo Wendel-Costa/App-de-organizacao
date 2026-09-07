@@ -26,8 +26,9 @@ import type { Goal, GoalTaskRecurrenceType } from '@/types/goal.types';
 import type { GoalTaskForToday } from '@/database/queries/goals.queries';
 import * as Haptics from 'expo-haptics';
 import { calcGoalProgress } from '@/services/goals.service';
+import { NotebooksScreen } from './NotebooksScreen';
 
-type Screen = 'list' | 'create' | 'detail';
+type Screen = 'list' | 'create' | 'detail' | 'notebooks';
 type TaskFilter = 'all' | 'daily' | 'weekly' | 'monthly' | 'free';
 
 const TASK_FILTERS: { key: TaskFilter; label: string }[] = [
@@ -50,6 +51,8 @@ function recurrenceShortLabel(type: GoalTaskRecurrenceType, count: number): stri
       return 'Dias espec.';
     case 'none':
       return 'Total';
+    default:
+      return '';
   }
 }
 
@@ -130,6 +133,10 @@ export function GoalsScreen() {
     await uncompleteTask(goalId, taskId);
   }
 
+  if (screen === 'notebooks') {
+    return <NotebooksScreen onBack={() => setScreen('list')} />;
+  }
+
   if (screen === 'create') {
     return (
       <CreateGoalScreen
@@ -159,7 +166,13 @@ export function GoalsScreen() {
 
   return (
     <View style={globalStyles.screen}>
-      <Header title="Metas" rightAction={{ icon: 'plus', onPress: () => setScreen('create') }} />
+      <Header
+        title="Metas"
+        rightAction={{
+          icon: 'book-open-page-variant-outline',
+          onPress: () => setScreen('notebooks'),
+        }}
+      />
 
       {loading ? (
         <View style={globalStyles.center}>
@@ -194,6 +207,23 @@ export function GoalsScreen() {
           ListHeaderComponent={
             activeGoals.length > 0 || archivedGoals.length > 0 ? (
               <View style={styles.sectionsContainer}>
+                <TouchableOpacity
+                  style={styles.notebookEntry}
+                  onPress={() => setScreen('notebooks')}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons
+                    name="book-open-page-variant-outline"
+                    size={17}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.notebookEntryText}>Cadernos de estudo</Text>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={17}
+                    color={colors.textDisabled}
+                  />
+                </TouchableOpacity>
                 {activeGoals.length > 0 && (
                   <View style={styles.todaySection}>
                     <TouchableOpacity
@@ -434,6 +464,17 @@ export function GoalsScreen() {
 const styles = StyleSheet.create({
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
 
+  notebookEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  notebookEntryText: { ...typography.label, color: colors.textPrimary, flex: 1 },
   sectionsContainer: { gap: spacing.md },
 
   todaySection: { gap: spacing.sm },
