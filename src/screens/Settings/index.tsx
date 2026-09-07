@@ -19,6 +19,8 @@ import { Card } from '@/components/Card';
 import { TimePicker } from '@/components/TimePicker';
 import { TextInput } from 'react-native-gesture-handler';
 import { Linking } from 'react-native';
+import { useGamificationStore } from '@/store/gamificationStore';
+import { exportData, importData, pickImportFile } from '@/services/dataTransfer.service';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -56,15 +58,53 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   } = useSettingsStore();
   const [localName, setLocalName] = useState(name);
   const [showAbout, setShowAbout] = useState(false);
+  const { config: gameConfig, updateConfig: updateGameConfig } = useGamificationStore();
+  const [importing, setImporting] = useState(false);
 
   async function handleEnableNotifications(value: boolean) {
     if (value) {
       await requestPermissions();
     } else {
       Alert.alert('Desativar notificações', 'Todas as notificações agendadas serão canceladas.', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Desativar', style: 'destructive', onPress: disableAllNotifications },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Desativar',
+          style: 'destructive',
+          onPress: disableAllNotifications,
+        },
       ]);
+    }
+  }
+  async function handleImport() {
+    setImporting(true);
+    try {
+      const payload = await pickImportFile();
+      if (!payload) {
+        return;
+      }
+      await importData(payload);
+      Alert.alert(
+        'Importação concluída',
+        'Os dados foram restaurados. Reabra as telas para atualizar os dados em memória.',
+      );
+    } catch (e) {
+      Alert.alert(
+        'Importação não realizada',
+        e instanceof Error
+          ? e.message === 'INVALID_JSON'
+            ? 'O arquivo selecionado não contém um JSON válido.'
+            : e.message === 'UNSUPPORTED_VERSION'
+              ? 'A versão deste arquivo de backup não é compatível com esta versão do aplicativo.'
+              : e.message === 'INVALID_STRUCTURE'
+                ? 'O arquivo possui uma estrutura inválida.'
+                : e.message
+          : 'Não foi possível importar os dados.',
+      );
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -107,7 +147,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             <Switch
               value={notificationsEnabled}
               onValueChange={handleEnableNotifications}
-              trackColor={{ true: colors.primary, false: colors.border }}
+              trackColor={{
+                true: colors.primary,
+                false: colors.border,
+              }}
               thumbColor={colors.surface}
             />
           </SettingRow>
@@ -125,7 +168,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={taskReminderEnabled}
                   onValueChange={(v) => setTaskReminder(v)}
-                  trackColor={{ true: colors.primary, false: colors.border }}
+                  trackColor={{
+                    true: colors.primary,
+                    false: colors.border,
+                  }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -153,7 +199,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={dueDateWarningEnabled}
                   onValueChange={setDueDateWarning}
-                  trackColor={{ true: colors.primary, false: colors.border }}
+                  trackColor={{
+                    true: colors.primary,
+                    false: colors.border,
+                  }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -169,7 +218,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={habitsReminderEnabled}
                   onValueChange={(v) => setHabitsReminder(v)}
-                  trackColor={{ true: colors.primary, false: colors.border }}
+                  trackColor={{
+                    true: colors.primary,
+                    false: colors.border,
+                  }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -198,7 +250,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={focusReminderEnabled}
                   onValueChange={(v) => setFocusReminder(v)}
-                  trackColor={{ true: colors.primary, false: colors.border }}
+                  trackColor={{
+                    true: colors.primary,
+                    false: colors.border,
+                  }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -218,6 +273,110 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             </Card>
           </>
         )}
+
+        <Text style={styles.sectionTitle}>Gamificação</Text>
+        <Card style={styles.card}>
+          <Text style={styles.gameHint}>
+            As alterações valem apenas para ações futuras. O histórico não é recalculado.
+          </Text>
+          <GameSetting
+            label="Pontos por hora de foco"
+            value={gameConfig.pointsPerFocusHour}
+            onChange={(n) => updateGameConfig({ pointsPerFocusHour: n })}
+          />
+          <GameSetting
+            label="Nível 1 de tarefa"
+            value={gameConfig.taskLevel1Points}
+            onChange={(n) => updateGameConfig({ taskLevel1Points: n })}
+          />
+          <GameSetting
+            label="Nível 2 de tarefa"
+            value={gameConfig.taskLevel2Points}
+            onChange={(n) => updateGameConfig({ taskLevel2Points: n })}
+          />
+          <GameSetting
+            label="Nível 3 de tarefa"
+            value={gameConfig.taskLevel3Points}
+            onChange={(n) => updateGameConfig({ taskLevel3Points: n })}
+          />
+          <GameSetting
+            label="Tópico concluído"
+            value={gameConfig.topicPoints}
+            onChange={(n) => updateGameConfig({ topicPoints: n })}
+          />
+          <GameSetting
+            label="Caderno concluído"
+            value={gameConfig.notebookCompletionPoints}
+            onChange={(n) =>
+              updateGameConfig({
+                notebookCompletionPoints: n,
+              })
+            }
+          />
+          <GameSetting
+            label="Meta concluída"
+            value={gameConfig.goalCompletionPoints}
+            onChange={(n) =>
+              updateGameConfig({
+                goalCompletionPoints: n,
+              })
+            }
+          />
+        </Card>
+
+        <Text style={styles.sectionTitle}>Dados</Text>
+
+        <Card style={styles.card}>
+          <TouchableOpacity
+            style={styles.dataButton}
+            onPress={async () => {
+              try {
+                await exportData();
+
+                Alert.alert('Exportação concluída', 'O arquivo foi preparado para compartilhar.');
+              } catch {
+                Alert.alert('Erro', 'Não foi possível exportar os dados.');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="export" size={19} color={colors.primary} />
+            <Text style={styles.dataButtonText}>Exportar dados</Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.dataButton}
+            onPress={() =>
+              Alert.alert(
+                'Importar dados',
+                'Os dados atuais serão substituídos. Faça um backup antes de continuar.',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Importar',
+                    style: 'destructive',
+                    onPress: () => {
+                      void handleImport();
+                    },
+                  },
+                ],
+              )
+            }
+            disabled={importing}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="import" size={19} color={colors.primary} />
+
+            <Text style={styles.dataButtonText}>
+              {importing ? 'Importando…' : 'Importar dados'}
+            </Text>
+          </TouchableOpacity>
+        </Card>
 
         <Text style={styles.sectionTitle}>Sobre</Text>
         <Card style={styles.card}>
@@ -297,6 +456,37 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   );
 }
 
+function GameSetting({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+
+  return (
+    <View style={styles.gameSettingRow}>
+      <Text style={styles.dataButtonText}>{label}</Text>
+
+      <TextInput
+        style={styles.gameInput}
+        keyboardType="decimal-pad"
+        value={text}
+        onChangeText={setText}
+        onBlur={() => {
+          const n = Math.max(0, Number(text.replace(',', '.')) || 0);
+
+          setText(String(n));
+          onChange(n);
+        }}
+      />
+    </View>
+  );
+}
+
 interface SettingRowProps {
   icon: string;
   label: string;
@@ -336,6 +526,38 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.xs,
   },
+  gameHint: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  gameSettingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  gameInput: {
+    minWidth: 64,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    textAlign: 'center',
+    color: colors.textPrimary,
+  },
+  dataButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  dataButtonText: {
+    ...typography.body,
+    color: colors.textPrimary,
+  },
+
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -376,7 +598,9 @@ const styles = StyleSheet.create({
     ...typography.sm,
     color: colors.textSecondary,
   },
-  nameInputRow: { paddingHorizontal: spacing.sm },
+  nameInputRow: {
+    paddingHorizontal: spacing.sm,
+  },
   nameInput: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
@@ -411,8 +635,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  aboutAppName: { ...typography.h2, color: colors.textPrimary },
-  aboutVersion: { ...typography.sm, color: colors.textSecondary },
+  aboutAppName: {
+    ...typography.h2,
+    color: colors.textPrimary,
+  },
+  aboutVersion: {
+    ...typography.sm,
+    color: colors.textSecondary,
+  },
   aboutDesc: {
     ...typography.body,
     color: colors.textSecondary,
@@ -425,7 +655,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.divider,
     marginVertical: spacing.xs,
   },
-  aboutCredit: { ...typography.sm, color: colors.textDisabled },
+  aboutCredit: {
+    ...typography.sm,
+    color: colors.textDisabled,
+  },
   aboutCloseBtn: {
     marginTop: spacing.sm,
     backgroundColor: colors.primary,
@@ -433,7 +666,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
   },
-  aboutCloseText: { ...typography.label, color: colors.textOnPrimary },
+  aboutCloseText: {
+    ...typography.label,
+    color: colors.textOnPrimary,
+  },
 
   watermark: {
     alignItems: 'center',
