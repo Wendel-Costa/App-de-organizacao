@@ -3,7 +3,7 @@ import type { RecurrenceDay } from './task.types';
 export type GoalTaskRecurrenceType =
   'none' | 'daily' | 'times_per_week' | 'times_per_month' | 'specific_days' | 'every_x_days';
 
-export type GoalTaskType = 'habit' | 'focus_hours' | 'wildcard';
+export type GoalTaskType = 'habit' | 'focus_hours' | 'wildcard' | 'notebook';
 
 export interface GoalTask {
   id: string;
@@ -21,6 +21,7 @@ export interface GoalTask {
   lastCompletedDate?: string;
   themeIds?: string[];
   themeNames?: string[];
+  notebookId?: string;
 }
 
 export interface Goal {
@@ -48,5 +49,6 @@ export interface LocalGoalTask {
   recurrenceDays: RecurrenceDay[];
   themeIds?: string[];
   themeNames?: string[];
+  notebookId?: string;
   targetHours?: number;
 }

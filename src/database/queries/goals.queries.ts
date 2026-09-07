@@ -1,6 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../index';
 import { goals, goalTasks, goalTaskCompletions, focusSessions, focusThemes } from '../schema';
+import { notebooks, notebookTopics } from '../schema';
 import type {
   Goal,
   GoalTask,
@@ -96,6 +97,8 @@ export async function getAllGoals(): Promise<Goal[]> {
   const completionRows = await db.select().from(goalTaskCompletions);
   const sessionRows = await db.select().from(focusSessions);
   const themeRows = await db.select().from(focusThemes);
+  const notebookRows = await db.select().from(notebooks);
+  const notebookTopicRows = await db.select().from(notebookTopics);
 
   const todayStr = today();
   const week = getWeekRange();
@@ -110,6 +113,12 @@ export async function getAllGoals(): Promise<Goal[]> {
   }
 
   const goalById = new Map(goalRows.map((g) => [g.id, g]));
+  const notebookProgress = new Map<string, number>();
+  for (const n of notebookRows) {
+    const topics = notebookTopicRows.filter((t) => t.notebookId === n.id);
+    const completed = topics.filter((t) => t.completed === 1).length;
+    notebookProgress.set(n.id, topics.length ? completed / topics.length : 0);
+  }
 
   const tasksByGoalId = new Map<string, GoalTask[]>();
 
@@ -121,7 +130,11 @@ export async function getAllGoals(): Promise<Goal[]> {
       completionsThisWeek = 0,
       completionsThisMonth = 0;
 
-    if (taskType === 'focus_hours') {
+    if (taskType === 'notebook') {
+      const progress = notebookProgress.get(t.notebookId ?? '') ?? 0;
+      completedCount = progress;
+      completedToday = false;
+    } else if (taskType === 'focus_hours') {
       const goal = goalById.get(t.goalId);
       if (goal) {
         const relevantSessions = sessionRows.filter((s) => {
@@ -177,6 +190,7 @@ export async function getAllGoals(): Promise<Goal[]> {
         themeIds.length > 0
           ? themeIds.map((id) => themeNameById.get(id) ?? '(tema removido)')
           : undefined,
+      notebookId: t.notebookId ?? undefined,
     });
   }
 
@@ -234,7 +248,7 @@ export async function createGoal(
     const taskType = lt.type ?? 'habit';
 
     let targetCount: number;
-    if (taskType === 'wildcard') targetCount = 1;
+    if (taskType === 'wildcard' || taskType === 'notebook') targetCount = 1;
     else if (taskType === 'focus_hours') targetCount = lt.targetHours ?? 10;
     else
       targetCount = calculateTargetCount(
@@ -255,6 +269,7 @@ export async function createGoal(
       recurrenceType: taskType === 'habit' ? lt.recurrenceType : 'none',
       recurrenceCount: taskType === 'habit' ? lt.recurrenceCount : 1,
       recurrenceDays: lt.recurrenceDays?.length ? JSON.stringify(lt.recurrenceDays) : null,
+      notebookId: lt.notebookId ?? null,
     });
 
     savedTasks.push({
@@ -272,6 +287,7 @@ export async function createGoal(
       recurrenceDays: lt.recurrenceDays,
       themeIds: lt.themeIds,
       themeNames: lt.themeNames,
+      notebookId: lt.notebookId,
     });
   }
 
@@ -341,7 +357,7 @@ export async function addGoalTask(
   const taskType = local.type ?? 'habit';
 
   let targetCount: number;
-  if (taskType === 'wildcard') targetCount = 1;
+  if (taskType === 'wildcard' || taskType === 'notebook') targetCount = 1;
   else if (taskType === 'focus_hours') targetCount = local.targetHours ?? 10;
   else
     targetCount = calculateTargetCount(
@@ -362,6 +378,7 @@ export async function addGoalTask(
     recurrenceType: taskType === 'habit' ? local.recurrenceType : 'none',
     recurrenceCount: taskType === 'habit' ? local.recurrenceCount : 1,
     recurrenceDays: local.recurrenceDays?.length ? JSON.stringify(local.recurrenceDays) : null,
+    notebookId: local.notebookId ?? null,
   });
 
   return {
@@ -379,6 +396,7 @@ export async function addGoalTask(
     recurrenceDays: local.recurrenceDays,
     themeIds: local.themeIds,
     themeNames: local.themeNames,
+    notebookId: local.notebookId,
   };
 }
 

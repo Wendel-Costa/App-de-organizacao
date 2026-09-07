@@ -15,9 +15,13 @@ import {
   reorderGoals,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
-import { useFocusStore } from '@/store/focusStore';
-import { useTaskStore } from '@/store/taskStore';
-import { useRewardStore } from '@/store/rewardStore';
+
+import { calcGoalProgress } from '@/services/goals.service';
+import { grantUniqueAchievement } from '@/services/gamification.service';
+
+function calcGoalProgressSafe(goal: Goal): number {
+  return calcGoalProgress(goal);
+}
 
 interface GoalState {
   goals: Goal[];
@@ -115,6 +119,9 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   completeTask: async (goalId, taskId) => {
+    const beforeGoal = get().goals.find((g) => g.id === goalId);
+    const beforeTask = beforeGoal?.tasks.find((t) => t.id === taskId);
+    if (beforeTask?.type === 'notebook') return;
     await completeGoalTaskForToday(taskId);
     set((s) => ({
       goals: s.goals.map((g) =>
@@ -138,11 +145,14 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     }));
     await get().refreshTodayTasks();
 
-    try {
-      const { sessions } = useFocusStore.getState();
-      const { tasks } = useTaskStore.getState();
-      useRewardStore.getState().checkAndUnlock(sessions, tasks, get().goals).catch(() => {});
-    } catch {}
+    const afterGoal = get().goals.find((g) => g.id === goalId);
+    if (afterGoal) {
+      const beforeProgress = beforeGoal ? calcGoalProgressSafe(beforeGoal) : 0;
+      const afterProgress = calcGoalProgressSafe(afterGoal);
+      if (beforeProgress < 1 && afterProgress >= 1) {
+        await grantUniqueAchievement('goal_completion', goalId);
+      }
+    }
   },
 
   uncompleteTask: async (goalId, taskId) => {
