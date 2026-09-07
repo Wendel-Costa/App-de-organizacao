@@ -22,11 +22,11 @@ export function getTodayWeekday(): RecurrenceDay {
 export function isEveryXDaysDue(task: Task): boolean {
   const interval = task.recurrenceInterval ?? 1;
   if (!task.completed || !task.completedAt) return true;
-  const completedDate = new Date(task.completedAt);
-  completedDate.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const daysSince = Math.round((today.getTime() - completedDate.getTime()) / 86400000);
+  const completedDate = dateOf(task.completedAt);
+  const today = getTodayString();
+  const completed = new Date(completedDate + 'T12:00:00');
+  const current = new Date(today + 'T12:00:00');
+  const daysSince = Math.round((current.getTime() - completed.getTime()) / 86400000);
   return daysSince >= interval;
 }
 
@@ -73,15 +73,6 @@ export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
     if (task.recurrenceDays?.includes('every_x_days')) return false;
     const completedDate = dateOf(task.completedAt ?? task.updatedAt);
     return completedDate !== todayStr;
-  });
-}
-
-export function getRecurringTasksToRefreshCreatedDate(tasks: Task[]): Task[] {
-  const todayStr = getTodayString();
-  return tasks.filter((task) => {
-    if (task.type !== 'recurring' || task.completed) return false;
-    if (task.recurrenceDays?.includes('every_x_days')) return false;
-    return dateOf(task.createdAt) !== todayStr;
   });
 }
 

@@ -121,10 +121,6 @@ export async function toggleSubtaskComplete(id: string, completed: boolean): Pro
     .where(eq(subtasks.id, id));
 }
 
-export async function touchTaskCreatedAt(taskId: string): Promise<void> {
-  await db.update(tasks).set({ createdAt: now() }).where(eq(tasks.id, taskId));
-}
-
 export async function resetTaskSubtasks(taskId: string): Promise<void> {
   await db.update(subtasks).set({ completed: 0 }).where(eq(subtasks.taskId, taskId));
   await db.update(tasks).set({ updatedAt: now() }).where(eq(tasks.id, taskId));

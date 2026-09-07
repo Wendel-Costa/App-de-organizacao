@@ -9,14 +9,12 @@ import {
   toggleSubtaskComplete,
   rolloverTask,
   resetTaskSubtasks,
-  touchTaskCreatedAt,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
 import {
   getRecurringTasksToRollover,
   getEveryXDaysTasksToReset,
   getRecurringTasksWithStaleSubtasks,
-  getRecurringTasksToRefreshCreatedDate,
 } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
@@ -24,9 +22,6 @@ import {
   cancelTaskNotifications,
 } from '@/services/notifications.service';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useFocusStore } from '@/store/focusStore';
-import { useGoalStore } from '@/store/goalStore';
-import { useRewardStore } from '@/store/rewardStore';
 
 interface TaskState {
   tasks: Task[];
@@ -63,14 +58,6 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       if (toResetSubtasks.length > 0) {
         for (const task of toResetSubtasks) {
           await resetTaskSubtasks(task.id).catch(() => {});
-        }
-        tasks = await getAllTasks();
-      }
-
-      const toRefreshCreatedDate = getRecurringTasksToRefreshCreatedDate(tasks);
-      if (toRefreshCreatedDate.length > 0) {
-        for (const task of toRefreshCreatedDate) {
-          await touchTaskCreatedAt(task.id).catch(() => {});
         }
         tasks = await getAllTasks();
       }
@@ -181,13 +168,6 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             completedAt: now,
           }).catch(() => {});
         }
-
-        try {
-          const { sessions } = useFocusStore.getState();
-          const { goals } = useGoalStore.getState();
-          const { checkAndUnlock } = useRewardStore.getState();
-          checkAndUnlock(sessions, get().tasks, goals).catch(() => {});
-        } catch {}
       }
     } catch (e) {
       throw e;
