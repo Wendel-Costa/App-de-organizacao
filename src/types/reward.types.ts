@@ -1,8 +1,5 @@
 export type RewardConditionType =
-  | 'focus_hours'
-  | 'tasks_completed'
-  | 'tasks_specific'
-  | 'goal_completed';
+  'focus_hours' | 'tasks_completed' | 'tasks_specific' | 'goal_completed';
 
 export type RewardPeriod = 'day' | 'week' | 'month' | 'anytime' | 'custom';
 
@@ -24,6 +21,16 @@ export interface Reward {
   condition: RewardCondition;
   unlocked: boolean;
   unlockedAt?: string;
+  archived: boolean;
+  order: number;
+  createdAt: string;
+}
+
+export interface PurchasableReward {
+  id: string;
+  title: string;
+  description?: string;
+  cost: number;
   archived: boolean;
   order: number;
   createdAt: string;

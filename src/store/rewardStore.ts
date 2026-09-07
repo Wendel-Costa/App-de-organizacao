@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Alert } from 'react-native';
 import type { Reward } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
@@ -13,12 +12,20 @@ import {
   unarchiveReward,
   deleteReward,
   reorderRewards,
+  getAllPurchasableRewards,
+  createPurchasableReward,
+  updatePurchasableReward,
+  deletePurchasableReward,
+  archivePurchasableReward,
 } from '@/database/queries/rewards.queries';
 
 import { checkRewardCondition } from '@/services/rewards.service';
+import { purchaseReward as spendCoins } from '@/services/gamification.service';
+import type { PurchasableReward } from '@/types/reward.types';
 
 interface RewardState {
   rewards: Reward[];
+  purchasableRewards: PurchasableReward[];
   loading: boolean;
 
   fetchRewards: () => Promise<void>;
@@ -34,10 +41,23 @@ interface RewardState {
   archiveReward: (id: string) => Promise<void>;
   unarchiveReward: (id: string) => Promise<void>;
   reorderRewards: (orderedIds: string[]) => Promise<void>;
+  fetchPurchasableRewards: () => Promise<void>;
+  addPurchasableReward: (data: {
+    title: string;
+    description?: string;
+    cost: number;
+  }) => Promise<PurchasableReward>;
+  editPurchasableReward: (
+    id: string,
+    data: { title: string; description?: string; cost: number },
+  ) => Promise<void>;
+  removePurchasableReward: (id: string) => Promise<void>;
+  buyPurchasableReward: (reward: PurchasableReward) => Promise<void>;
 }
 
 export const useRewardStore = create<RewardState>((set, get) => ({
   rewards: [],
+  purchasableRewards: [],
   loading: false,
 
   fetchRewards: async () => {
@@ -80,7 +100,6 @@ export const useRewardStore = create<RewardState>((set, get) => ({
             : r,
         ),
       }));
-      Alert.alert('🏆 Recompensa desbloqueada!', newlyUnlocked.map((r) => r.title).join('\n'));
     }
 
     return newlyUnlocked;
@@ -120,5 +139,35 @@ export const useRewardStore = create<RewardState>((set, get) => ({
       return { rewards: [...reordered, ...untouched].sort((a, b) => a.order - b.order) };
     });
     await reorderRewards(orderedIds);
+  },
+
+  fetchPurchasableRewards: async () => {
+    set({ purchasableRewards: await getAllPurchasableRewards() });
+  },
+
+  addPurchasableReward: async (data) => {
+    const reward = await createPurchasableReward(data);
+    set((state) => ({ purchasableRewards: [...state.purchasableRewards, reward] }));
+    return reward;
+  },
+
+  editPurchasableReward: async (id, data) => {
+    await updatePurchasableReward(id, data);
+    set((state) => ({
+      purchasableRewards: state.purchasableRewards.map((r) =>
+        r.id === id
+          ? { ...r, ...data, title: data.title.trim(), description: data.description?.trim() }
+          : r,
+      ),
+    }));
+  },
+
+  removePurchasableReward: async (id) => {
+    await deletePurchasableReward(id);
+    set((state) => ({ purchasableRewards: state.purchasableRewards.filter((r) => r.id !== id) }));
+  },
+
+  buyPurchasableReward: async (reward) => {
+    await spendCoins(reward.id, reward.cost, reward.title);
   },
 }));

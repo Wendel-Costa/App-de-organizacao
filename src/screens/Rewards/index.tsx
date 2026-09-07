@@ -29,6 +29,8 @@ import { DatePicker } from '@/components/DatePicker';
 import { DraggableList } from '@/components/DraggableList';
 import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
 import { RewardDetailScreen } from './RewardDetail';
+import { useGamificationStore } from '@/store/gamificationStore';
+import { Card } from '@/components/Card';
 
 const CONDITION_OPTIONS: { key: RewardConditionType; label: string; icon: string }[] = [
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
@@ -133,6 +135,10 @@ export function RewardsScreen() {
     checkAndUnlock,
     unarchiveReward,
     reorderRewards,
+    purchasableRewards,
+    fetchPurchasableRewards,
+    addPurchasableReward,
+    buyPurchasableReward,
   } = useRewardStore();
 
   const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
@@ -158,6 +164,11 @@ export function RewardsScreen() {
   const [saving, setSaving] = useState(false);
 
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
+  const { summary: gameSummary, fetch: fetchGamification } = useGamificationStore();
+  const [shopModal, setShopModal] = useState(false);
+  const [shopTitle, setShopTitle] = useState('');
+  const [shopDescription, setShopDescription] = useState('');
+  const [shopCost, setShopCost] = useState('50');
 
   const scrollRef = useRef<ScrollView>(null);
   const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -168,6 +179,8 @@ export function RewardsScreen() {
     fetchThemes();
     fetchTasks();
     fetchGoals();
+    fetchPurchasableRewards();
+    fetchGamification();
   }, []);
 
   useEffect(() => {
@@ -673,142 +686,333 @@ export function RewardsScreen() {
         <View style={globalStyles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : rewards.length === 0 ? (
-        <EmptyState
-          icon="trophy-outline"
-          title="Nenhuma recompensa criada"
-          description="Defina recompensas para se motivar a estudar e concluir tarefas"
-          actionLabel="Criar recompensa"
-          onAction={() => setScreen('create')}
-        />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {activeUnlocked.length > 0 && (
-            <>
-              <View style={styles.sectionHeader}>
-                <MaterialCommunityIcons name="trophy" size={16} color={colors.primary} />
-                <Text style={styles.sectionTitle}>Desbloqueadas ({activeUnlocked.length})</Text>
+        <>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.gameSummaryCard}>
+              <View style={styles.gameTopRow}>
+                <View>
+                  <Text style={styles.gameLevel}>Nível {gameSummary.level}</Text>
+                  <Text style={styles.gamePoints}>{gameSummary.points} pontos</Text>
+                </View>
+                <View style={styles.coinPill}>
+                  <MaterialCommunityIcons name="cash" size={16} color={colors.primary} />
+                  <Text style={styles.coinText}>{gameSummary.coins} moedas</Text>
+                </View>
               </View>
-              <DraggableList
-                data={activeUnlocked}
-                keyExtractor={(r) => r.id}
-                gap={spacing.sm}
-                onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
-                renderItem={(r) => (
-                  <RewardCard
-                    reward={r}
-                    sessions={sessions}
-                    tasks={tasks}
-                    goals={goals}
-                    onDelete={handleDelete}
-                    draggable={activeUnlocked.length > 1}
-                    onPress={(reward) => {
-                      setSelectedReward(reward);
-                      setScreen('detail');
-                    }}
-                  />
-                )}
-              />
-            </>
-          )}
-
-          {locked.length > 0 && (
-            <>
-              <View
-                style={[
-                  styles.sectionHeader,
-                  { marginTop: activeUnlocked.length > 0 ? spacing.lg : 0 },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="lock-outline"
-                  size={16}
-                  color={colors.textSecondary}
+              <View style={styles.levelTrack}>
+                <View
+                  style={[
+                    styles.levelFill,
+                    { width: `${Math.max(0, Math.min(1, gameSummary.progress)) * 100}%` },
+                  ]}
                 />
-                <Text style={styles.sectionTitle}>Em progresso ({locked.length})</Text>
               </View>
-              <DraggableList
-                data={locked}
-                keyExtractor={(r) => r.id}
-                gap={spacing.sm}
-                onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
-                renderItem={(r) => (
-                  <RewardCard
-                    reward={r}
-                    sessions={sessions}
-                    tasks={tasks}
-                    goals={goals}
-                    onDelete={handleDelete}
-                    draggable={locked.length > 1}
-                    onPress={(reward) => {
-                      setSelectedReward(reward);
-                      setScreen('detail');
-                    }}
-                  />
-                )}
-              />
-            </>
-          )}
+              <Text style={styles.levelHint}>
+                {gameSummary.points} / {gameSummary.nextLevelPoints ?? gameSummary.points} pontos
+                para o próximo nível
+              </Text>
+            </View>
 
-          {archivedRewards.length > 0 && (
-            <View style={styles.archivedSection}>
-              <TouchableOpacity
-                style={styles.archivedHeader}
-                onPress={() => setShowArchivedRewards((p) => !p)}
-                activeOpacity={0.7}
-              >
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="store-outline" size={16} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Loja</Text>
+              <TouchableOpacity onPress={() => setShopModal(true)}>
                 <MaterialCommunityIcons
-                  name="archive-outline"
+                  name="plus-circle-outline"
                   size={18}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.archivedHeaderText}>
-                  Recompensas guardadas ({archivedRewards.length})
-                </Text>
-                <MaterialCommunityIcons
-                  name={showArchivedRewards ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={colors.textSecondary}
+                  color={colors.primary}
                 />
               </TouchableOpacity>
+            </View>
+            {purchasableRewards.length === 0 ? (
+              <Text style={styles.emptyNote}>Nenhuma recompensa comprável ainda.</Text>
+            ) : (
+              purchasableRewards.map((shopReward) => (
+                <Card key={shopReward.id} style={styles.shopCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.shopTitle}>{shopReward.title}</Text>
+                    {shopReward.description ? (
+                      <Text style={styles.shopDescription}>{shopReward.description}</Text>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.buyButton}
+                    onPress={() =>
+                      Alert.alert(
+                        'Comprar recompensa',
+                        `Gastar ${shopReward.cost} moedas em “${shopReward.title}”?`,
+                        [
+                          { text: 'Cancelar', style: 'cancel' },
+                          {
+                            text: 'Comprar',
+                            onPress: async () => {
+                              try {
+                                await buyPurchasableReward(shopReward);
+                                await fetchGamification();
+                                Alert.alert('Compra realizada', 'A recompensa foi resgatada.');
+                              } catch {
+                                Alert.alert(
+                                  'Saldo insuficiente',
+                                  'Você não possui moedas suficientes.',
+                                );
+                              }
+                            },
+                          },
+                        ],
+                      )
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="cash-minus"
+                      size={15}
+                      color={colors.textOnPrimary}
+                    />
+                    <Text style={styles.buyText}>{shopReward.cost}</Text>
+                  </TouchableOpacity>
+                </Card>
+              ))
+            )}
 
-              {showArchivedRewards &&
-                archivedRewards.map((r) => (
-                  <View key={r.id} style={styles.archivedCard}>
-                    <TouchableOpacity
-                      style={styles.archivedCardInner}
-                      onPress={() => {
-                        setSelectedReward(r);
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="trophy-outline" size={16} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Conquistas</Text>
+            </View>
+            {rewards.length === 0 ? (
+              <Text style={styles.emptyNote}>Nenhuma conquista criada.</Text>
+            ) : null}
+            {activeUnlocked.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons name="trophy" size={16} color={colors.primary} />
+                  <Text style={styles.sectionTitle}>Desbloqueadas ({activeUnlocked.length})</Text>
+                </View>
+                <DraggableList
+                  data={activeUnlocked}
+                  keyExtractor={(r) => r.id}
+                  gap={spacing.sm}
+                  onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
+                  renderItem={(r) => (
+                    <RewardCard
+                      reward={r}
+                      sessions={sessions}
+                      tasks={tasks}
+                      goals={goals}
+                      onDelete={handleDelete}
+                      draggable={activeUnlocked.length > 1}
+                      onPress={(reward) => {
+                        setSelectedReward(reward);
                         setScreen('detail');
                       }}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialCommunityIcons name="trophy" size={18} color="#B8860B" />
-                      <Text style={styles.archivedTitle} numberOfLines={1}>
-                        {r.title}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => unarchiveReward(r.id)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <MaterialCommunityIcons
-                        name="archive-arrow-up-outline"
-                        size={16}
-                        color={colors.textDisabled}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                    />
+                  )}
+                />
+              </>
+            )}
+
+            {locked.length > 0 && (
+              <>
+                <View
+                  style={[
+                    styles.sectionHeader,
+                    { marginTop: activeUnlocked.length > 0 ? spacing.lg : 0 },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="lock-outline"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.sectionTitle}>Em progresso ({locked.length})</Text>
+                </View>
+                <DraggableList
+                  data={locked}
+                  keyExtractor={(r) => r.id}
+                  gap={spacing.sm}
+                  onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
+                  renderItem={(r) => (
+                    <RewardCard
+                      reward={r}
+                      sessions={sessions}
+                      tasks={tasks}
+                      goals={goals}
+                      onDelete={handleDelete}
+                      draggable={locked.length > 1}
+                      onPress={(reward) => {
+                        setSelectedReward(reward);
+                        setScreen('detail');
+                      }}
+                    />
+                  )}
+                />
+              </>
+            )}
+
+            {archivedRewards.length > 0 && (
+              <View style={styles.archivedSection}>
+                <TouchableOpacity
+                  style={styles.archivedHeader}
+                  onPress={() => setShowArchivedRewards((p) => !p)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="archive-outline"
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={styles.archivedHeaderText}>
+                    Recompensas guardadas ({archivedRewards.length})
+                  </Text>
+                  <MaterialCommunityIcons
+                    name={showArchivedRewards ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+
+                {showArchivedRewards &&
+                  archivedRewards.map((r) => (
+                    <View key={r.id} style={styles.archivedCard}>
+                      <TouchableOpacity
+                        style={styles.archivedCardInner}
+                        onPress={() => {
+                          setSelectedReward(r);
+                          setScreen('detail');
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons name="trophy" size={18} color="#B8860B" />
+                        <Text style={styles.archivedTitle} numberOfLines={1}>
+                          {r.title}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => unarchiveReward(r.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialCommunityIcons
+                          name="archive-arrow-up-outline"
+                          size={16}
+                          color={colors.textDisabled}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+              </View>
+            )}
+          </ScrollView>
+
+          <Modal
+            visible={shopModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShopModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+                <Text style={styles.modalTitle}>Nova recompensa da loja</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nome"
+                  value={shopTitle}
+                  onChangeText={setShopTitle}
+                  placeholderTextColor={colors.textDisabled}
+                />
+                <TextInput
+                  style={[styles.input, styles.inputMultiline]}
+                  placeholder="Descrição (opcional)"
+                  value={shopDescription}
+                  onChangeText={setShopDescription}
+                  multiline
+                  placeholderTextColor={colors.textDisabled}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Custo em moedas"
+                  value={shopCost}
+                  onChangeText={(v) => setShopCost(v.replace(/[^0-9]/g, ''))}
+                  keyboardType="number-pad"
+                  placeholderTextColor={colors.textDisabled}
+                />
+                <Button
+                  label="Adicionar à loja"
+                  fullWidth
+                  onPress={async () => {
+                    const cost = Number(shopCost);
+                    if (!shopTitle.trim() || cost <= 0) {
+                      Alert.alert('Atenção', 'Informe nome e custo válido.');
+                      return;
+                    }
+                    await addPurchasableReward({
+                      title: shopTitle.trim(),
+                      description: shopDescription.trim() || undefined,
+                      cost,
+                    });
+                    setShopTitle('');
+                    setShopDescription('');
+                    setShopCost('50');
+                    setShopModal(false);
+                  }}
+                />
+                <Button
+                  label="Cancelar"
+                  fullWidth
+                  variant="secondary"
+                  onPress={() => setShopModal(false)}
+                />
+              </View>
             </View>
-          )}
-        </ScrollView>
+          </Modal>
+        </>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  gameSummaryCard: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  gameTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  gameLevel: { ...typography.h2, color: colors.textPrimary },
+  gamePoints: { ...typography.sm, color: colors.textSecondary, marginTop: 2 },
+  coinPill: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  coinText: { ...typography.label, color: colors.primaryDark },
+  levelTrack: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+    marginTop: spacing.md,
+  },
+  levelFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
+  levelHint: { ...typography.xs, color: colors.textSecondary, marginTop: spacing.xs },
+  shopCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  shopTitle: { ...typography.body, fontWeight: '600', color: colors.textPrimary },
+  shopDescription: { ...typography.xs, color: colors.textSecondary, marginTop: 2 },
+  buyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  buyText: { ...typography.label, color: colors.textOnPrimary },
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,

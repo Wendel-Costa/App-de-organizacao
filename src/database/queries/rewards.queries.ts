@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../index';
-import { rewards } from '../schema';
+import { rewards, purchasableRewards } from '../schema';
 import type { Reward } from '@/types/reward.types';
 
 function generateId() {
@@ -113,4 +113,71 @@ function rowToReward(row: typeof rewards.$inferSelect): Reward {
     order: row.sortOrder ?? 0,
     createdAt: row.createdAt,
   };
+}
+
+export async function getAllPurchasableRewards(): Promise<
+  import('@/types/reward.types').PurchasableReward[]
+> {
+  const rows = await db.select().from(purchasableRewards);
+  return rows
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description ?? undefined,
+      cost: r.cost,
+      archived: r.archived === 1,
+      order: r.sortOrder,
+      createdAt: r.createdAt,
+    }))
+    .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function createPurchasableReward(
+  data: Omit<
+    import('@/types/reward.types').PurchasableReward,
+    'id' | 'archived' | 'order' | 'createdAt'
+  >,
+) {
+  const id = generateId();
+  const createdAt = now();
+  const rows = await db.select().from(purchasableRewards);
+  const order = rows.length ? Math.max(...rows.map((r) => r.sortOrder)) + 1 : 0;
+  await db.insert(purchasableRewards).values({
+    id,
+    title: data.title.trim(),
+    description: data.description?.trim() || null,
+    cost: Math.max(0, data.cost),
+    archived: 0,
+    sortOrder: order,
+    createdAt,
+  });
+  return { ...data, id, title: data.title.trim(), archived: false, order, createdAt };
+}
+
+export async function updatePurchasableReward(
+  id: string,
+  data: Omit<
+    import('@/types/reward.types').PurchasableReward,
+    'id' | 'archived' | 'order' | 'createdAt'
+  >,
+) {
+  await db
+    .update(purchasableRewards)
+    .set({
+      title: data.title.trim(),
+      description: data.description?.trim() || null,
+      cost: Math.max(0, data.cost),
+    })
+    .where(eq(purchasableRewards.id, id));
+}
+
+export async function deletePurchasableReward(id: string) {
+  await db.delete(purchasableRewards).where(eq(purchasableRewards.id, id));
+}
+
+export async function archivePurchasableReward(id: string, archived: boolean) {
+  await db
+    .update(purchasableRewards)
+    .set({ archived: archived ? 1 : 0 })
+    .where(eq(purchasableRewards.id, id));
 }
