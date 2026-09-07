@@ -13,7 +13,7 @@ interface DraggableListProps<T> {
   gap?: number;
 }
 
-const MOVE_TRANSITION = LinearTransition.springify().damping(40).stiffness(300);
+const MOVE_TRANSITION = LinearTransition.duration(160);
 
 export function DraggableList<T>({
   data,
