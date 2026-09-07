@@ -4,6 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import type { Task } from '@/types/task.types';
+import { ScoreBadge } from '@/components/ScoreBadge';
+import { useGamificationStore } from '@/store/gamificationStore';
 
 interface TaskItemProps {
   task: Task;
@@ -12,16 +14,16 @@ interface TaskItemProps {
   onDelete: (id: string) => void;
 }
 
-const priorityConfig = {
-  high: { color: colors.priorityHigh, label: 'Alta', icon: 'arrow-up-circle' },
-  medium: { color: colors.priorityMed, label: 'Média', icon: 'minus-circle' },
-  low: { color: colors.priorityLow, label: 'Baixa', icon: 'arrow-down-circle' },
-};
-
 export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const priority = task.priority ? priorityConfig[task.priority] : null;
+  const { config } = useGamificationStore();
+  const points =
+    task.scoreLevel === 3
+      ? config.taskLevel3Points
+      : task.scoreLevel === 2
+        ? config.taskLevel2Points
+        : config.taskLevel1Points;
   const completedSubs = task.subtasks?.filter((s) => s.completed).length ?? 0;
   const totalSubs = task.subtasks?.length ?? 0;
 
@@ -67,16 +69,7 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
         </Text>
 
         <View style={styles.badges}>
-          {priority && (
-            <View style={[styles.badge, { backgroundColor: priority.color + '22' }]}>
-              <MaterialCommunityIcons
-                name={priority.icon as any}
-                size={12}
-                color={priority.color}
-              />
-              <Text style={[styles.badgeText, { color: priority.color }]}>{priority.label}</Text>
-            </View>
-          )}
+          <ScoreBadge level={task.scoreLevel ?? 1} points={points} />
 
           {task.dueDate && (
             <View style={styles.badge}>

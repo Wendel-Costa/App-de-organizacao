@@ -17,7 +17,8 @@ import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
-import type { Task, TaskType, Priority, RecurrenceDay, SubTask } from '@/types/task.types';
+import type { Task, TaskType, ScoreLevel, RecurrenceDay, SubTask } from '@/types/task.types';
+import { useGamificationStore } from '@/store/gamificationStore';
 
 type RecurrenceMode = 'weekdays' | 'interval';
 
@@ -32,11 +33,7 @@ const RECURRENCE_DAYS: { key: RecurrenceDay; label: string }[] = [
   { key: 'daily', label: 'Todo dia' },
 ];
 
-const PRIORITIES: { key: Priority; label: string; color: string }[] = [
-  { key: 'high', label: 'Alta', color: colors.priorityHigh },
-  { key: 'medium', label: 'Média', color: colors.priorityMed },
-  { key: 'low', label: 'Baixa', color: colors.priorityLow },
-];
+const SCORE_LEVELS: ScoreLevel[] = [1, 2, 3];
 
 interface CreateTaskScreenProps {
   onBack: () => void;
@@ -48,11 +45,15 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   const isEditing = !!initialTask;
   const { addTask, editTask } = useTaskStore();
   const { themes } = useFocusStore();
+  const { config } = useGamificationStore();
+  useEffect(() => {
+    void useGamificationStore.getState().fetch();
+  }, []);
 
   const [title, setTitle] = useState(initialTask?.title ?? '');
   const [description, setDescription] = useState(initialTask?.description ?? '');
   const [type, setType] = useState<TaskType>(initialTask?.type ?? 'anytime');
-  const [priority, setPriority] = useState<Priority | undefined>(initialTask?.priority);
+  const [scoreLevel, setScoreLevel] = useState<ScoreLevel>(initialTask?.scoreLevel ?? 1);
   const [scheduledDate, setScheduledDate] = useState<string | undefined>(
     initialTask?.scheduledDate,
   );
@@ -72,7 +73,10 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   );
 
   const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>(
-    initialTask?.subtasks?.map((s) => ({ title: s.title, completed: s.completed })) ?? [],
+    initialTask?.subtasks?.map((s) => ({
+      title: s.title,
+      completed: s.completed,
+    })) ?? [],
   );
   const [newSubtask, setNewSubtask] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
@@ -100,8 +104,15 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   function handleBack() {
     if (hasUnsavedChanges()) {
       Alert.alert('Descartar tarefa?', 'Você tem informações não salvas. Deseja voltar?', [
-        { text: 'Continuar', style: 'cancel' },
-        { text: 'Descartar', style: 'destructive', onPress: onBack },
+        {
+          text: 'Continuar',
+          style: 'cancel',
+        },
+        {
+          text: 'Descartar',
+          style: 'destructive',
+          onPress: onBack,
+        },
       ]);
     } else {
       onBack();
@@ -134,7 +145,13 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
       subtaskInputRef.current?.focus();
       return;
     }
-    setSubtasks((prev) => [...prev, { title: newSubtask.trim(), completed: false }]);
+    setSubtasks((prev) => [
+      ...prev,
+      {
+        title: newSubtask.trim(),
+        completed: false,
+      },
+    ]);
     setNewSubtask('');
   }
 
@@ -184,14 +201,17 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         title: title.trim(),
         description: description.trim() || undefined,
         type,
-        priority,
+        scoreLevel,
         completed: initialTask?.completed ?? false,
         scheduledDate: type === 'scheduled' ? scheduledDate : undefined,
         dueDate,
         recurrenceDays: finalRecurrenceDays,
         recurrenceInterval:
           type === 'recurring' && recurrenceMode === 'interval' ? recurrenceInterval : undefined,
-        subtasks: subtasks.map((s, i) => ({ ...s, id: String(i) })),
+        subtasks: subtasks.map((s, i) => ({
+          ...s,
+          id: String(i),
+        })),
         themeId: selectedThemeId,
       };
 
@@ -243,10 +263,26 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         <View style={styles.typeRow}>
           {(
             [
-              { key: 'anytime', label: 'Livre', icon: 'infinity' },
-              { key: 'scheduled', label: 'Agendada', icon: 'calendar' },
-              { key: 'recurring', label: 'Recorrente', icon: 'repeat' },
-            ] as { key: TaskType; label: string; icon: string }[]
+              {
+                key: 'anytime',
+                label: 'Livre',
+                icon: 'infinity',
+              },
+              {
+                key: 'scheduled',
+                label: 'Agendada',
+                icon: 'calendar',
+              },
+              {
+                key: 'recurring',
+                label: 'Recorrente',
+                icon: 'repeat',
+              },
+            ] as {
+              key: TaskType;
+              label: string;
+              icon: string;
+            }[]
           ).map((t) => (
             <TouchableOpacity
               key={t.key}
@@ -411,29 +447,32 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           </>
         )}
 
-        <Text style={styles.label}>Prioridade (opcional)</Text>
-        <View style={styles.priorityRow}>
-          {PRIORITIES.map((p) => (
-            <TouchableOpacity
-              key={p.key}
-              style={[
-                styles.priorityChip,
-                { borderColor: p.color },
-                priority === p.key && { backgroundColor: p.color },
-              ]}
-              onPress={() => setPriority(priority === p.key ? undefined : p.key)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.priorityLabel,
-                  { color: priority === p.key ? colors.surface : p.color },
-                ]}
+        <Text style={styles.label}>Pontuação da tarefa</Text>
+
+        <View style={styles.scoreRow}>
+          {SCORE_LEVELS.map((level) => {
+            const points =
+              level === 1
+                ? config.taskLevel1Points
+                : level === 2
+                  ? config.taskLevel2Points
+                  : config.taskLevel3Points;
+
+            const selected = scoreLevel === level;
+
+            return (
+              <TouchableOpacity
+                key={level}
+                style={[styles.scoreChip, selected && styles.scoreChipActive]}
+                onPress={() => setScoreLevel(level)}
+                activeOpacity={0.7}
               >
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text style={[styles.scoreLabel, selected && styles.scoreLabelActive]}>
+                  Nível {level} · {points} pts
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={{ marginTop: spacing.md }}>
@@ -444,7 +483,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
             placeholder="Selecionar data limite"
             minimumDate={
               type === 'scheduled' && scheduledDate
-                ? new Date(scheduledDate + 'T12:00:00')
+                ? new Date(`${scheduledDate}T12:00:00`)
                 : new Date()
             }
           />
@@ -513,7 +552,12 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
             <Text style={styles.subtaskTitle}>{sub.title}</Text>
             <TouchableOpacity
               onPress={() => removeSubtask(index)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{
+                top: 8,
+                right: 8,
+                bottom: 8,
+                left: 8,
+              }}
             >
               <MaterialCommunityIcons name="close" size={16} color={colors.textDisabled} />
             </TouchableOpacity>
@@ -702,20 +746,32 @@ const styles = StyleSheet.create({
     color: colors.textOnPrimary,
   },
 
-  priorityRow: {
+  scoreRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  priorityChip: {
+
+  scoreChip: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1.5,
     backgroundColor: 'transparent',
+    borderColor: colors.border,
   },
-  priorityLabel: {
+
+  scoreChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+
+  scoreLabel: {
     ...typography.label,
+    color: colors.textSecondary,
+  },
+  scoreLabelActive: {
+    color: colors.textOnPrimary,
   },
   themesRow: {
     flexDirection: 'row',

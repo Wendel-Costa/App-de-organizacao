@@ -8,7 +8,8 @@ import { useFocusStore } from '@/store/focusStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { PriorityBadge } from '@/components/PriorityBadge';
+import { ScoreBadge } from '@/components/ScoreBadge';
+import { useGamificationStore } from '@/store/gamificationStore';
 import type { Task } from '@/types/task.types';
 
 const typeLabel = { anytime: 'Livre', scheduled: 'Agendada', recurring: 'Recorrente' };
@@ -33,6 +34,7 @@ interface TaskDetailScreenProps {
 }
 
 export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetailScreenProps) {
+  const { config } = useGamificationStore();
   const { toggleComplete, toggleSubtask, removeTask } = useTaskStore();
   const { themes } = useFocusStore();
   const [localTask, setLocalTask] = useState<Task>(task);
@@ -105,13 +107,24 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
         <Card style={styles.infoCard}>
           <InfoRow icon={typeIcon[localTask.type]} label="Tipo" value={typeLabel[localTask.type]} />
 
-          {localTask.priority && (
-            <View style={styles.infoRow}>
-              <MaterialCommunityIcons name="flag-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.infoLabel}>Prioridade</Text>
-              <PriorityBadge priority={localTask.priority} />
-            </View>
-          )}
+          <View style={styles.infoRow}>
+            <MaterialCommunityIcons
+              name="star-four-points-outline"
+              size={18}
+              color={colors.textSecondary}
+            />
+            <Text style={styles.infoLabel}>Pontuação</Text>
+            <ScoreBadge
+              level={localTask.scoreLevel ?? 1}
+              points={
+                (localTask.scoreLevel ?? 1) === 3
+                  ? config.taskLevel3Points
+                  : (localTask.scoreLevel ?? 1) === 2
+                    ? config.taskLevel2Points
+                    : config.taskLevel1Points
+              }
+            />
+          </View>
 
           {themeName && <InfoRow icon="timer-outline" label="Tema de foco" value={themeName} />}
 
