@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
+  Modal,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -27,6 +28,7 @@ import type { GoalTaskForToday } from '@/database/queries/goals.queries';
 import * as Haptics from 'expo-haptics';
 import { calcGoalProgress } from '@/services/goals.service';
 import { NotebooksScreen } from './NotebooksScreen';
+import { useNotebookStore } from '@/store/notebookStore';
 
 type Screen = 'list' | 'create' | 'detail' | 'notebooks';
 type TaskFilter = 'all' | 'daily' | 'weekly' | 'monthly' | 'free';
@@ -89,6 +91,7 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 export function GoalsScreen() {
   const { goals, todayGoalTasks, loading, fetchGoals, completeTask, uncompleteTask, reorderGoals } =
     useGoalStore();
+  const { notebooks, fetchNotebooks, toggleTopic } = useNotebookStore();
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -96,11 +99,16 @@ export function GoalsScreen() {
   const [showAllGoals, setShowAllGoals] = useState(true);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotebooks, setShowNotebooks] = useState(true);
+  const [showNotebookPicker, setShowNotebookPicker] = useState(false);
+  const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>([]);
+  const [notebookSelectionInitialized, setNotebookSelectionInitialized] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      fetchGoals();
-    }, []),
+      void fetchGoals();
+      void fetchNotebooks();
+    }, [fetchGoals, fetchNotebooks]),
   );
 
   useFocusEffect(
@@ -117,9 +125,21 @@ export function GoalsScreen() {
     }, [screen]),
   );
 
+  useEffect(() => {
+    if (!notebookSelectionInitialized && notebooks.length > 0) {
+      setSelectedNotebookIds(notebooks.map((notebook) => notebook.id));
+      setNotebookSelectionInitialized(true);
+      return;
+    }
+
+    setSelectedNotebookIds((current) =>
+      current.filter((id) => notebooks.some((notebook) => notebook.id === id)),
+    );
+  }, [notebooks, notebookSelectionInitialized]);
+
   async function onRefresh() {
     setRefreshing(true);
-    await fetchGoals();
+    await Promise.all([fetchGoals(), fetchNotebooks()]);
     setRefreshing(false);
   }
 
@@ -207,23 +227,82 @@ export function GoalsScreen() {
           ListHeaderComponent={
             activeGoals.length > 0 || archivedGoals.length > 0 ? (
               <View style={styles.sectionsContainer}>
-                <TouchableOpacity
-                  style={styles.notebookEntry}
-                  onPress={() => setScreen('notebooks')}
-                  activeOpacity={0.75}
-                >
-                  <MaterialCommunityIcons
-                    name="book-open-page-variant-outline"
-                    size={17}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.notebookEntryText}>Cadernos de estudo</Text>
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={17}
-                    color={colors.textDisabled}
-                  />
-                </TouchableOpacity>
+                <View style={styles.notebookSection}>
+                  <View style={styles.notebookToggleRow}>
+                    <TouchableOpacity
+                      style={styles.notebookToggle}
+                      onPress={() => setShowNotebooks((previous) => !previous)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons
+                        name="book-open-page-variant-outline"
+                        size={17}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.notebookEntryText}>Cadernos de estudo</Text>
+                      <MaterialCommunityIcons
+                        name={showNotebooks ? 'chevron-up' : 'chevron-down'}
+                        size={17}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.notebookAddButton}
+                      onPress={() => setShowNotebookPicker(true)}
+                      activeOpacity={0.7}
+                      hitSlop={6}
+                    >
+                      <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {showNotebooks &&
+                    (notebooks.length === 0 ? (
+                      <Text style={styles.filterEmptyText}>Nenhum caderno</Text>
+                    ) : (
+                      <View style={styles.notebookTopicsList}>
+                        {selectedNotebookIds
+                          .map((id) => notebooks.find((notebook) => notebook.id === id))
+                          .filter((notebook): notebook is (typeof notebooks)[number] =>
+                            Boolean(notebook),
+                          )
+                          .map((notebook) => {
+                            const nextTopic = notebook.topics.find((topic) => !topic.completed);
+                            if (!nextTopic) return null;
+
+                            return (
+                              <Card key={notebook.id} style={styles.notebookTopicCard}>
+                                <TouchableOpacity
+                                  style={styles.notebookTopicRow}
+                                  onPress={async () => {
+                                    await toggleTopic(nextTopic.id, true);
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <MaterialCommunityIcons
+                                    name="checkbox-blank-circle-outline"
+                                    size={21}
+                                    color={colors.textDisabled}
+                                  />
+                                  <View style={styles.notebookTopicText}>
+                                    <Text style={styles.notebookTopicTitle} numberOfLines={2}>
+                                      {nextTopic.title}
+                                    </Text>
+                                    <Text style={styles.notebookTopicNotebook}>
+                                      {notebook.title}
+                                    </Text>
+                                  </View>
+                                </TouchableOpacity>
+                              </Card>
+                            );
+                          })}
+                        {selectedNotebookIds.every((id) => {
+                          const notebook = notebooks.find((item) => item.id === id);
+                          return !notebook || !notebook.topics.some((topic) => !topic.completed);
+                        }) && <Text style={styles.filterEmptyText}>Nenhum tópico pendente</Text>}
+                      </View>
+                    ))}
+                </View>
                 {activeGoals.length > 0 && (
                   <View style={styles.todaySection}>
                     <TouchableOpacity
@@ -457,6 +536,51 @@ export function GoalsScreen() {
           renderItem={() => null}
         />
       )}
+
+      <Modal
+        visible={showNotebookPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNotebookPicker(false)}
+      >
+        <View style={styles.notebookModalOverlay}>
+          <View style={styles.notebookModalCard}>
+            <View style={styles.notebookModalHeader}>
+              <Text style={styles.notebookModalTitle}>Adicionar caderno</Text>
+              <TouchableOpacity onPress={() => setShowNotebookPicker(false)} hitSlop={8}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {notebooks.filter((notebook) => !selectedNotebookIds.includes(notebook.id)).length ===
+            0 ? (
+              <Text style={styles.filterEmptyText}>Nenhum caderno</Text>
+            ) : (
+              notebooks
+                .filter((notebook) => !selectedNotebookIds.includes(notebook.id))
+                .map((notebook) => (
+                  <TouchableOpacity
+                    key={notebook.id}
+                    style={styles.notebookPickerItem}
+                    onPress={() => {
+                      setSelectedNotebookIds((current) => [...current, notebook.id]);
+                      setShowNotebookPicker(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name="book-open-outline"
+                      size={19}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.notebookPickerText}>{notebook.title}</Text>
+                    <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                ))
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -464,7 +588,10 @@ export function GoalsScreen() {
 const styles = StyleSheet.create({
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
 
-  notebookEntry: {
+  notebookSection: { gap: spacing.xs },
+  notebookToggleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  notebookToggle: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -472,9 +599,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
-    marginBottom: spacing.sm,
   },
   notebookEntryText: { ...typography.label, color: colors.textPrimary, flex: 1 },
+  notebookAddButton: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  notebookTopicsList: { gap: spacing.xs },
+  notebookTopicCard: { padding: spacing.sm },
+  notebookTopicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  notebookTopicText: { flex: 1, gap: 2 },
+  notebookTopicTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  notebookTopicNotebook: { ...typography.xs, color: colors.textSecondary },
+  notebookModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  notebookModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  notebookModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  notebookModalTitle: { ...typography.h3, color: colors.textPrimary },
+  notebookPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  notebookPickerText: { flex: 1, ...typography.body, color: colors.textPrimary },
   sectionsContainer: { gap: spacing.md },
 
   todaySection: { gap: spacing.sm },
