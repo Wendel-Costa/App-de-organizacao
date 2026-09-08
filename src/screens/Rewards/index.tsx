@@ -714,16 +714,19 @@ export function RewardsScreen() {
               </Text>
             </View>
 
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="store-outline" size={16} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Loja</Text>
-              <TouchableOpacity onPress={() => setShopModal(true)}>
-                <MaterialCommunityIcons
-                  name="plus-circle-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
+            <View style={styles.sectionDivider}>
+              <View style={styles.dividerLine} />
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="store-outline" size={16} color={colors.primary} />
+                <Text style={styles.sectionTitle}>Loja</Text>
+                <TouchableOpacity onPress={() => setShopModal(true)} hitSlop={6}>
+                  <MaterialCommunityIcons
+                    name="plus-circle-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
             {purchasableRewards.length === 0 ? (
               <Text style={styles.emptyNote}>Nenhuma recompensa comprável ainda.</Text>
@@ -774,12 +777,15 @@ export function RewardsScreen() {
               ))
             )}
 
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="trophy-outline" size={16} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Conquistas</Text>
+            <View style={styles.sectionDivider}>
+              <View style={styles.dividerLine} />
+              <View style={styles.sectionHeader}>
+                <MaterialCommunityIcons name="trophy-outline" size={16} color={colors.primary} />
+                <Text style={styles.sectionTitle}>Conquistas</Text>
+              </View>
             </View>
-            {rewards.length === 0 ? (
-              <Text style={styles.emptyNote}>Nenhuma conquista criada.</Text>
+            {activeUnlocked.length === 0 ? (
+              <Text style={styles.emptyNote}>Nenhuma conquista</Text>
             ) : null}
             {activeUnlocked.length > 0 && (
               <>
@@ -970,6 +976,8 @@ export function RewardsScreen() {
 }
 
 const styles = StyleSheet.create({
+  sectionDivider: { gap: spacing.xs, marginTop: spacing.sm },
+  dividerLine: { height: 1, backgroundColor: colors.divider },
   gameSummaryCard: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
