@@ -16,6 +16,7 @@ import type {
 
 const DEFAULT_CONFIG: GamificationConfig = {
   pointsPerFocusHour: 1,
+  taskScoringEnabled: false,
   taskLevel1Points: 1,
   taskLevel2Points: 3,
   taskLevel3Points: 5,
@@ -46,6 +47,7 @@ export async function getGamificationConfig(): Promise<GamificationConfig> {
     await db.insert(gamificationSettings).values({
       id: 'default',
       pointsPerFocusHour: DEFAULT_CONFIG.pointsPerFocusHour,
+      taskScoringEnabled: DEFAULT_CONFIG.taskScoringEnabled ? 1 : 0,
       taskLevel1Points: DEFAULT_CONFIG.taskLevel1Points,
       taskLevel2Points: DEFAULT_CONFIG.taskLevel2Points,
       taskLevel3Points: DEFAULT_CONFIG.taskLevel3Points,
@@ -59,6 +61,7 @@ export async function getGamificationConfig(): Promise<GamificationConfig> {
 
   return {
     pointsPerFocusHour: Math.max(0, row[0].pointsPerFocusHour),
+    taskScoringEnabled: Boolean(row[0].taskScoringEnabled),
     taskLevel1Points: Math.max(0, row[0].taskLevel1Points),
     taskLevel2Points: Math.max(0, row[0].taskLevel2Points),
     taskLevel3Points: Math.max(0, row[0].taskLevel3Points),
@@ -74,6 +77,7 @@ export async function saveGamificationConfig(config: GamificationConfig): Promis
     .values({
       id: 'default',
       pointsPerFocusHour: config.pointsPerFocusHour,
+      taskScoringEnabled: config.taskScoringEnabled ? 1 : 0,
       taskLevel1Points: config.taskLevel1Points,
       taskLevel2Points: config.taskLevel2Points,
       taskLevel3Points: config.taskLevel3Points,
@@ -86,6 +90,7 @@ export async function saveGamificationConfig(config: GamificationConfig): Promis
       target: gamificationSettings.id,
       set: {
         pointsPerFocusHour: config.pointsPerFocusHour,
+        taskScoringEnabled: config.taskScoringEnabled ? 1 : 0,
         taskLevel1Points: config.taskLevel1Points,
         taskLevel2Points: config.taskLevel2Points,
         taskLevel3Points: config.taskLevel3Points,
@@ -101,6 +106,8 @@ export function pointsForTaskLevel(
   level: 1 | 2 | 3 | undefined,
   config: GamificationConfig,
 ): number {
+  if (!config.taskScoringEnabled) return 1;
+
   switch (level) {
     case 3:
       return config.taskLevel3Points;

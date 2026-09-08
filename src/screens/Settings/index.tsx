@@ -66,45 +66,9 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
       await requestPermissions();
     } else {
       Alert.alert('Desativar notificações', 'Todas as notificações agendadas serão canceladas.', [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Desativar',
-          style: 'destructive',
-          onPress: disableAllNotifications,
-        },
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Desativar', style: 'destructive', onPress: disableAllNotifications },
       ]);
-    }
-  }
-  async function handleImport() {
-    setImporting(true);
-    try {
-      const payload = await pickImportFile();
-      if (!payload) {
-        return;
-      }
-      await importData(payload);
-      Alert.alert(
-        'Importação concluída',
-        'Os dados foram restaurados. Reabra as telas para atualizar os dados em memória.',
-      );
-    } catch (e) {
-      Alert.alert(
-        'Importação não realizada',
-        e instanceof Error
-          ? e.message === 'INVALID_JSON'
-            ? 'O arquivo selecionado não contém um JSON válido.'
-            : e.message === 'UNSUPPORTED_VERSION'
-              ? 'A versão deste arquivo de backup não é compatível com esta versão do aplicativo.'
-              : e.message === 'INVALID_STRUCTURE'
-                ? 'O arquivo possui uma estrutura inválida.'
-                : e.message
-          : 'Não foi possível importar os dados.',
-      );
-    } finally {
-      setImporting(false);
     }
   }
 
@@ -147,10 +111,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             <Switch
               value={notificationsEnabled}
               onValueChange={handleEnableNotifications}
-              trackColor={{
-                true: colors.primary,
-                false: colors.border,
-              }}
+              trackColor={{ true: colors.primary, false: colors.border }}
               thumbColor={colors.surface}
             />
           </SettingRow>
@@ -168,10 +129,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={taskReminderEnabled}
                   onValueChange={(v) => setTaskReminder(v)}
-                  trackColor={{
-                    true: colors.primary,
-                    false: colors.border,
-                  }}
+                  trackColor={{ true: colors.primary, false: colors.border }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -199,10 +157,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={dueDateWarningEnabled}
                   onValueChange={setDueDateWarning}
-                  trackColor={{
-                    true: colors.primary,
-                    false: colors.border,
-                  }}
+                  trackColor={{ true: colors.primary, false: colors.border }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -218,10 +173,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={habitsReminderEnabled}
                   onValueChange={(v) => setHabitsReminder(v)}
-                  trackColor={{
-                    true: colors.primary,
-                    false: colors.border,
-                  }}
+                  trackColor={{ true: colors.primary, false: colors.border }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -250,10 +202,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Switch
                   value={focusReminderEnabled}
                   onValueChange={(v) => setFocusReminder(v)}
-                  trackColor={{
-                    true: colors.primary,
-                    false: colors.border,
-                  }}
+                  trackColor={{ true: colors.primary, false: colors.border }}
                   thumbColor={colors.surface}
                 />
               </SettingRow>
@@ -279,26 +228,46 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <Text style={styles.gameHint}>
             As alterações valem apenas para ações futuras. O histórico não é recalculado.
           </Text>
+          <SettingRow
+            icon="star-four-points-outline"
+            label="Pontuação avançada de tarefas"
+            description={
+              gameConfig.taskScoringEnabled
+                ? 'As tarefas podem usar 3 níveis de pontuação'
+                : 'Todas as tarefas valem 1 ponto'
+            }
+          >
+            <Switch
+              value={gameConfig.taskScoringEnabled}
+              onValueChange={(value) => updateGameConfig({ taskScoringEnabled: value })}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.surface}
+            />
+          </SettingRow>
           <GameSetting
             label="Pontos por hora de foco"
             value={gameConfig.pointsPerFocusHour}
             onChange={(n) => updateGameConfig({ pointsPerFocusHour: n })}
           />
-          <GameSetting
-            label="Nível 1 de tarefa"
-            value={gameConfig.taskLevel1Points}
-            onChange={(n) => updateGameConfig({ taskLevel1Points: n })}
-          />
-          <GameSetting
-            label="Nível 2 de tarefa"
-            value={gameConfig.taskLevel2Points}
-            onChange={(n) => updateGameConfig({ taskLevel2Points: n })}
-          />
-          <GameSetting
-            label="Nível 3 de tarefa"
-            value={gameConfig.taskLevel3Points}
-            onChange={(n) => updateGameConfig({ taskLevel3Points: n })}
-          />
+          {gameConfig.taskScoringEnabled && (
+            <>
+              <GameSetting
+                label="Nível 1 de tarefa"
+                value={gameConfig.taskLevel1Points}
+                onChange={(n) => updateGameConfig({ taskLevel1Points: n })}
+              />
+              <GameSetting
+                label="Nível 2 de tarefa"
+                value={gameConfig.taskLevel2Points}
+                onChange={(n) => updateGameConfig({ taskLevel2Points: n })}
+              />
+              <GameSetting
+                label="Nível 3 de tarefa"
+                value={gameConfig.taskLevel3Points}
+                onChange={(n) => updateGameConfig({ taskLevel3Points: n })}
+              />
+            </>
+          )}
           <GameSetting
             label="Tópico concluído"
             value={gameConfig.topicPoints}
@@ -307,20 +276,12 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <GameSetting
             label="Caderno concluído"
             value={gameConfig.notebookCompletionPoints}
-            onChange={(n) =>
-              updateGameConfig({
-                notebookCompletionPoints: n,
-              })
-            }
+            onChange={(n) => updateGameConfig({ notebookCompletionPoints: n })}
           />
           <GameSetting
             label="Meta concluída"
             value={gameConfig.goalCompletionPoints}
-            onChange={(n) =>
-              updateGameConfig({
-                goalCompletionPoints: n,
-              })
-            }
+            onChange={(n) => updateGameConfig({ goalCompletionPoints: n })}
           />
         </Card>
 
@@ -353,15 +314,38 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 'Importar dados',
                 'Os dados atuais serão substituídos. Faça um backup antes de continuar.',
                 [
-                  {
-                    text: 'Cancelar',
-                    style: 'cancel',
-                  },
+                  { text: 'Cancelar', style: 'cancel' },
                   {
                     text: 'Importar',
                     style: 'destructive',
                     onPress: () => {
-                      void handleImport();
+                      void (async () => {
+                        setImporting(true);
+                        try {
+                          const payload = await pickImportFile();
+                          if (!payload) return;
+                          await importData(payload);
+                          Alert.alert(
+                            'Importação concluída',
+                            'Os dados foram restaurados. Reabra as telas para atualizar os dados em memória.',
+                          );
+                        } catch (e) {
+                          Alert.alert(
+                            'Importação não realizada',
+                            e instanceof Error
+                              ? e.message === 'INVALID_JSON'
+                                ? 'O arquivo selecionado não contém um JSON válido.'
+                                : e.message === 'UNSUPPORTED_VERSION'
+                                  ? 'A versão deste arquivo de backup não é compatível com esta versão do aplicativo.'
+                                  : e.message === 'INVALID_STRUCTURE'
+                                    ? 'O arquivo possui uma estrutura inválida.'
+                                    : e.message
+                              : 'Não foi possível importar os dados.',
+                          );
+                        } finally {
+                          setImporting(false);
+                        }
+                      })();
                     },
                   },
                 ],

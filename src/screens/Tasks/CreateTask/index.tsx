@@ -73,10 +73,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   );
 
   const [subtasks, setSubtasks] = useState<Omit<SubTask, 'id'>[]>(
-    initialTask?.subtasks?.map((s) => ({
-      title: s.title,
-      completed: s.completed,
-    })) ?? [],
+    initialTask?.subtasks?.map((s) => ({ title: s.title, completed: s.completed })) ?? [],
   );
   const [newSubtask, setNewSubtask] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>(initialTask?.themeId);
@@ -104,15 +101,8 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
   function handleBack() {
     if (hasUnsavedChanges()) {
       Alert.alert('Descartar tarefa?', 'Você tem informações não salvas. Deseja voltar?', [
-        {
-          text: 'Continuar',
-          style: 'cancel',
-        },
-        {
-          text: 'Descartar',
-          style: 'destructive',
-          onPress: onBack,
-        },
+        { text: 'Continuar', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: onBack },
       ]);
     } else {
       onBack();
@@ -145,13 +135,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
       subtaskInputRef.current?.focus();
       return;
     }
-    setSubtasks((prev) => [
-      ...prev,
-      {
-        title: newSubtask.trim(),
-        completed: false,
-      },
-    ]);
+    setSubtasks((prev) => [...prev, { title: newSubtask.trim(), completed: false }]);
     setNewSubtask('');
   }
 
@@ -208,10 +192,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         recurrenceDays: finalRecurrenceDays,
         recurrenceInterval:
           type === 'recurring' && recurrenceMode === 'interval' ? recurrenceInterval : undefined,
-        subtasks: subtasks.map((s, i) => ({
-          ...s,
-          id: String(i),
-        })),
+        subtasks: subtasks.map((s, i) => ({ ...s, id: String(i) })),
         themeId: selectedThemeId,
       };
 
@@ -263,26 +244,10 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
         <View style={styles.typeRow}>
           {(
             [
-              {
-                key: 'anytime',
-                label: 'Livre',
-                icon: 'infinity',
-              },
-              {
-                key: 'scheduled',
-                label: 'Agendada',
-                icon: 'calendar',
-              },
-              {
-                key: 'recurring',
-                label: 'Recorrente',
-                icon: 'repeat',
-              },
-            ] as {
-              key: TaskType;
-              label: string;
-              icon: string;
-            }[]
+              { key: 'anytime', label: 'Livre', icon: 'infinity' },
+              { key: 'scheduled', label: 'Agendada', icon: 'calendar' },
+              { key: 'recurring', label: 'Recorrente', icon: 'repeat' },
+            ] as { key: TaskType; label: string; icon: string }[]
           ).map((t) => (
             <TouchableOpacity
               key={t.key}
@@ -447,33 +412,37 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           </>
         )}
 
-        <Text style={styles.label}>Pontuação da tarefa</Text>
+        {config.taskScoringEnabled && (
+          <>
+            <Text style={styles.label}>Pontuação da tarefa</Text>
 
-        <View style={styles.scoreRow}>
-          {SCORE_LEVELS.map((level) => {
-            const points =
-              level === 1
-                ? config.taskLevel1Points
-                : level === 2
-                  ? config.taskLevel2Points
-                  : config.taskLevel3Points;
+            <View style={styles.scoreRow}>
+              {SCORE_LEVELS.map((level) => {
+                const points =
+                  level === 1
+                    ? config.taskLevel1Points
+                    : level === 2
+                      ? config.taskLevel2Points
+                      : config.taskLevel3Points;
 
-            const selected = scoreLevel === level;
+                const selected = scoreLevel === level;
 
-            return (
-              <TouchableOpacity
-                key={level}
-                style={[styles.scoreChip, selected && styles.scoreChipActive]}
-                onPress={() => setScoreLevel(level)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.scoreLabel, selected && styles.scoreLabelActive]}>
-                  Nível {level} · {points} pts
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                return (
+                  <TouchableOpacity
+                    key={level}
+                    style={[styles.scoreChip, selected && styles.scoreChipActive]}
+                    onPress={() => setScoreLevel(level)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.scoreLabel, selected && styles.scoreLabelActive]}>
+                      {points} pontos
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         <View style={{ marginTop: spacing.md }}>
           <DatePicker
@@ -483,7 +452,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
             placeholder="Selecionar data limite"
             minimumDate={
               type === 'scheduled' && scheduledDate
-                ? new Date(`${scheduledDate}T12:00:00`)
+                ? new Date(scheduledDate + 'T12:00:00')
                 : new Date()
             }
           />
@@ -552,12 +521,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
             <Text style={styles.subtaskTitle}>{sub.title}</Text>
             <TouchableOpacity
               onPress={() => removeSubtask(index)}
-              hitSlop={{
-                top: 8,
-                right: 8,
-                bottom: 8,
-                left: 8,
-              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <MaterialCommunityIcons name="close" size={16} color={colors.textDisabled} />
             </TouchableOpacity>

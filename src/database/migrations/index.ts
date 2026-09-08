@@ -198,6 +198,7 @@ export async function runMigrations() {
     CREATE TABLE IF NOT EXISTS gamification_settings (
       id TEXT PRIMARY KEY,
       points_per_focus_hour REAL NOT NULL DEFAULT 1,
+      task_scoring_enabled INTEGER NOT NULL DEFAULT 0,
       task_level_1_points REAL NOT NULL DEFAULT 1,
       task_level_2_points REAL NOT NULL DEFAULT 3,
       task_level_3_points REAL NOT NULL DEFAULT 5,
@@ -207,6 +208,12 @@ export async function runMigrations() {
       updated_at TEXT NOT NULL
     )
   `);
+
+  await addColumnIfMissing(
+    'gamification_settings',
+    'task_scoring_enabled',
+    'INTEGER NOT NULL DEFAULT 0',
+  );
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS point_events (

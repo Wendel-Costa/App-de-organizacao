@@ -7,6 +7,7 @@ export type ProductiveAction =
 
 export type GamificationConfig = {
   pointsPerFocusHour: number;
+  taskScoringEnabled: boolean;
   taskLevel1Points: number;
   taskLevel2Points: number;
   taskLevel3Points: number;

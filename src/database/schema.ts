@@ -1,4 +1,4 @@
-import { int, real, text, sqliteTable } from 'drizzle-orm/sqlite-core';
+import { int, real, text, sqliteTable, integer } from 'drizzle-orm/sqlite-core';
 
 //tarefas
 
@@ -131,6 +131,7 @@ export const taskCompletions = sqliteTable('task_completions', {
 export const gamificationSettings = sqliteTable('gamification_settings', {
   id: text('id').primaryKey(),
   pointsPerFocusHour: real('points_per_focus_hour').notNull().default(1),
+  taskScoringEnabled: integer('task_scoring_enabled').notNull().default(0),
   taskLevel1Points: real('task_level_1_points').notNull().default(1),
   taskLevel2Points: real('task_level_2_points').notNull().default(3),
   taskLevel3Points: real('task_level_3_points').notNull().default(5),
