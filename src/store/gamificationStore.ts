@@ -12,11 +12,13 @@ interface GamificationState {
   loading: boolean;
   fetch: () => Promise<void>;
   updateConfig: (patch: Partial<GamificationConfig>) => Promise<void>;
+  refreshSummary: () => Promise<void>;
 }
 
 export const useGamificationStore = create<GamificationState>((set, get) => ({
   config: {
     pointsPerFocusHour: 1,
+    taskScoringEnabled: false,
     taskLevel1Points: 1,
     taskLevel2Points: 3,
     taskLevel3Points: 5,
@@ -48,5 +50,12 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
     const config = { ...get().config, ...patch };
     await saveGamificationConfig(config);
     set({ config });
+  },
+
+  refreshSummary: async () => {
+    try {
+      const summary = await getSummary();
+      set({ summary });
+    } catch {}
   },
 }));

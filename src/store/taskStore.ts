@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGamificationStore } from '@/store/gamificationStore';
 import type { Task } from '@/types/task.types';
 import {
   getAllTasks,
@@ -183,8 +184,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           pointsForTaskLevel(taskBefore?.scoreLevel, config),
           { metadata: { scoreLevel: taskBefore?.scoreLevel ?? 1 } },
         );
+        await useGamificationStore.getState().refreshSummary();
       } else {
         await reverseLatestProductiveAction('task_completion', id);
+        await useGamificationStore.getState().refreshSummary();
       }
     } catch (e) {
       throw e;

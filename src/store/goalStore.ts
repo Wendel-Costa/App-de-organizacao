@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGamificationStore } from '@/store/gamificationStore';
 import type { Goal, LocalGoalTask } from '@/types/goal.types';
 import {
   getAllGoals,
@@ -151,6 +152,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       const afterProgress = calcGoalProgressSafe(afterGoal);
       if (beforeProgress < 1 && afterProgress >= 1) {
         await grantUniqueAchievement('goal_completion', goalId);
+        await useGamificationStore.getState().refreshSummary();
       }
     }
   },

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGamificationStore } from '@/store/gamificationStore';
 import type { Reward } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
@@ -169,5 +170,6 @@ export const useRewardStore = create<RewardState>((set, get) => ({
 
   buyPurchasableReward: async (reward) => {
     await spendCoins(reward.id, reward.cost, reward.title);
+    await useGamificationStore.getState().refreshSummary();
   },
 }));

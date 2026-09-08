@@ -73,12 +73,27 @@ export async function saveGamificationConfig(config: GamificationConfig): Promis
     .insert(gamificationSettings)
     .values({
       id: 'default',
-      ...config,
+      pointsPerFocusHour: config.pointsPerFocusHour,
+      taskLevel1Points: config.taskLevel1Points,
+      taskLevel2Points: config.taskLevel2Points,
+      taskLevel3Points: config.taskLevel3Points,
+      topicPoints: config.topicPoints,
+      notebookCompletionPoints: config.notebookCompletionPoints,
+      goalCompletionPoints: config.goalCompletionPoints,
       updatedAt: now(),
     })
     .onConflictDoUpdate({
       target: gamificationSettings.id,
-      set: { ...config, updatedAt: now() },
+      set: {
+        pointsPerFocusHour: config.pointsPerFocusHour,
+        taskLevel1Points: config.taskLevel1Points,
+        taskLevel2Points: config.taskLevel2Points,
+        taskLevel3Points: config.taskLevel3Points,
+        topicPoints: config.topicPoints,
+        notebookCompletionPoints: config.notebookCompletionPoints,
+        goalCompletionPoints: config.goalCompletionPoints,
+        updatedAt: now(),
+      },
     });
 }
 
@@ -372,6 +387,10 @@ export function levelForPoints(points: number): number {
   let level = 1;
   while (levelThreshold(level + 1) <= points) level += 1;
   return level;
+}
+
+export async function refreshGamificationSummary(): Promise<GamificationSummary> {
+  return getSummary();
 }
 
 function actionLabel(action: ProductiveAction): string {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGamificationStore } from '@/store/gamificationStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FocusSession, FocusTheme, FocusMode, FocusStatus } from '@/types/focus.types';
 import {
@@ -112,6 +113,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
           mode: session.mode,
         },
       });
+      await useGamificationStore.getState().refreshSummary();
     }
   },
 
@@ -123,6 +125,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   removeSession: async (id) => {
     await deleteSession(id);
     await reverseLatestProductiveAction('focus_session', id);
+    await useGamificationStore.getState().refreshSummary();
     set((state) => ({ sessions: state.sessions.filter((s) => s.id !== id) }));
   },
 
@@ -274,6 +277,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   editSessionTime: async (id, startTime, endTime, duration) => {
     await updateSessionTime(id, startTime, endTime, duration);
     await rescoreFocusSession(id, duration);
+    await useGamificationStore.getState().refreshSummary();
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === id ? { ...s, startTime, endTime, duration } : s,

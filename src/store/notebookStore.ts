@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGamificationStore } from '@/store/gamificationStore';
 import type { Notebook } from '@/types/notebook.types';
 import {
   addTopics,
@@ -107,8 +108,10 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
           config.notebookCompletionPoints,
         );
       }
+      await useGamificationStore.getState().refreshSummary();
     } else if (!completed && before?.completed) {
       await reverseLatestProductiveAction('topic_completion', id);
+      await useGamificationStore.getState().refreshSummary();
     }
 
     await get().fetchNotebooks();
