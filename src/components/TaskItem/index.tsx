@@ -4,8 +4,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import type { Task } from '@/types/task.types';
-import { ScoreBadge } from '@/components/ScoreBadge';
-import { useGamificationStore } from '@/store/gamificationStore';
 
 interface TaskItemProps {
   task: Task;
@@ -16,14 +14,6 @@ interface TaskItemProps {
 
 export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const { config } = useGamificationStore();
-  const points =
-    task.scoreLevel === 3
-      ? config.taskLevel3Points
-      : task.scoreLevel === 2
-        ? config.taskLevel2Points
-        : config.taskLevel1Points;
   const completedSubs = task.subtasks?.filter((s) => s.completed).length ?? 0;
   const totalSubs = task.subtasks?.length ?? 0;
 
@@ -69,8 +59,6 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
         </Text>
 
         <View style={styles.badges}>
-          <ScoreBadge level={task.scoreLevel ?? 1} points={points} />
-
           {task.dueDate && (
             <View style={styles.badge}>
               <MaterialCommunityIcons
