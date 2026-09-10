@@ -41,26 +41,22 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
   const [notebookTitle, setNotebookTitle] = useState('');
   const [topicInput, setTopicInput] = useState('');
   const [topicNotebookId, setTopicNotebookId] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  const activeNotebooks = notebooks.filter((notebook) => notebook.progress < 1);
+  const completedNotebooks = notebooks.filter((notebook) => notebook.progress >= 1);
 
   useFocusEffect(
     useCallback(() => {
-      void fetchNotebooks();
-    }, [fetchNotebooks]),
+      fetchNotebooks();
+    }, []),
   );
 
   async function saveNotebook() {
     const title = notebookTitle.trim();
-
-    if (!title) {
-      return;
-    }
-
-    if (editingNotebookId) {
-      await editNotebook(editingNotebookId, title);
-    } else {
-      await addNotebook(title);
-    }
-
+    if (!title) return;
+    if (editingNotebookId) await editNotebook(editingNotebookId, title);
+    else await addNotebook(title);
     setNotebookTitle('');
     setEditingNotebookId(null);
     setShowNotebookForm(false);
@@ -71,53 +67,123 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
       'Excluir caderno?',
       `"${title}" será excluído permanentemente, incluindo seus tópicos.`,
       [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => {
-            void removeNotebook(id);
-          },
-        },
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: () => removeNotebook(id) },
       ],
     );
   }
 
+  function renderNotebook({ item }: { item: (typeof notebooks)[number] }) {
+    const percentage = Math.round(item.progress * 100);
+    return (
+      <Card style={styles.notebookCard}>
+        <View style={styles.headerRow}>
+          <View style={styles.titleWrap}>
+            <Text style={styles.title}>{item.title}</Text>
+            <Text style={styles.progressText}>
+              {percentage}% · {item.completedTopics}/{item.totalTopics} tópicos
+            </Text>
+          </View>
+          <View style={styles.actions}>
+            <TouchableOpacity
+              onPress={() => {
+                setEditingNotebookId(item.id);
+                setNotebookTitle(item.title);
+                setShowNotebookForm(true);
+              }}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons
+                name="pencil-outline"
+                size={19}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => confirmDeleteNotebook(item.id, item.title)}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons name="trash-can-outline" size={19} color={colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+        </View>
+
+        <View style={styles.topics}>
+          {item.topics.map((topic) => (
+            <View key={topic.id} style={styles.topicRow}>
+              <TouchableOpacity
+                style={styles.topicCheck}
+                onPress={async () => {
+                  Haptics.selectionAsync().catch(() => {});
+                  await toggleTopic(topic.id, !topic.completed);
+                }}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons
+                  name={topic.completed ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                  size={22}
+                  color={topic.completed ? colors.primary : colors.textDisabled}
+                />
+              </TouchableOpacity>
+              <Text style={[styles.topicTitle, topic.completed && styles.topicCompleted]}>
+                {topic.title}
+              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  Alert.prompt?.(
+                    'Editar tópico',
+                    undefined,
+                    (value) => value?.trim() && editTopic(topic.id, value),
+                    'plain-text',
+                    topic.title,
+                  )
+                }
+                hitSlop={7}
+              >
+                <MaterialCommunityIcons
+                  name="pencil-outline"
+                  size={17}
+                  color={colors.textDisabled}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() =>
+                  Alert.alert('Excluir tópico?', 'Essa ação é permanente.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Excluir', style: 'destructive', onPress: () => removeTopic(topic.id) },
+                  ])
+                }
+                hitSlop={7}
+              >
+                <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        <Button
+          label="Adicionar tópicos"
+          variant="secondary"
+          onPress={() => {
+            setTopicNotebookId(item.id);
+            setTopicInput('');
+          }}
+        />
+      </Card>
+    );
+  }
+
   async function saveTopics() {
-    if (!topicNotebookId) {
-      return;
-    }
-
+    if (!topicNotebookId) return;
     const count = parseTopicInput(topicInput).length;
-
-    if (!count) {
-      return;
-    }
-
+    if (!count) return;
     await addTopics(topicNotebookId, topicInput);
-
     setTopicInput('');
     setTopicNotebookId(null);
-  }
-
-  function openCreateNotebook() {
-    setEditingNotebookId(null);
-    setNotebookTitle('');
-    setShowNotebookForm(true);
-  }
-
-  function openEditNotebook(id: string, title: string) {
-    setEditingNotebookId(id);
-    setNotebookTitle(title);
-    setShowNotebookForm(true);
-  }
-
-  function openAddTopics(id: string) {
-    setTopicNotebookId(id);
-    setTopicInput('');
   }
 
   return (
@@ -127,12 +193,16 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
         onBack={onBack}
         rightAction={{
           icon: 'plus',
-          onPress: openCreateNotebook,
+          onPress: () => {
+            setEditingNotebookId(null);
+            setNotebookTitle('');
+            setShowNotebookForm(true);
+          },
         }}
       />
 
       <FlatList
-        data={notebooks}
+        data={activeNotebooks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
@@ -142,132 +212,36 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
             title="Nenhum caderno"
             description="Crie um caderno e cole sua lista de tópicos de uma só vez."
             actionLabel="Criar caderno"
-            onAction={openCreateNotebook}
+            onAction={() => setShowNotebookForm(true)}
           />
         }
-        renderItem={({ item }) => {
-          const percentage = Math.round(item.progress * 100);
-
-          return (
-            <Card style={styles.notebookCard}>
-              <View style={styles.headerRow}>
-                <View style={styles.titleWrap}>
-                  <Text style={styles.title}>{item.title}</Text>
-                  <Text style={styles.progressText}>
-                    {percentage}% · {item.completedTopics}/{item.totalTopics} tópicos
-                  </Text>
-                </View>
-
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    onPress={() => openEditNotebook(item.id, item.title)}
-                    hitSlop={8}
-                  >
-                    <MaterialCommunityIcons
-                      name="pencil-outline"
-                      size={19}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => confirmDeleteNotebook(item.id, item.title)}
-                    hitSlop={8}
-                  >
-                    <MaterialCommunityIcons
-                      name="trash-can-outline"
-                      size={19}
-                      color={colors.error}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${percentage}%` }]} />
-              </View>
-
-              <View style={styles.topics}>
-                {item.topics.map((topic) => (
-                  <View key={topic.id} style={styles.topicRow}>
-                    <TouchableOpacity
-                      style={styles.topicCheck}
-                      onPress={async () => {
-                        void Haptics.selectionAsync().catch(() => {});
-                        await toggleTopic(topic.id, !topic.completed);
-                      }}
-                      hitSlop={8}
-                    >
-                      <MaterialCommunityIcons
-                        name={topic.completed ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                        size={22}
-                        color={topic.completed ? colors.primary : colors.textDisabled}
-                      />
-                    </TouchableOpacity>
-
-                    <Text style={[styles.topicTitle, topic.completed && styles.topicCompleted]}>
-                      {topic.title}
-                    </Text>
-
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (Platform.OS === 'ios') {
-                          Alert.prompt(
-                            'Editar tópico',
-                            undefined,
-                            (value) => {
-                              const trimmed = value?.trim();
-
-                              if (trimmed) {
-                                void editTopic(topic.id, trimmed);
-                              }
-                            },
-                            'plain-text',
-                            topic.title,
-                          );
-                        }
-                      }}
-                      hitSlop={7}
-                    >
-                      <MaterialCommunityIcons
-                        name="pencil-outline"
-                        size={17}
-                        color={colors.textDisabled}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() =>
-                        Alert.alert('Excluir tópico?', 'Essa ação é permanente.', [
-                          {
-                            text: 'Cancelar',
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Excluir',
-                            style: 'destructive',
-                            onPress: () => {
-                              void removeTopic(topic.id);
-                            },
-                          },
-                        ])
-                      }
-                      hitSlop={7}
-                    >
-                      <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-
-              <Button
-                label="Adicionar tópicos"
-                variant="secondary"
-                onPress={() => openAddTopics(item.id)}
-              />
-            </Card>
-          );
-        }}
+        renderItem={renderNotebook}
+        ListFooterComponent={
+          completedNotebooks.length > 0 ? (
+            <View style={styles.completedSection}>
+              <TouchableOpacity
+                style={styles.completedHeader}
+                onPress={() => setShowCompleted((value) => !value)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name="check-circle-outline"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.completedHeaderText}>
+                  Cadernos concluídos ({completedNotebooks.length})
+                </Text>
+                <MaterialCommunityIcons
+                  name={showCompleted ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {showCompleted && completedNotebooks.map((item) => renderNotebook({ item }))}
+            </View>
+          ) : null
+        }
       />
 
       <Modal
@@ -294,9 +268,7 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
               autoFocus
               maxLength={80}
               returnKeyType="done"
-              onSubmitEditing={() => {
-                void saveNotebook();
-              }}
+              onSubmitEditing={saveNotebook}
             />
 
             <View style={styles.modalButtons}>
@@ -305,13 +277,7 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
                 variant="secondary"
                 onPress={() => setShowNotebookForm(false)}
               />
-
-              <Button
-                label="Salvar"
-                onPress={() => {
-                  void saveNotebook();
-                }}
-              />
+              <Button label="Salvar" onPress={saveNotebook} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -358,10 +324,8 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
               />
 
               <Button
-                label={`Adicionar ${parseTopicInput(topicInput).length}`}
-                onPress={() => {
-                  void saveTopics();
-                }}
+                label={`Adicionar ${Math.max(0, parseTopicInput(topicInput).length)}`}
+                onPress={saveTopics}
                 disabled={!parseTopicInput(topicInput).length}
               />
             </View>
@@ -478,4 +442,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'flex-end',
   },
+  completedSection: { marginTop: spacing.lg, gap: spacing.sm, paddingBottom: spacing.lg },
+  completedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  completedHeaderText: { ...typography.label, color: colors.textSecondary, flex: 1 },
 });
