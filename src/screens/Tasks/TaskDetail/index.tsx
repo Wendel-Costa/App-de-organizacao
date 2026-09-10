@@ -76,6 +76,13 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
   const totalSubtasks = localTask.subtasks?.length ?? 0;
   const progress = totalSubtasks > 0 ? completedSubtasks / totalSubtasks : 0;
 
+  const recurrenceText =
+    (localTask.recurrenceInterval ?? 0) > 0
+      ? `A cada ${localTask.recurrenceInterval} ${localTask.recurrenceInterval === 1 ? 'dia' : 'dias'}`
+      : localTask.recurrenceDays && localTask.recurrenceDays.length > 0
+        ? localTask.recurrenceDays.map((d) => recurrenceLabel[d] || d).join(', ')
+        : null;
+
   return (
     <View style={globalStyles.screen}>
       <Header
@@ -134,13 +141,7 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
             />
           )}
 
-          {localTask.recurrenceDays && localTask.recurrenceDays.length > 0 && (
-            <InfoRow
-              icon="repeat"
-              label="Recorrência"
-              value={localTask.recurrenceDays.map((d) => recurrenceLabel[d]).join(', ')}
-            />
-          )}
+          {recurrenceText && <InfoRow icon="repeat" label="Recorrência" value={recurrenceText} />}
 
           <InfoRow
             icon="clock-outline"

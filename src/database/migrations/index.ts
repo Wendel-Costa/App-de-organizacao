@@ -1,27 +1,6 @@
 import { db, sqlite } from '../index';
 import { sql } from 'drizzle-orm';
 
-async function hasColumn(table: string, column: string): Promise<boolean> {
-  const rows = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${table})`));
-  return rows.some((row) => row.name === column);
-}
-
-async function addColumnIfMissing(
-  table: string,
-  column: string,
-  definition: string,
-): Promise<void> {
-  if (!(await hasColumn(table, column))) {
-    await db.run(sql.raw(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`));
-  }
-}
-
-async function dropColumnIfExists(table: string, column: string): Promise<void> {
-  if (await hasColumn(table, column)) {
-    await db.run(sql.raw(`ALTER TABLE ${table} DROP COLUMN ${column}`));
-  }
-}
-
 export async function runMigrations() {
   await db.run(sql`PRAGMA foreign_keys = OFF`);
 
@@ -32,7 +11,6 @@ export async function runMigrations() {
       description TEXT,
       type TEXT NOT NULL,
       score_level INTEGER,
-      priority TEXT,
       completed INTEGER NOT NULL DEFAULT 0,
       scheduled_date TEXT,
       due_date TEXT,
@@ -151,7 +129,6 @@ export async function runMigrations() {
       description TEXT,
       type TEXT NOT NULL,
       score_level INTEGER,
-      priority TEXT,
       recurrence_days TEXT,
       goal_id TEXT,
       theme_id TEXT,
@@ -161,38 +138,6 @@ export async function runMigrations() {
       saved_at TEXT NOT NULL
     )
   `);
-
-  await addColumnIfMissing('tasks', 'score_level', 'INTEGER');
-  if (await hasColumn('tasks', 'priority')) {
-    await db.run(sql`
-      UPDATE tasks
-      SET score_level = CASE priority
-        WHEN 'high' THEN 3
-        WHEN 'medium' THEN 2
-        WHEN 'low' THEN 1
-        ELSE 1
-      END
-      WHERE score_level IS NULL
-    `);
-    await dropColumnIfExists('tasks', 'priority');
-  }
-
-  await addColumnIfMissing('task_completions', 'score_level', 'INTEGER');
-  if (await hasColumn('task_completions', 'priority')) {
-    await db.run(sql`
-      UPDATE task_completions
-      SET score_level = CASE priority
-        WHEN 'high' THEN 3
-        WHEN 'medium' THEN 2
-        WHEN 'low' THEN 1
-        ELSE 1
-      END
-      WHERE score_level IS NULL
-    `);
-    await dropColumnIfExists('task_completions', 'priority');
-  }
-
-  await addColumnIfMissing('goal_tasks', 'notebook_id', 'TEXT');
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS gamification_settings (
@@ -208,12 +153,6 @@ export async function runMigrations() {
       updated_at TEXT NOT NULL
     )
   `);
-
-  await addColumnIfMissing(
-    'gamification_settings',
-    'task_scoring_enabled',
-    'INTEGER NOT NULL DEFAULT 0',
-  );
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS point_events (
@@ -297,6 +236,7 @@ export async function runMigrations() {
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_goal_tasks_notebook ON goal_tasks(notebook_id)`);
 
   await db.run(sql`PRAGMA foreign_keys = ON`);
+  // Keep SQLite healthy after the migration without changing application data semantics.
   try {
     sqlite.runSync('PRAGMA optimize');
   } catch {}

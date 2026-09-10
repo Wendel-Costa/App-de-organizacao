@@ -238,7 +238,10 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
                   color={colors.textSecondary}
                 />
               </TouchableOpacity>
-              {showCompleted && completedNotebooks.map((item) => renderNotebook({ item }))}
+              {showCompleted &&
+                completedNotebooks.map((item) => (
+                  <View key={item.id}>{renderNotebook({ item })}</View>
+                ))}
             </View>
           ) : null
         }

@@ -9,8 +9,10 @@ import {
   TouchableOpacity,
   Modal,
   Image,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -20,7 +22,7 @@ import { TimePicker } from '@/components/TimePicker';
 import { TextInput } from 'react-native-gesture-handler';
 import { Linking } from 'react-native';
 import { useGamificationStore } from '@/store/gamificationStore';
-import { exportData, importData, pickImportFile } from '@/services/dataTransfer.service';
+import { buildExportPayload, importData, pickImportFile } from '@/services/dataTransfer.service';
 import { formatWholeNumber } from '@/utils/number';
 
 interface SettingsScreenProps {
@@ -59,6 +61,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   } = useSettingsStore();
   const [localName, setLocalName] = useState(name);
   const [showAbout, setShowAbout] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const { config: gameConfig, updateConfig: updateGameConfig } = useGamificationStore();
   const [importing, setImporting] = useState(false);
 
@@ -68,8 +71,107 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
     } else {
       Alert.alert('Desativar notificações', 'Todas as notificações agendadas serão canceladas.', [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Desativar', style: 'destructive', onPress: disableAllNotifications },
+        {
+          text: 'Desativar',
+          style: 'destructive',
+          onPress: disableAllNotifications,
+        },
       ]);
+    }
+  }
+
+  async function handleExportFile(format: 'json' | 'txt') {
+    setShowExportModal(false);
+
+    try {
+      const payload = await buildExportPayload();
+      const content = JSON.stringify(payload, null, 2);
+
+      if (Platform.OS === 'android') {
+        const saf = (FileSystem as any).StorageAccessFramework;
+
+        if (!saf) {
+          Alert.alert('Erro', 'Não foi possível acessar o sistema de armazenamento do Android.');
+          return;
+        }
+
+        Alert.alert(
+          'Salvar backup',
+          'Deseja abrir o gerenciador de arquivos para escolher onde salvar o backup?',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Abrir gerenciador',
+              onPress: () => {
+                void (async () => {
+                  try {
+                    const permissions = await saf.requestDirectoryPermissionsAsync();
+
+                    if (!permissions.granted) {
+                      return;
+                    }
+
+                    const mimeType = format === 'json' ? 'application/json' : 'text/plain';
+
+                    const fileName = `backup_focomais_${new Date()
+                      .toISOString()
+                      .slice(0, 10)}.${format}`;
+
+                    const fileUri = await saf.createFileAsync(
+                      permissions.directoryUri,
+                      fileName,
+                      mimeType,
+                    );
+
+                    await FileSystem.writeAsStringAsync(fileUri, content);
+
+                    Alert.alert('Exportação concluída', `O backup foi salvo como ${fileName}.`);
+                  } catch {
+                    Alert.alert('Erro', 'Não foi possível salvar o backup.');
+                  }
+                })();
+              },
+            },
+          ],
+        );
+
+        return;
+      }
+
+      const extension = format === 'json' ? 'json' : 'txt';
+
+      const uri = `${FileSystem.cacheDirectory}backup_focomais_${Date.now()}.${extension}`;
+
+      await FileSystem.writeAsStringAsync(uri, content);
+
+      Alert.alert('Exportação concluída', 'O arquivo foi preparado para compartilhamento.', [
+        {
+          text: 'OK',
+          onPress: async () => {
+            try {
+              const Sharing = await import('expo-sharing');
+
+              if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(uri, {
+                  mimeType: format === 'json' ? 'application/json' : 'text/plain',
+                  dialogTitle: 'Exportar dados do FocoMais',
+                  UTI: format === 'json' ? 'public.json' : 'public.plain-text',
+                });
+              }
+            } catch {
+              Alert.alert(
+                'Erro',
+                'O arquivo foi criado, mas não foi possível abrir o compartilhamento.',
+              );
+            }
+          },
+        },
+      ]);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível preparar a exportação.');
     }
   }
 
@@ -283,43 +385,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
         <Card style={styles.card}>
           <TouchableOpacity
             style={styles.dataButton}
-            onPress={() =>
-              Alert.alert('Exportar dados', 'Escolha o formato do arquivo.', [
-                {
-                  text: 'JSON',
-                  onPress: () => {
-                    void (async () => {
-                      try {
-                        await exportData('json');
-                        Alert.alert(
-                          'Exportação concluída',
-                          'O arquivo foi preparado para compartilhar.',
-                        );
-                      } catch {
-                        Alert.alert('Erro', 'Não foi possível exportar os dados.');
-                      }
-                    })();
-                  },
-                },
-                {
-                  text: 'TXT',
-                  onPress: () => {
-                    void (async () => {
-                      try {
-                        await exportData('txt');
-                        Alert.alert(
-                          'Exportação concluída',
-                          'O arquivo foi preparado para compartilhar.',
-                        );
-                      } catch {
-                        Alert.alert('Erro', 'Não foi possível exportar os dados.');
-                      }
-                    })();
-                  },
-                },
-                { text: 'Cancelar', style: 'cancel' },
-              ])
-            }
+            onPress={() => setShowExportModal(true)}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="export" size={19} color={colors.primary} />
@@ -335,7 +401,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 'Importar dados',
                 'Os dados atuais serão substituídos. Faça um backup antes de continuar.',
                 [
-                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel',
+                  },
                   {
                     text: 'Importar',
                     style: 'destructive',
@@ -430,6 +499,47 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <Text style={styles.watermarkSub}>Feito por Wendel Costa</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={showExportModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExportModal(false)}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogContainer}>
+            <Text style={styles.dialogTitle}>Exportar dados</Text>
+
+            <Text style={styles.dialogDescription}>Escolha o formato do arquivo para salvar.</Text>
+
+            <View style={styles.dialogActions}>
+              <TouchableOpacity
+                style={styles.dialogButton}
+                onPress={() => void handleExportFile('json')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dialogButtonText}>JSON</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dialogButton}
+                onPress={() => void handleExportFile('txt')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dialogButtonText}>TXT</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dialogButton, styles.dialogButtonCancel]}
+                onPress={() => setShowExportModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dialogButtonCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showAbout} transparent animationType="fade">
         <View style={styles.aboutOverlay}>
@@ -614,7 +724,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  dialogContainer: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  dialogTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
+  dialogDescription: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  dialogButton: {
+    flex: 1,
+    minHeight: 44,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialogButtonText: {
+    ...typography.label,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  dialogButtonCancel: {
+    backgroundColor: colors.surfaceAlt,
+  },
+  dialogButtonCancelText: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
   aboutOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   BackHandler,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -154,6 +155,13 @@ export function TasksScreen() {
   function handlePress(task: Task) {
     setSelectedTask(task);
     setScreen('detail');
+  }
+
+  function handleDeleteTask(id: string) {
+    Alert.alert('Excluir', 'Deseja excluir esta tarefa?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: () => removeTask(id) },
+    ]);
   }
 
   if (screen === 'create') {
@@ -331,7 +339,7 @@ export function TasksScreen() {
                   task={item}
                   onToggle={toggleComplete}
                   onPress={handlePress}
-                  onDelete={removeTask}
+                  onDelete={handleDeleteTask}
                 />
               </>
             );
