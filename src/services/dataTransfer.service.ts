@@ -89,16 +89,19 @@ export async function buildExportPayload(): Promise<ExportPayload> {
   };
 }
 
-export async function exportData(): Promise<string> {
+export async function exportData(format: 'json' | 'txt' = 'json'): Promise<string> {
   const payload = await buildExportPayload();
-  const uri = `${FileSystem.cacheDirectory}focomais-export-v${EXPORT_VERSION}-${Date.now()}.json`;
+  const extension = format === 'txt' ? 'txt' : 'json';
+  const mimeType = format === 'txt' ? 'text/plain' : 'application/json';
+  const uti = format === 'txt' ? 'public.plain-text' : 'public.json';
+  const uri = `${FileSystem.cacheDirectory}focomais-export-v${EXPORT_VERSION}-${Date.now()}.${extension}`;
   await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2));
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
-      mimeType: 'application/json',
+      mimeType,
       dialogTitle: 'Exportar dados do FocoMais',
-      UTI: 'public.json',
+      UTI: uti,
     });
   }
 
@@ -107,7 +110,7 @@ export async function exportData(): Promise<string> {
 
 export async function pickImportFile(): Promise<ExportPayload | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/json',
+    type: ['application/json', 'text/plain'],
     copyToCacheDirectory: true,
     multiple: false,
   });

@@ -290,7 +290,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                   onPress: () => {
                     void (async () => {
                       try {
-                        await exportData();
+                        await exportData('json');
                         Alert.alert(
                           'Exportação concluída',
                           'O arquivo foi preparado para compartilhar.',
@@ -306,7 +306,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                   onPress: () => {
                     void (async () => {
                       try {
-                        await exportData();
+                        await exportData('txt');
                         Alert.alert(
                           'Exportação concluída',
                           'O arquivo foi preparado para compartilhar.',
