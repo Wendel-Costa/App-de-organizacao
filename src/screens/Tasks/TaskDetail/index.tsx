@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { useGamificationStore } from '@/store/gamificationStore';
 import { pointsForTaskLevel } from '@/services/gamification.service';
+import { formatWholeNumber } from '@/utils/number';
 import type { Task } from '@/types/task.types';
 
 const typeLabel = { anytime: 'Livre', scheduled: 'Agendada', recurring: 'Recorrente' };
@@ -107,11 +108,13 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
         <Card style={styles.infoCard}>
           <InfoRow icon={typeIcon[localTask.type]} label="Tipo" value={typeLabel[localTask.type]} />
 
-          <InfoRow
-            icon="star-four-points-outline"
-            label="Pontuação"
-            value={`${pointsForTaskLevel(localTask.scoreLevel, config)} ${pointsForTaskLevel(localTask.scoreLevel, config) === 1 ? 'ponto' : 'pontos'}`}
-          />
+          {pointsForTaskLevel(localTask.scoreLevel, config) !== 1 && (
+            <InfoRow
+              icon="star-four-points-outline"
+              label="Pontuação"
+              value={`${formatWholeNumber(pointsForTaskLevel(localTask.scoreLevel, config))} ${Math.round(pointsForTaskLevel(localTask.scoreLevel, config)) === 1 ? 'ponto' : 'pontos'}`}
+            />
+          )}
 
           {themeName && <InfoRow icon="timer-outline" label="Tema de foco" value={themeName} />}
 

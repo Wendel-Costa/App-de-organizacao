@@ -21,6 +21,7 @@ import { TextInput } from 'react-native-gesture-handler';
 import { Linking } from 'react-native';
 import { useGamificationStore } from '@/store/gamificationStore';
 import { exportData, importData, pickImportFile } from '@/services/dataTransfer.service';
+import { formatWholeNumber } from '@/utils/number';
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -228,15 +229,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <Text style={styles.gameHint}>
             As alterações valem apenas para ações futuras. O histórico não é recalculado.
           </Text>
-          <SettingRow
-            icon="star-four-points-outline"
-            label="Pontuação avançada de tarefas"
-            description={
-              gameConfig.taskScoringEnabled
-                ? 'As tarefas podem usar 3 níveis de pontuação'
-                : 'Todas as tarefas valem 1 ponto'
-            }
-          >
+          <SettingRow icon="star-four-points-outline" label="Pontuação avançada de tarefas">
             <Switch
               value={gameConfig.taskScoringEnabled}
               onValueChange={(value) => updateGameConfig({ taskScoringEnabled: value })}
@@ -290,15 +283,43 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
         <Card style={styles.card}>
           <TouchableOpacity
             style={styles.dataButton}
-            onPress={async () => {
-              try {
-                await exportData();
-
-                Alert.alert('Exportação concluída', 'O arquivo foi preparado para compartilhar.');
-              } catch {
-                Alert.alert('Erro', 'Não foi possível exportar os dados.');
-              }
-            }}
+            onPress={() =>
+              Alert.alert('Exportar dados', 'Escolha o formato do arquivo.', [
+                {
+                  text: 'JSON',
+                  onPress: () => {
+                    void (async () => {
+                      try {
+                        await exportData();
+                        Alert.alert(
+                          'Exportação concluída',
+                          'O arquivo foi preparado para compartilhar.',
+                        );
+                      } catch {
+                        Alert.alert('Erro', 'Não foi possível exportar os dados.');
+                      }
+                    })();
+                  },
+                },
+                {
+                  text: 'TXT',
+                  onPress: () => {
+                    void (async () => {
+                      try {
+                        await exportData();
+                        Alert.alert(
+                          'Exportação concluída',
+                          'O arquivo foi preparado para compartilhar.',
+                        );
+                      } catch {
+                        Alert.alert('Erro', 'Não foi possível exportar os dados.');
+                      }
+                    })();
+                  },
+                },
+                { text: 'Cancelar', style: 'cancel' },
+              ])
+            }
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="export" size={19} color={colors.primary} />
@@ -449,8 +470,7 @@ function GameSetting({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const [text, setText] = useState(String(value));
-
+  const [text, setText] = useState(formatWholeNumber(value));
   return (
     <View style={styles.gameSettingRow}>
       <Text style={styles.dataButtonText}>{label}</Text>
@@ -462,8 +482,7 @@ function GameSetting({
         onChangeText={setText}
         onBlur={() => {
           const n = Math.max(0, Number(text.replace(',', '.')) || 0);
-
-          setText(String(n));
+          setText(formatWholeNumber(n));
           onChange(n);
         }}
       />

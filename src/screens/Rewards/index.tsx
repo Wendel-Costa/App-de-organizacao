@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRewardStore } from '@/store/rewardStore';
 import { useFocusStore } from '@/store/focusStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -30,6 +31,7 @@ import { DraggableList } from '@/components/DraggableList';
 import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
 import { RewardDetailScreen } from './RewardDetail';
 import { useGamificationStore } from '@/store/gamificationStore';
+import { formatWholeNumber } from '@/utils/number';
 import { Card } from '@/components/Card';
 
 const CONDITION_OPTIONS: { key: RewardConditionType; label: string; icon: string }[] = [
@@ -169,6 +171,7 @@ export function RewardsScreen() {
   const [shopTitle, setShopTitle] = useState('');
   const [shopDescription, setShopDescription] = useState('');
   const [shopCost, setShopCost] = useState('50');
+  const insets = useSafeAreaInsets();
 
   const scrollRef = useRef<ScrollView>(null);
   const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -693,11 +696,13 @@ export function RewardsScreen() {
               <View style={styles.gameTopRow}>
                 <View>
                   <Text style={styles.gameLevel}>Nível {gameSummary.level}</Text>
-                  <Text style={styles.gamePoints}>{gameSummary.points} pontos</Text>
+                  <Text style={styles.gamePoints}>
+                    {formatWholeNumber(gameSummary.points)} pontos
+                  </Text>
                 </View>
                 <View style={styles.coinPill}>
                   <MaterialCommunityIcons name="cash" size={16} color={colors.primary} />
-                  <Text style={styles.coinText}>{gameSummary.coins} moedas</Text>
+                  <Text style={styles.coinText}>{formatWholeNumber(gameSummary.coins)} moedas</Text>
                 </View>
               </View>
               <View style={styles.levelTrack}>
@@ -709,8 +714,9 @@ export function RewardsScreen() {
                 />
               </View>
               <Text style={styles.levelHint}>
-                {gameSummary.points} / {gameSummary.nextLevelPoints ?? gameSummary.points} pontos
-                para o próximo nível
+                {formatWholeNumber(gameSummary.points)} /{' '}
+                {formatWholeNumber(gameSummary.nextLevelPoints ?? gameSummary.points)} pontos para o
+                próximo nível
               </Text>
             </View>
 
@@ -744,7 +750,7 @@ export function RewardsScreen() {
                     onPress={() =>
                       Alert.alert(
                         'Comprar recompensa',
-                        `Gastar ${shopReward.cost} moedas em “${shopReward.title}”?`,
+                        `Gastar ${formatWholeNumber(shopReward.cost)} moedas em “${shopReward.title}”?`,
                         [
                           { text: 'Cancelar', style: 'cancel' },
                           {
@@ -771,7 +777,7 @@ export function RewardsScreen() {
                       size={15}
                       color={colors.textOnPrimary}
                     />
-                    <Text style={styles.buyText}>{shopReward.cost}</Text>
+                    <Text style={styles.buyText}>{formatWholeNumber(shopReward.cost)}</Text>
                   </TouchableOpacity>
                 </Card>
               ))
@@ -788,32 +794,26 @@ export function RewardsScreen() {
               <Text style={styles.emptyNote}>Nenhuma conquista</Text>
             ) : null}
             {activeUnlocked.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <MaterialCommunityIcons name="trophy" size={16} color={colors.primary} />
-                  <Text style={styles.sectionTitle}>Desbloqueadas ({activeUnlocked.length})</Text>
-                </View>
-                <DraggableList
-                  data={activeUnlocked}
-                  keyExtractor={(r) => r.id}
-                  gap={spacing.sm}
-                  onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
-                  renderItem={(r) => (
-                    <RewardCard
-                      reward={r}
-                      sessions={sessions}
-                      tasks={tasks}
-                      goals={goals}
-                      onDelete={handleDelete}
-                      draggable={activeUnlocked.length > 1}
-                      onPress={(reward) => {
-                        setSelectedReward(reward);
-                        setScreen('detail');
-                      }}
-                    />
-                  )}
-                />
-              </>
+              <DraggableList
+                data={activeUnlocked}
+                keyExtractor={(r) => r.id}
+                gap={spacing.sm}
+                onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
+                renderItem={(r) => (
+                  <RewardCard
+                    reward={r}
+                    sessions={sessions}
+                    tasks={tasks}
+                    goals={goals}
+                    onDelete={handleDelete}
+                    draggable={activeUnlocked.length > 1}
+                    onPress={(reward) => {
+                      setSelectedReward(reward);
+                      setScreen('detail');
+                    }}
+                  />
+                )}
+              />
             )}
 
             {locked.length > 0 && (
@@ -915,7 +915,15 @@ export function RewardsScreen() {
             onRequestClose={() => setShopModal(false)}
           >
             <View style={styles.modalOverlay}>
-              <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+              <View
+                style={[
+                  styles.modalContainer,
+                  {
+                    maxHeight: '80%',
+                    paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm),
+                  },
+                ]}
+              >
                 <Text style={styles.modalTitle}>Nova recompensa da loja</Text>
                 <TextInput
                   style={styles.input}

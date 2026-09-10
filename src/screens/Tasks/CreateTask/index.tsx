@@ -19,6 +19,7 @@ import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
 import type { Task, TaskType, ScoreLevel, RecurrenceDay, SubTask } from '@/types/task.types';
 import { useGamificationStore } from '@/store/gamificationStore';
+import { formatWholeNumber } from '@/utils/number';
 
 type RecurrenceMode = 'weekdays' | 'interval';
 
@@ -435,7 +436,7 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.scoreLabel, selected && styles.scoreLabelActive]}>
-                      {points} pontos
+                      {formatWholeNumber(points)} pontos
                     </Text>
                   </TouchableOpacity>
                 );
