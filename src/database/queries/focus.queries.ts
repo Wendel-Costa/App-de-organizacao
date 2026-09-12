@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { and, eq, desc, gte, lt } from 'drizzle-orm';
 import { db } from '../index';
 import { focusSessions, focusThemes } from '../schema';
 import type { FocusSession, FocusTheme } from '@/types/focus.types';
@@ -28,6 +28,24 @@ export async function createTheme(name: string, color?: string): Promise<FocusTh
 
 export async function deleteTheme(id: string): Promise<void> {
   await db.delete(focusThemes).where(eq(focusThemes.id, id));
+}
+
+export async function getSessionsForDate(date: string): Promise<FocusSession[]> {
+  const start = new Date(`${date}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const rows = await db
+    .select()
+    .from(focusSessions)
+    .where(
+      and(
+        gte(focusSessions.startTime, start.toISOString()),
+        lt(focusSessions.startTime, end.toISOString()),
+      ),
+    );
+
+  return rows.map(rowToSession);
 }
 
 export async function getAllSessions(): Promise<FocusSession[]> {

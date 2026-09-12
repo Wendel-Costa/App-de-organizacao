@@ -2,7 +2,7 @@ import { db, sqlite } from '../index';
 import { sql } from 'drizzle-orm';
 
 export async function runMigrations() {
-  await db.run(sql`PRAGMA foreign_keys = OFF`);
+  sqlite.runSync('PRAGMA foreign_keys = OFF');
 
   await db.run(sql`
     CREATE TABLE IF NOT EXISTS tasks (
@@ -106,8 +106,8 @@ export async function runMigrations() {
       title TEXT NOT NULL,
       description TEXT,
       condition_type TEXT NOT NULL,
-      condition_target REAL NOT NULL,
-      condition_period TEXT NOT NULL,
+      condition_target REAL NOT NULL DEFAULT 0,
+      condition_period TEXT NOT NULL DEFAULT 'anytime',
       condition_theme_id TEXT,
       condition_task_ids TEXT,
       condition_goal_id TEXT,
@@ -225,18 +225,90 @@ export async function runMigrations() {
   `);
 
   await db.run(
-    sql`CREATE INDEX IF NOT EXISTS idx_point_events_entity ON point_events(action, entity_id)`,
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_point_events_entity
+      ON point_events(action, entity_id)
+    `,
   );
-  await db.run(
-    sql`CREATE INDEX IF NOT EXISTS idx_coin_transactions_entity ON coin_transactions(entity_type, entity_id)`,
-  );
-  await db.run(
-    sql`CREATE INDEX IF NOT EXISTS idx_notebook_topics_notebook ON notebook_topics(notebook_id, sort_order)`,
-  );
-  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_goal_tasks_notebook ON goal_tasks(notebook_id)`);
 
-  await db.run(sql`PRAGMA foreign_keys = ON`);
-  // Keep SQLite healthy after the migration without changing application data semantics.
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_coin_transactions_entity
+      ON coin_transactions(entity_type, entity_id)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_date
+      ON tasks(scheduled_date, completed)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_tasks_type
+      ON tasks(type, completed)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_subtasks_task
+      ON subtasks(task_id)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_focus_sessions_start
+      ON focus_sessions(start_time)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_focus_sessions_theme
+      ON focus_sessions(theme_id, start_time)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_goals_active
+      ON goals(archived, start_date, end_date)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_goal_tasks_goal
+      ON goal_tasks(goal_id)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_goal_tasks_notebook
+      ON goal_tasks(notebook_id)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_goal_task_completions_task_date
+      ON goal_task_completions(goal_task_id, completed_date)
+    `,
+  );
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_notebook_topics_notebook
+      ON notebook_topics(notebook_id, sort_order)
+    `,
+  );
+
+  sqlite.runSync('PRAGMA foreign_keys = ON');
+
   try {
     sqlite.runSync('PRAGMA optimize');
   } catch {}
