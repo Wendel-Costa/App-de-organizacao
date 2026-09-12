@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { FocusSession, FocusTheme, FocusMode, FocusStatus } from '@/types/focus.types';
 import {
   getAllSessions,
+  getSessionsForDate,
   getAllThemes,
   createSession,
   createTheme,
@@ -40,8 +41,13 @@ interface FocusState {
   pomodoroBreakMinutes: number;
   geralThemeHidden: boolean;
 
-  fetchSessions: () => Promise<void>;
-  fetchThemes: () => Promise<void>;
+  fetchSessions: (force?: boolean) => Promise<void>;
+  fetchTodaySessions: (date: string) => Promise<void>;
+  fetchThemes: (force?: boolean) => Promise<void>;
+  lastSessionsFetchedAt: number;
+  lastThemesFetchedAt: number;
+  sessionsScope: 'all' | 'today' | null;
+  sessionsScopeDate: string | null;
   addSession: (data: Omit<FocusSession, 'id' | 'createdAt'>) => Promise<void>;
   addTheme: (name: string, color?: string) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
@@ -88,20 +94,54 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   pomodoroWorkMinutes: 25,
   pomodoroBreakMinutes: 5,
   geralThemeHidden: false,
+  lastSessionsFetchedAt: 0,
+  lastThemesFetchedAt: 0,
+  sessionsScope: null,
+  sessionsScopeDate: null,
 
-  fetchSessions: async () => {
+  fetchSessions: async (force = false) => {
+    if (
+      !force &&
+      get().sessionsScope === 'all' &&
+      Date.now() - get().lastSessionsFetchedAt < 10000
+    ) {
+      return;
+    }
     const sessions = await getAllSessions();
-    set({ sessions });
+    set({
+      sessions,
+      lastSessionsFetchedAt: Date.now(),
+      sessionsScope: 'all',
+      sessionsScopeDate: null,
+    });
   },
 
-  fetchThemes: async () => {
+  fetchTodaySessions: async (date) => {
+    if (
+      get().sessionsScope === 'today' &&
+      get().sessionsScopeDate === date &&
+      Date.now() - get().lastSessionsFetchedAt < 10000
+    ) {
+      return;
+    }
+    const sessions = await getSessionsForDate(date);
+    set({
+      sessions,
+      lastSessionsFetchedAt: Date.now(),
+      sessionsScope: 'today',
+      sessionsScopeDate: date,
+    });
+  },
+
+  fetchThemes: async (force = false) => {
+    if (!force && Date.now() - get().lastThemesFetchedAt < 30000) return;
     const themes = await getAllThemes();
-    set({ themes });
+    set({ themes, lastThemesFetchedAt: Date.now() });
   },
 
   addSession: async (data) => {
     const session = await createSession(data);
-    set((state) => ({ sessions: [session, ...state.sessions] }));
+    set((state) => ({ sessions: [session, ...state.sessions], lastSessionsFetchedAt: Date.now() }));
 
     const config = await getGamificationConfig();
     const points = pointsForFocusDuration(session.duration, config.pointsPerFocusHour);
@@ -119,19 +159,25 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   addTheme: async (name, color) => {
     const theme = await createTheme(name, color);
-    set((state) => ({ themes: [...state.themes, theme] }));
+    set((state) => ({ themes: [...state.themes, theme], lastThemesFetchedAt: Date.now() }));
   },
 
   removeSession: async (id) => {
     await deleteSession(id);
     await reverseLatestProductiveAction('focus_session', id);
     await useGamificationStore.getState().refreshSummary();
-    set((state) => ({ sessions: state.sessions.filter((s) => s.id !== id) }));
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.id !== id),
+      lastSessionsFetchedAt: Date.now(),
+    }));
   },
 
   removeTheme: async (id) => {
     await deleteTheme(id);
-    set((state) => ({ themes: state.themes.filter((t) => t.id !== id) }));
+    set((state) => ({
+      themes: state.themes.filter((t) => t.id !== id),
+      lastThemesFetchedAt: Date.now(),
+    }));
   },
 
   setMode: (mode) => set({ mode }),

@@ -24,7 +24,8 @@ import {
 interface NotebookState {
   notebooks: Notebook[];
   loading: boolean;
-  fetchNotebooks: () => Promise<void>;
+  lastFetchedAt: number;
+  fetchNotebooks: (force?: boolean) => Promise<void>;
   addNotebook: (title: string) => Promise<Notebook>;
   editNotebook: (id: string, title: string) => Promise<void>;
   removeNotebook: (id: string) => Promise<void>;
@@ -39,11 +40,13 @@ interface NotebookState {
 export const useNotebookStore = create<NotebookState>((set, get) => ({
   notebooks: [],
   loading: false,
+  lastFetchedAt: 0,
 
-  fetchNotebooks: async () => {
+  fetchNotebooks: async (force = false) => {
+    if (!force && Date.now() - get().lastFetchedAt < 10000) return;
     set({ loading: true });
     try {
-      set({ notebooks: await getAllNotebooks(), loading: false });
+      set({ notebooks: await getAllNotebooks(), loading: false, lastFetchedAt: Date.now() });
     } catch {
       set({ loading: false });
     }
@@ -51,13 +54,14 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
   addNotebook: async (title) => {
     const notebook = await createNotebook(title);
-    set((state) => ({ notebooks: [...state.notebooks, notebook] }));
+    set((state) => ({ notebooks: [...state.notebooks, notebook], lastFetchedAt: Date.now() }));
     return notebook;
   },
 
   editNotebook: async (id, title) => {
     await updateNotebook(id, title);
     set((state) => ({
+      lastFetchedAt: Date.now(),
       notebooks: state.notebooks.map((n) =>
         n.id === id ? { ...n, title: title.trim(), updatedAt: new Date().toISOString() } : n,
       ),
@@ -66,7 +70,10 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
   removeNotebook: async (id) => {
     await deleteNotebook(id);
-    set((state) => ({ notebooks: state.notebooks.filter((n) => n.id !== id) }));
+    set((state) => ({
+      notebooks: state.notebooks.filter((n) => n.id !== id),
+      lastFetchedAt: Date.now(),
+    }));
   },
 
   addTopics: async (notebookId, input) => {

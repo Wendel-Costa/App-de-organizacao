@@ -3,13 +3,14 @@ import { useGamificationStore } from '@/store/gamificationStore';
 import type { Goal, LocalGoalTask } from '@/types/goal.types';
 import {
   getAllGoals,
+  getActiveGoalCount,
+  getTodayGoalTasks,
   createGoal,
   deleteGoal,
   addGoalTask,
   deleteGoalTask,
   completeGoalTaskForToday,
   uncompleteGoalTaskForToday,
-  getGoalTasksForToday,
   updateGoal,
   archiveGoal,
   setAllowBeyond100,
@@ -28,8 +29,12 @@ interface GoalState {
   goals: Goal[];
   todayGoalTasks: GoalTaskForToday[];
   loading: boolean;
+  activeGoalCount: number;
+  lastFetchedAt: number;
 
-  fetchGoals: () => Promise<void>;
+  fetchGoals: (force?: boolean) => Promise<void>;
+  fetchActiveGoalCount: () => Promise<void>;
+  fetchTodayGoalTasks: (force?: boolean) => Promise<void>;
   addGoal: (
     data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
     tasks: LocalGoalTask[],
@@ -58,39 +63,81 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   goals: [],
   todayGoalTasks: [],
   loading: false,
+  activeGoalCount: 0,
+  lastFetchedAt: 0,
 
-  fetchGoals: async () => {
+  fetchGoals: async (force = false) => {
+    const now = Date.now();
+    if (!force && now - get().lastFetchedAt < 10000) return;
     set({ loading: true });
     try {
       const goals = await getAllGoals();
-      const today = await getGoalTasksForToday(goals);
-      set({ goals, todayGoalTasks: today, loading: false });
+      const today = await getTodayGoalTasks();
+      const activeGoalCount = goals.filter(
+        (goal) =>
+          !goal.archived &&
+          goal.startDate <= new Date().toISOString().slice(0, 10) &&
+          goal.endDate >= new Date().toISOString().slice(0, 10),
+      ).length;
+      set({
+        goals,
+        todayGoalTasks: today,
+        activeGoalCount,
+        loading: false,
+        lastFetchedAt: Date.now(),
+      });
     } catch {
       set({ loading: false });
     }
   },
 
+  fetchActiveGoalCount: async () => {
+    try {
+      set({ activeGoalCount: await getActiveGoalCount() });
+    } catch {}
+  },
+
+  fetchTodayGoalTasks: async (force = false) => {
+    if (!force && Date.now() - get().lastFetchedAt < 5000) return;
+    try {
+      const today = await getTodayGoalTasks();
+      set({ todayGoalTasks: today });
+    } catch {}
+  },
+
   addGoal: async (data, tasks): Promise<Goal> => {
     const goal = await createGoal(data, tasks);
-    set((s) => ({ goals: [goal, ...s.goals] }));
+    set((s) => ({ goals: [goal, ...s.goals], lastFetchedAt: Date.now() }));
+    await get().fetchActiveGoalCount();
     await get().refreshTodayTasks();
     return goal;
   },
 
   editGoal: async (id, data) => {
     await updateGoal(id, data);
-    set((s) => ({ goals: s.goals.map((g) => (g.id === id ? { ...g, ...data } : g)) }));
+    set((s) => ({
+      goals: s.goals.map((g) => (g.id === id ? { ...g, ...data } : g)),
+      lastFetchedAt: Date.now(),
+    }));
   },
 
   removeGoal: async (id) => {
     await deleteGoal(id);
-    set((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
+    set((s) => ({
+      goals: s.goals.filter((g) => g.id !== id),
+      lastFetchedAt: Date.now(),
+      activeGoalCount: Math.max(0, s.activeGoalCount - 1),
+    }));
     await get().refreshTodayTasks();
   },
 
   archiveGoal: async (id) => {
     await archiveGoal(id);
-    set((s) => ({ goals: s.goals.map((g) => (g.id === id ? { ...g, archived: true } : g)) }));
+    set((s) => ({
+      goals: s.goals.map((g) => (g.id === id ? { ...g, archived: true } : g)),
+      lastFetchedAt: Date.now(),
+      activeGoalCount: Math.max(0, s.activeGoalCount - 1),
+    }));
     await get().refreshTodayTasks();
   },
 
@@ -105,6 +152,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     const task = await addGoalTask(goalId, startDate, endDate, local);
     set((s) => ({
       goals: s.goals.map((g) => (g.id === goalId ? { ...g, tasks: [...g.tasks, task] } : g)),
+      lastFetchedAt: Date.now(),
     }));
     await get().refreshTodayTasks();
   },
@@ -115,6 +163,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       goals: s.goals.map((g) =>
         g.id === goalId ? { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) } : g,
       ),
+      lastFetchedAt: Date.now(),
     }));
     await get().refreshTodayTasks();
   },
@@ -183,9 +232,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   refreshTodayTasks: async () => {
-    const freshGoals = await getAllGoals();
-    const today = await getGoalTasksForToday(freshGoals);
-    set({ goals: freshGoals, todayGoalTasks: today });
+    const today = await getTodayGoalTasks();
+    set({ todayGoalTasks: today });
   },
 
   reorderGoals: async (orderedIds) => {

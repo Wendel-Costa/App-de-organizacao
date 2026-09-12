@@ -34,7 +34,8 @@ import {
 interface TaskState {
   tasks: Task[];
   loading: boolean;
-  fetchTasks: () => Promise<void>;
+  lastFetchedAt: number;
+  fetchTasks: (force?: boolean) => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   editTask: (id: string, data: Partial<Task>) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
@@ -45,8 +46,10 @@ interface TaskState {
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   loading: false,
+  lastFetchedAt: 0,
 
-  fetchTasks: async () => {
+  fetchTasks: async (force = false) => {
+    if (!force && Date.now() - get().lastFetchedAt < 10000) return;
     set({ loading: true });
     try {
       let tasks = await getAllTasks();
@@ -78,7 +81,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         tasks = await getAllTasks();
       }
 
-      set({ tasks, loading: false });
+      set({ tasks, loading: false, lastFetchedAt: Date.now() });
     } catch {
       set({ loading: false });
     }
@@ -87,7 +90,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addTask: async (data) => {
     try {
       const newTask = await createTask(data);
-      set((state) => ({ tasks: [newTask, ...state.tasks] }));
+      set((state) => ({ tasks: [newTask, ...state.tasks], lastFetchedAt: Date.now() }));
 
       try {
         const {
@@ -116,6 +119,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       const savedTask = await updateTask(id, data);
       set((state) => ({
         tasks: state.tasks.map((t) => (t.id === id ? savedTask : t)),
+        lastFetchedAt: Date.now(),
       }));
 
       await cancelTaskNotifications(id).catch(() => {});
@@ -140,7 +144,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       await deleteTask(id);
       await cancelTaskNotifications(id).catch(() => {});
-      set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+      set((state) => ({
+        tasks: state.tasks.filter((t) => t.id !== id),
+        lastFetchedAt: Date.now(),
+      }));
     } catch (e) {
       throw e;
     }
@@ -153,6 +160,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       await toggleTaskComplete(id, completed);
       const now = new Date().toISOString();
       set((state) => ({
+        lastFetchedAt: Date.now(),
         tasks: state.tasks.map((t) =>
           t.id === id
             ? {
@@ -198,6 +206,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       await toggleSubtaskComplete(subtaskId, completed);
       set((state) => ({
+        lastFetchedAt: Date.now(),
         tasks: state.tasks.map((t) =>
           t.id === taskId
             ? {
