@@ -40,10 +40,16 @@ function getFormattedDate() {
 }
 
 export function HomeScreen() {
-  const { tasks, fetchTasks, toggleComplete, removeTask } = useTaskStore();
-  const { sessions, fetchSessions, setMode, fetchThemes } = useFocusStore();
-  const { goals, fetchGoals } = useGoalStore();
-  const { name } = useSettingsStore();
+  const tasks = useTaskStore((state) => state.tasks);
+  const fetchTasks = useTaskStore((state) => state.fetchTasks);
+  const toggleComplete = useTaskStore((state) => state.toggleComplete);
+  const removeTask = useTaskStore((state) => state.removeTask);
+  const sessions = useFocusStore((state) => state.sessions);
+  const fetchTodaySessions = useFocusStore((state) => state.fetchTodaySessions);
+  const setMode = useFocusStore((state) => state.setMode);
+  const activeGoalCount = useGoalStore((state) => state.activeGoalCount);
+  const fetchActiveGoalCount = useGoalStore((state) => state.fetchActiveGoalCount);
+  const name = useSettingsStore((state) => state.name);
   const navigation = useNavigation<any>();
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -71,8 +77,8 @@ export function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTasks();
-      fetchGoals();
-      fetchSessions();
+      fetchActiveGoalCount();
+      fetchTodaySessions(getTodayString());
     }, []),
   );
 
@@ -105,13 +111,7 @@ export function HomeScreen() {
     }, [showReports, showSettings, showActiveFocus, homeScreen]),
   );
 
-  useEffect(() => {
-    fetchThemes();
-  }, []);
-
   const todayStr = getTodayString();
-  const activeGoals = goals.filter((g) => g.startDate <= todayStr && g.endDate >= todayStr);
-
   const rawTodayTasks = filterTasksForHome(tasks);
   const todayTasks = applyRecurringReset(rawTodayTasks, todayStr);
 
@@ -192,7 +192,7 @@ export function HomeScreen() {
           <SummaryCard
             icon="flag-outline"
             label="Metas ativas"
-            value={String(activeGoals.length)}
+            value={String(activeGoalCount)}
             color={colors.peach}
           />
         </View>

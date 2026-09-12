@@ -89,9 +89,16 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 }
 
 export function GoalsScreen() {
-  const { goals, todayGoalTasks, loading, fetchGoals, completeTask, uncompleteTask, reorderGoals } =
-    useGoalStore();
-  const { notebooks, fetchNotebooks, toggleTopic } = useNotebookStore();
+  const goals = useGoalStore((state) => state.goals);
+  const todayGoalTasks = useGoalStore((state) => state.todayGoalTasks);
+  const loading = useGoalStore((state) => state.loading);
+  const fetchGoals = useGoalStore((state) => state.fetchGoals);
+  const completeTask = useGoalStore((state) => state.completeTask);
+  const uncompleteTask = useGoalStore((state) => state.uncompleteTask);
+  const reorderGoals = useGoalStore((state) => state.reorderGoals);
+  const notebooks = useNotebookStore((state) => state.notebooks);
+  const fetchNotebooks = useNotebookStore((state) => state.fetchNotebooks);
+  const toggleTopic = useNotebookStore((state) => state.toggleTopic);
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -146,7 +153,7 @@ export function GoalsScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([fetchGoals(), fetchNotebooks()]);
+    await Promise.all([fetchGoals(true), fetchNotebooks(true)]);
     setRefreshing(false);
   }
 

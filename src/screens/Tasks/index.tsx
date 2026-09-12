@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   BackHandler,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -72,9 +71,15 @@ function isGoalTaskDueForTasksToday(t: GoalTaskForToday): boolean {
 }
 
 export function TasksScreen() {
-  const { tasks, loading, fetchTasks, toggleComplete, removeTask } = useTaskStore();
-  const { fetchThemes } = useFocusStore();
-  const { todayGoalTasks, fetchGoals, completeTask, uncompleteTask } = useGoalStore();
+  const tasks = useTaskStore((state) => state.tasks);
+  const loading = useTaskStore((state) => state.loading);
+  const fetchTasks = useTaskStore((state) => state.fetchTasks);
+  const toggleComplete = useTaskStore((state) => state.toggleComplete);
+  const removeTask = useTaskStore((state) => state.removeTask);
+  const todayGoalTasks = useGoalStore((state) => state.todayGoalTasks);
+  const fetchTodayGoalTasks = useGoalStore((state) => state.fetchTodayGoalTasks);
+  const completeTask = useGoalStore((state) => state.completeTask);
+  const uncompleteTask = useGoalStore((state) => state.uncompleteTask);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [screen, setScreen] = useState<Screen>('list');
@@ -85,10 +90,14 @@ export function TasksScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTasks();
-      fetchThemes();
-      fetchGoals();
-    }, []),
+    }, [fetchTasks]),
   );
+
+  useEffect(() => {
+    if (filter === 'today') {
+      void fetchTodayGoalTasks();
+    }
+  }, [filter, fetchTodayGoalTasks]);
 
   useFocusEffect(
     useCallback(() => {
@@ -114,7 +123,10 @@ export function TasksScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([fetchTasks(), fetchThemes(), fetchGoals()]);
+    await Promise.all([
+      fetchTasks(true),
+      filter === 'today' ? fetchTodayGoalTasks(true) : Promise.resolve(),
+    ]);
     setRefreshing(false);
   }
 
@@ -155,13 +167,6 @@ export function TasksScreen() {
   function handlePress(task: Task) {
     setSelectedTask(task);
     setScreen('detail');
-  }
-
-  function handleDeleteTask(id: string) {
-    Alert.alert('Excluir', 'Deseja excluir esta tarefa?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => removeTask(id) },
-    ]);
   }
 
   if (screen === 'create') {
@@ -339,7 +344,7 @@ export function TasksScreen() {
                   task={item}
                   onToggle={toggleComplete}
                   onPress={handlePress}
-                  onDelete={handleDeleteTask}
+                  onDelete={removeTask}
                 />
               </>
             );

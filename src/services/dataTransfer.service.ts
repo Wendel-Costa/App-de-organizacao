@@ -157,7 +157,6 @@ export async function importData(payload: unknown): Promise<void> {
   await sqlite.withExclusiveTransactionAsync(async (txn) => {
     await deleteAllData(txn);
 
-    // Use parameterized statements so imported strings cannot become SQL.
     for (const [key, tableName] of TABLES) {
       const rows = payload.data[key];
       for (const row of rows) {

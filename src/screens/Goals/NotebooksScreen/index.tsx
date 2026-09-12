@@ -238,10 +238,7 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
                   color={colors.textSecondary}
                 />
               </TouchableOpacity>
-              {showCompleted &&
-                completedNotebooks.map((item) => (
-                  <View key={item.id}>{renderNotebook({ item })}</View>
-                ))}
+              {showCompleted && completedNotebooks.map((item) => renderNotebook({ item }))}
             </View>
           ) : null
         }
@@ -340,69 +337,25 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  list: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxl,
-    gap: spacing.md,
-  },
-  notebookCard: {
-    gap: spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    alignItems: 'flex-start',
-  },
-  titleWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  title: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
-  progressText: {
-    ...typography.xs,
-    color: colors.textSecondary,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingTop: 2,
-  },
+  list: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  notebookCard: { gap: spacing.sm },
+  headerRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  titleWrap: { flex: 1, gap: 2 },
+  title: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
+  progressText: { ...typography.xs, color: colors.textSecondary },
+  actions: { flexDirection: 'row', gap: spacing.md, paddingTop: 2 },
   progressTrack: {
     height: 5,
     borderRadius: radius.full,
     backgroundColor: colors.border,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-  },
-  topics: {
-    gap: 4,
-  },
-  topicRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    minHeight: 34,
-  },
-  topicCheck: {
-    width: 26,
-  },
-  topicTitle: {
-    ...typography.body,
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  topicCompleted: {
-    color: colors.textSecondary,
-    textDecorationLine: 'line-through',
-  },
+  progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
+  topics: { gap: 4 },
+  topicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 34 },
+  topicCheck: { width: 26 },
+  topicTitle: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  topicCompleted: { color: colors.textSecondary, textDecorationLine: 'line-through' },
   overlay: {
     flex: 1,
     justifyContent: 'center',
@@ -415,14 +368,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
-  modalTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  modalHint: {
-    ...typography.xs,
-    color: colors.textSecondary,
-  },
+  modalTitle: { ...typography.h3, color: colors.textPrimary },
+  modalHint: { ...typography.xs, color: colors.textSecondary },
   modalInput: {
     ...typography.body,
     color: colors.textPrimary,
@@ -433,18 +380,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.background,
   },
-  multiline: {
-    minHeight: 160,
-  },
-  countText: {
-    ...typography.xs,
-    color: colors.textSecondary,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'flex-end',
-  },
+  multiline: { minHeight: 160 },
+  countText: { ...typography.xs, color: colors.textSecondary },
+  modalButtons: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end' },
   completedSection: { marginTop: spacing.lg, gap: spacing.sm, paddingBottom: spacing.lg },
   completedHeader: {
     flexDirection: 'row',
