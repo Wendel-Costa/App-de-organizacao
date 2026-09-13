@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SectionList } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -100,9 +100,14 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
 
-  const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
-  const { tasks, fetchTasks } = useTaskStore();
-  const { goals, fetchGoals } = useGoalStore();
+  const sessions = useFocusStore((state) => state.sessions);
+  const themes = useFocusStore((state) => state.themes);
+  const fetchSessions = useFocusStore((state) => state.fetchSessions);
+  const fetchThemes = useFocusStore((state) => state.fetchThemes);
+  const tasks = useTaskStore((state) => state.tasks);
+  const fetchTasks = useTaskStore((state) => state.fetchTasks);
+  const goals = useGoalStore((state) => state.goals);
+  const fetchGoals = useGoalStore((state) => state.fetchGoals);
 
   useEffect(() => {
     fetchSessions();
@@ -115,8 +120,11 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
   }, []);
 
   const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-  const weekly = getWeeklySummary(sessions, tasks);
-  const monthly = getMonthlySummary(sessions, tasks, goals, themes, viewYear, viewMonth);
+  const weekly = useMemo(() => getWeeklySummary(sessions, tasks), [sessions, tasks]);
+  const monthly = useMemo(
+    () => getMonthlySummary(sessions, tasks, goals, themes, viewYear, viewMonth),
+    [sessions, tasks, goals, themes, viewYear, viewMonth],
+  );
 
   const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
   const isFirstMonth = viewYear < 2020;
@@ -136,12 +144,16 @@ export function ReportsScreen({ onBack }: ReportsScreenProps) {
     } else setViewMonth((m) => m + 1);
   }
 
-  const filteredCompletions = completions.filter((r) => {
-    if (historyFilter === 'every_x_days') return r.recurrenceDays?.includes('every_x_days');
-    if (historyFilter === 'recurring')
-      return r.type === 'recurring' && !r.recurrenceDays?.includes('every_x_days');
-    return true;
-  });
+  const filteredCompletions = useMemo(
+    () =>
+      completions.filter((r) => {
+        if (historyFilter === 'every_x_days') return r.recurrenceDays?.includes('every_x_days');
+        if (historyFilter === 'recurring')
+          return r.type === 'recurring' && !r.recurrenceDays?.includes('every_x_days');
+        return true;
+      }),
+    [completions, historyFilter],
+  );
 
   const grouped = groupByDate(filteredCompletions);
 

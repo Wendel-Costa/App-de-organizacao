@@ -26,22 +26,20 @@ export function FocusScreen() {
   const [screen, setScreen] = useState<Screen>('home');
   const [showThemeModal, setShowThemeModal] = useState(false);
 
-  const {
-    themes,
-    fetchThemes,
-    selectedTheme,
-    setSelectedTheme,
-    mode,
-    setMode,
-    addTheme,
-    removeTheme,
-    pomodoroWorkMinutes,
-    pomodoroBreakMinutes,
-    setPomodoroConfig,
-    geralThemeHidden,
-    fetchGeralThemeVisibility,
-    removeGeralTheme,
-  } = useFocusStore();
+  const themes = useFocusStore((state) => state.themes);
+  const fetchThemes = useFocusStore((state) => state.fetchThemes);
+  const selectedTheme = useFocusStore((state) => state.selectedTheme);
+  const setSelectedTheme = useFocusStore((state) => state.setSelectedTheme);
+  const mode = useFocusStore((state) => state.mode);
+  const setMode = useFocusStore((state) => state.setMode);
+  const addTheme = useFocusStore((state) => state.addTheme);
+  const removeTheme = useFocusStore((state) => state.removeTheme);
+  const pomodoroWorkMinutes = useFocusStore((state) => state.pomodoroWorkMinutes);
+  const pomodoroBreakMinutes = useFocusStore((state) => state.pomodoroBreakMinutes);
+  const setPomodoroConfig = useFocusStore((state) => state.setPomodoroConfig);
+  const geralThemeHidden = useFocusStore((state) => state.geralThemeHidden);
+  const fetchGeralThemeVisibility = useFocusStore((state) => state.fetchGeralThemeVisibility);
+  const removeGeralTheme = useFocusStore((state) => state.removeGeralTheme);
 
   useFocusEffect(
     useCallback(() => {

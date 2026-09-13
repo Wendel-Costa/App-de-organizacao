@@ -127,25 +127,28 @@ function EditableValue({
 }
 
 export function RewardsScreen() {
-  const {
-    rewards,
-    loading,
-    fetchRewards,
-    addReward,
-    editReward,
-    removeReward,
-    checkAndUnlock,
-    unarchiveReward,
-    reorderRewards,
-    purchasableRewards,
-    fetchPurchasableRewards,
-    addPurchasableReward,
-    buyPurchasableReward,
-  } = useRewardStore();
+  const rewards = useRewardStore((state) => state.rewards);
+  const loading = useRewardStore((state) => state.loading);
+  const fetchRewards = useRewardStore((state) => state.fetchRewards);
+  const addReward = useRewardStore((state) => state.addReward);
+  const editReward = useRewardStore((state) => state.editReward);
+  const removeReward = useRewardStore((state) => state.removeReward);
+  const checkAndUnlock = useRewardStore((state) => state.checkAndUnlock);
+  const unarchiveReward = useRewardStore((state) => state.unarchiveReward);
+  const reorderRewards = useRewardStore((state) => state.reorderRewards);
+  const purchasableRewards = useRewardStore((state) => state.purchasableRewards);
+  const fetchPurchasableRewards = useRewardStore((state) => state.fetchPurchasableRewards);
+  const addPurchasableReward = useRewardStore((state) => state.addPurchasableReward);
+  const buyPurchasableReward = useRewardStore((state) => state.buyPurchasableReward);
 
-  const { sessions, themes, fetchSessions, fetchThemes } = useFocusStore();
-  const { tasks, fetchTasks } = useTaskStore();
-  const { goals, fetchGoals } = useGoalStore();
+  const sessions = useFocusStore((state) => state.sessions);
+  const themes = useFocusStore((state) => state.themes);
+  const fetchSessions = useFocusStore((state) => state.fetchSessions);
+  const fetchThemes = useFocusStore((state) => state.fetchThemes);
+  const tasks = useTaskStore((state) => state.tasks);
+  const fetchTasks = useTaskStore((state) => state.fetchTasks);
+  const goals = useGoalStore((state) => state.goals);
+  const fetchGoals = useGoalStore((state) => state.fetchGoals);
 
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
   type Screen = 'list' | 'create' | 'detail';
@@ -166,7 +169,8 @@ export function RewardsScreen() {
   const [saving, setSaving] = useState(false);
 
   const [editingReward, setEditingReward] = useState<Reward | null>(null);
-  const { summary: gameSummary, fetch: fetchGamification } = useGamificationStore();
+  const gameSummary = useGamificationStore((state) => state.summary);
+  const fetchGamification = useGamificationStore((state) => state.fetch);
   const [shopModal, setShopModal] = useState(false);
   const [shopTitle, setShopTitle] = useState('');
   const [shopDescription, setShopDescription] = useState('');

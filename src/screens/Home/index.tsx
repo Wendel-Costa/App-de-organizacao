@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -112,15 +112,27 @@ export function HomeScreen() {
   );
 
   const todayStr = getTodayString();
-  const rawTodayTasks = filterTasksForHome(tasks);
-  const todayTasks = applyRecurringReset(rawTodayTasks, todayStr);
+  const { todayTasks, pending, completed, todayMinutes } = useMemo(() => {
+    const rawTodayTasks = filterTasksForHome(tasks);
+    const effectiveTodayTasks = applyRecurringReset(rawTodayTasks, todayStr);
+    let completedCount = 0;
+    let minutes = 0;
 
-  const pending = todayTasks.filter((t) => !t.completed);
-  const completed = todayTasks.filter((t) => t.completed);
+    for (const task of effectiveTodayTasks) {
+      if (task.completed) completedCount++;
+    }
 
-  const todayMinutes = sessions
-    .filter((s) => dateOf(s.startTime) === todayStr)
-    .reduce((acc, s) => acc + s.duration, 0);
+    for (const session of sessions) {
+      minutes += session.duration;
+    }
+
+    return {
+      todayTasks: effectiveTodayTasks,
+      pending: effectiveTodayTasks.filter((task) => !task.completed),
+      completed: effectiveTodayTasks.filter((task) => task.completed),
+      todayMinutes: minutes,
+    };
+  }, [tasks, sessions, todayStr]);
 
   const focusLabel =
     todayMinutes === 0

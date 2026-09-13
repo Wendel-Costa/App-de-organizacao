@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -203,7 +203,10 @@ export function GoalsScreen() {
 
   const activeGoals = goals.filter((g) => !g.archived);
   const archivedGoals = goals.filter((g) => g.archived);
-  const visibleTodayTasks = todayGoalTasks.filter((t) => isTaskVisibleForFilter(t, taskFilter));
+  const visibleTodayTasks = useMemo(
+    () => todayGoalTasks.filter((task) => isTaskVisibleForFilter(task, taskFilter)),
+    [todayGoalTasks, taskFilter],
+  );
 
   return (
     <View style={globalStyles.screen}>
