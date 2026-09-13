@@ -23,6 +23,7 @@ import { TextInput } from 'react-native-gesture-handler';
 import { Linking } from 'react-native';
 import { useGamificationStore } from '@/store/gamificationStore';
 import { buildExportPayload, importData, pickImportFile } from '@/services/dataTransfer.service';
+import { refreshStoresAfterDataRestore } from '@/services/dataSync.service';
 import { formatWholeNumber } from '@/utils/number';
 
 interface SettingsScreenProps {
@@ -80,7 +81,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
     }
   }
 
-  async function handleExportFile(format: 'json' | 'txt') {
+  async function handleExportFile() {
     setShowExportModal(false);
 
     try {
@@ -99,31 +100,22 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           'Salvar backup',
           'Deseja abrir o gerenciador de arquivos para escolher onde salvar o backup?',
           [
-            {
-              text: 'Cancelar',
-              style: 'cancel',
-            },
+            { text: 'Cancelar', style: 'cancel' },
             {
               text: 'Abrir gerenciador',
               onPress: () => {
                 void (async () => {
                   try {
                     const permissions = await saf.requestDirectoryPermissionsAsync();
+                    if (!permissions.granted) return;
 
-                    if (!permissions.granted) {
-                      return;
-                    }
-
-                    const mimeType = format === 'json' ? 'application/json' : 'text/plain';
-
-                    const fileName = `backup_focomais_${new Date()
+                    const fileName = `backup_focomais_v${payload.exportVersion}_${new Date()
                       .toISOString()
-                      .slice(0, 10)}.${format}`;
-
+                      .slice(0, 10)}.txt`;
                     const fileUri = await saf.createFileAsync(
                       permissions.directoryUri,
                       fileName,
-                      mimeType,
+                      'text/plain',
                     );
 
                     await FileSystem.writeAsStringAsync(fileUri, content);
@@ -137,14 +129,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             },
           ],
         );
-
         return;
       }
 
-      const extension = format === 'json' ? 'json' : 'txt';
-
-      const uri = `${FileSystem.cacheDirectory}backup_focomais_${Date.now()}.${extension}`;
-
+      const uri = `${FileSystem.cacheDirectory}backup_focomais_v${payload.exportVersion}_${Date.now()}.txt`;
       await FileSystem.writeAsStringAsync(uri, content);
 
       Alert.alert('Exportação concluída', 'O arquivo foi preparado para compartilhamento.', [
@@ -156,9 +144,9 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 
               if (await Sharing.isAvailableAsync()) {
                 await Sharing.shareAsync(uri, {
-                  mimeType: format === 'json' ? 'application/json' : 'text/plain',
+                  mimeType: 'text/plain',
                   dialogTitle: 'Exportar dados do FocoMais',
-                  UTI: format === 'json' ? 'public.json' : 'public.plain-text',
+                  UTI: 'public.plain-text',
                 });
               }
             } catch {
@@ -334,7 +322,11 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <SettingRow icon="star-four-points-outline" label="Pontuação avançada de tarefas">
             <Switch
               value={gameConfig.taskScoringEnabled}
-              onValueChange={(value) => updateGameConfig({ taskScoringEnabled: value })}
+              onValueChange={(value) =>
+                void updateGameConfig({ taskScoringEnabled: value }).catch(() => {
+                  Alert.alert('Erro', 'Não foi possível salvar a configuração de gamificação.');
+                })
+              }
               trackColor={{ true: colors.primary, false: colors.border }}
               thumbColor={colors.surface}
             />
@@ -415,9 +407,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                           const payload = await pickImportFile();
                           if (!payload) return;
                           await importData(payload);
+                          await refreshStoresAfterDataRestore();
                           Alert.alert(
                             'Importação concluída',
-                            'Os dados foram restaurados. Reabra as telas para atualizar os dados em memória.',
+                            'Os dados foram restaurados e o aplicativo foi sincronizado.',
                           );
                         } catch (e) {
                           Alert.alert(
@@ -510,23 +503,17 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <View style={styles.dialogContainer}>
             <Text style={styles.dialogTitle}>Exportar dados</Text>
 
-            <Text style={styles.dialogDescription}>Escolha o formato do arquivo para salvar.</Text>
+            <Text style={styles.dialogDescription}>
+              O backup oficial do aplicativo é salvo em formato TXT.
+            </Text>
 
             <View style={styles.dialogActions}>
               <TouchableOpacity
                 style={styles.dialogButton}
-                onPress={() => void handleExportFile('json')}
+                onPress={() => void handleExportFile()}
                 activeOpacity={0.7}
               >
-                <Text style={styles.dialogButtonText}>JSON</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.dialogButton}
-                onPress={() => void handleExportFile('txt')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.dialogButtonText}>TXT</Text>
+                <Text style={styles.dialogButtonText}>Salvar TXT</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
