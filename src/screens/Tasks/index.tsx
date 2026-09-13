@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
+  Alert,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -137,7 +138,7 @@ export function TasksScreen() {
       if (t.type === 'scheduled') return t.scheduledDate === todayStr;
       if (t.type === 'recurring') {
         if (t.recurrenceDays?.includes('every_x_days')) {
-          return !t.completed;
+          return true;
         }
         const today = getTodayWeekday();
         return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
@@ -167,6 +168,19 @@ export function TasksScreen() {
   function handlePress(task: Task) {
     setSelectedTask(task);
     setScreen('detail');
+  }
+
+  function handleDelete(task: Task) {
+    Alert.alert('Excluir tarefa?', `A tarefa "${task.title}" será excluída permanentemente.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          void removeTask(task.id);
+        },
+      },
+    ]);
   }
 
   if (screen === 'create') {
@@ -344,7 +358,7 @@ export function TasksScreen() {
                   task={item}
                   onToggle={toggleComplete}
                   onPress={handlePress}
-                  onDelete={removeTask}
+                  onDelete={() => handleDelete(item)}
                 />
               </>
             );
