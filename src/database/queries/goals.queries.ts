@@ -1,7 +1,7 @@
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { db } from '../index';
 import { goals, goalTasks, goalTaskCompletions, focusSessions, focusThemes } from '../schema';
-import { notebooks, notebookTopics } from '../schema';
+import { notebookTopics } from '../schema';
 import type {
   Goal,
   GoalTask,
@@ -12,7 +12,6 @@ import type {
 import type { RecurrenceDay } from '@/types/task.types';
 import {
   localDateStr,
-  dateOf,
   localWeekStart,
   localWeekEnd,
   localMonthStart,
@@ -105,75 +104,172 @@ export async function getActiveGoalCount(): Promise<number> {
 }
 
 export async function getAllGoals(): Promise<Goal[]> {
-  const goalRows = await db.select().from(goals);
+  const goalRows = await db
+    .select({
+      id: goals.id,
+      title: goals.title,
+      description: goals.description,
+      startDate: goals.startDate,
+      endDate: goals.endDate,
+      color: goals.color,
+      tolerance: goals.tolerance,
+      allowOverflow: goals.allowOverflow,
+      allowBeyond100: goals.allowBeyond100,
+      archived: goals.archived,
+      sortOrder: goals.sortOrder,
+      createdAt: goals.createdAt,
+      updatedAt: goals.updatedAt,
+    })
+    .from(goals);
+
   if (goalRows.length === 0) return [];
 
-  const [taskRows, completionRows, sessionRows, themeRows] = await Promise.all([
-    db.select().from(goalTasks),
-    db.select().from(goalTaskCompletions),
-    db.select().from(focusSessions),
-    db.select().from(focusThemes),
-  ]);
+  const taskRows = await db
+    .select({
+      id: goalTasks.id,
+      goalId: goalTasks.goalId,
+      title: goalTasks.title,
+      targetCount: goalTasks.targetCount,
+      type: goalTasks.type,
+      themeId: goalTasks.themeId,
+      themeName: goalTasks.themeName,
+      themeIds: goalTasks.themeIds,
+      notebookId: goalTasks.notebookId,
+      recurrenceType: goalTasks.recurrenceType,
+      recurrenceCount: goalTasks.recurrenceCount,
+      recurrenceDays: goalTasks.recurrenceDays,
+    })
+    .from(goalTasks);
 
-  const notebookTaskRows = taskRows.filter((task) => task.type === 'notebook' && task.notebookId);
+  if (taskRows.length === 0) {
+    return goalRows
+      .map((row) => ({
+        id: row.id,
+        title: row.title,
+        description: row.description ?? undefined,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        color: row.color ?? undefined,
+        tolerance: row.tolerance ?? 0,
+        allowOverflow: Boolean(row.allowOverflow),
+        allowBeyond100: Boolean(row.allowBeyond100),
+        archived: Boolean(row.archived),
+        order: row.sortOrder ?? 0,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        tasks: [],
+      }))
+      .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
+  }
 
-  const notebookRows = notebookTaskRows.length > 0 ? await db.select().from(notebooks) : [];
-
-  const notebookTopicRows =
-    notebookTaskRows.length > 0 ? await db.select().from(notebookTopics) : [];
-
+  const goalTaskIds = taskRows.map((task) => task.id);
   const todayStr = today();
   const week = getWeekRange();
   const month = getMonthRange();
+  const focusTaskRows = taskRows.filter((task) => task.type === 'focus_hours');
+  const notebookTaskRows = taskRows.filter((task) => task.type === 'notebook' && task.notebookId);
 
+  const minGoalDate = goalRows.reduce(
+    (min, goal) => (goal.startDate < min ? goal.startDate : min),
+    goalRows[0].startDate,
+  );
+  const maxGoalDate = goalRows.reduce(
+    (max, goal) => (goal.endDate > max ? goal.endDate : max),
+    goalRows[0].endDate,
+  );
+
+  const dateWithOffset = (date: string, offsetDays: number) => {
+    const value = new Date(`${date}T12:00:00`);
+    value.setDate(value.getDate() + offsetDays);
+    return localDateStr(value);
+  };
+
+  const focusSessionStart = `${dateWithOffset(minGoalDate, -1)}T00:00:00.000Z`;
+  const focusSessionEnd = `${dateWithOffset(maxGoalDate, 1)}T23:59:59.999Z`;
+
+  const [completionStats, focusStats, notebookStats] = await Promise.all([
+    db
+      .select({
+        goalTaskId: goalTaskCompletions.goalTaskId,
+        completedCount: sql<number>`count(*)`,
+        completedToday: sql<number>`sum(case when ${goalTaskCompletions.completedDate} = ${todayStr} then 1 else 0 end)`,
+        completionsThisWeek: sql<number>`sum(case when ${goalTaskCompletions.completedDate} >= ${week.start} and ${goalTaskCompletions.completedDate} <= ${week.end} then 1 else 0 end)`,
+        completionsThisMonth: sql<number>`sum(case when ${goalTaskCompletions.completedDate} >= ${month.start} and ${goalTaskCompletions.completedDate} <= ${month.end} then 1 else 0 end)`,
+        lastCompletedDate: sql<string | null>`max(${goalTaskCompletions.completedDate})`,
+      })
+      .from(goalTaskCompletions)
+      .where(inArray(goalTaskCompletions.goalTaskId, goalTaskIds))
+      .groupBy(goalTaskCompletions.goalTaskId),
+    focusTaskRows.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            taskId: goalTasks.id,
+            totalMinutes: sql<number>`coalesce(sum(${focusSessions.duration}), 0)`,
+            completedToday: sql<number>`sum(case when date(${focusSessions.startTime}, 'localtime') = ${todayStr} then 1 else 0 end)`,
+          })
+          .from(goalTasks)
+          .innerJoin(goals, eq(goalTasks.goalId, goals.id))
+          .leftJoin(
+            focusSessions,
+            sql`
+              ${focusSessions.startTime} >= ${focusSessionStart}
+              and ${focusSessions.startTime} <= ${focusSessionEnd}
+              and date(${focusSessions.startTime}, 'localtime') >= ${goals.startDate}
+              and date(${focusSessions.startTime}, 'localtime') <= ${goals.endDate}
+              and (
+                ${goalTasks.themeIds} is null
+                or ${goalTasks.themeIds} = ''
+                or ${goalTasks.themeId} = ${focusSessions.themeId}
+                or instr(${goalTasks.themeIds}, '"' || coalesce(${focusSessions.themeId}, '') || '"') > 0
+              )
+            `,
+          )
+          .where(
+            inArray(
+              goalTasks.id,
+              focusTaskRows.map((task) => task.id),
+            ),
+          )
+          .groupBy(goalTasks.id),
+    notebookTaskRows.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            notebookId: notebookTopics.notebookId,
+            total: sql<number>`count(*)`,
+            completed: sql<number>`sum(case when ${notebookTopics.completed} = 1 then 1 else 0 end)`,
+          })
+          .from(notebookTopics)
+          .where(
+            inArray(
+              notebookTopics.notebookId,
+              Array.from(new Set(notebookTaskRows.map((task) => task.notebookId as string))),
+            ),
+          )
+          .groupBy(notebookTopics.notebookId),
+  ]);
+
+  const usedThemeIds = Array.from(new Set(taskRows.flatMap((task) => parseThemeIds(task))));
+  const themeRows = usedThemeIds.length
+    ? await db
+        .select({ id: focusThemes.id, name: focusThemes.name })
+        .from(focusThemes)
+        .where(inArray(focusThemes.id, usedThemeIds))
+    : [];
+
+  const completionByTaskId = new Map(completionStats.map((row) => [row.goalTaskId, row]));
+  const focusByTaskId = new Map(focusStats.map((row) => [row.taskId, row]));
+  const notebookById = new Map(notebookStats.map((row) => [row.notebookId, row]));
   const themeNameById = new Map(themeRows.map((theme) => [theme.id, theme.name]));
-
-  const goalById = new Map(goalRows.map((goal) => [goal.id, goal]));
-
-  const completionsByTaskId = new Map<string, typeof completionRows>();
-
-  for (const completion of completionRows) {
-    const list = completionsByTaskId.get(completion.goalTaskId) ?? [];
-
-    list.push(completion);
-    completionsByTaskId.set(completion.goalTaskId, list);
-  }
-
-  const notebookTopicsByNotebookId = new Map<string, typeof notebookTopicRows>();
-
-  for (const topic of notebookTopicRows) {
-    const list = notebookTopicsByNotebookId.get(topic.notebookId) ?? [];
-
-    list.push(topic);
-    notebookTopicsByNotebookId.set(topic.notebookId, list);
-  }
-
-  const notebookProgress = new Map<string, number>();
-
-  for (const notebook of notebookRows) {
-    const topics = notebookTopicsByNotebookId.get(notebook.id) ?? [];
-
-    const completed = topics.filter((topic) => topic.completed === 1).length;
-
-    notebookProgress.set(notebook.id, topics.length ? completed / topics.length : 0);
-  }
-
-  const sessionsByThemeId = new Map<string, typeof sessionRows>();
-
-  for (const session of sessionRows) {
-    if (!session.themeId) continue;
-
-    const list = sessionsByThemeId.get(session.themeId) ?? [];
-
-    list.push(session);
-    sessionsByThemeId.set(session.themeId, list);
-  }
-
   const tasksByGoalId = new Map<string, GoalTask[]>();
 
   for (const taskRow of taskRows) {
     const taskType = (taskRow.type ?? 'habit') as GoalTaskType;
     const themeIds = parseThemeIds(taskRow);
+    const completion = completionByTaskId.get(taskRow.id);
+    const focus = focusByTaskId.get(taskRow.id);
+    const notebook = taskRow.notebookId ? notebookById.get(taskRow.notebookId) : undefined;
 
     let completedCount = 0;
     let completedToday = false;
@@ -181,68 +277,18 @@ export async function getAllGoals(): Promise<Goal[]> {
     let completionsThisMonth = 0;
 
     if (taskType === 'notebook') {
-      completedCount = notebookProgress.get(taskRow.notebookId ?? '') ?? 0;
+      const total = Number(notebook?.total ?? 0);
+      const completed = Number(notebook?.completed ?? 0);
+      completedCount = total > 0 ? completed / total : 0;
     } else if (taskType === 'focus_hours') {
-      const goal = goalById.get(taskRow.goalId);
-
-      if (goal) {
-        const candidateSessions =
-          themeIds.length === 0
-            ? sessionRows
-            : themeIds.flatMap((themeId) => sessionsByThemeId.get(themeId) ?? []);
-
-        const uniqueSessions =
-          themeIds.length > 1
-            ? Array.from(
-                new Map(candidateSessions.map((session) => [session.id, session])).values(),
-              )
-            : candidateSessions;
-
-        let totalMinutes = 0;
-
-        for (const session of uniqueSessions) {
-          const date = dateOf(session.startTime);
-
-          if (date < goal.startDate || date > goal.endDate) {
-            continue;
-          }
-
-          totalMinutes += session.duration;
-
-          if (date === todayStr) {
-            completedToday = true;
-          }
-        }
-
-        completedCount = Math.round((totalMinutes / 60) * 10) / 10;
-      }
+      completedCount = Math.round((Number(focus?.totalMinutes ?? 0) / 60) * 10) / 10;
+      completedToday = Number(focus?.completedToday ?? 0) > 0;
     } else {
-      const completions = completionsByTaskId.get(taskRow.id) ?? [];
-
-      completedCount = completions.length;
-
-      completedToday = completions.some((completion) => completion.completedDate === todayStr);
-
-      completionsThisWeek = completions.filter(
-        (completion) =>
-          completion.completedDate >= week.start && completion.completedDate <= week.end,
-      ).length;
-
-      completionsThisMonth = completions.filter(
-        (completion) =>
-          completion.completedDate >= month.start && completion.completedDate <= month.end,
-      ).length;
+      completedCount = Number(completion?.completedCount ?? 0);
+      completedToday = Number(completion?.completedToday ?? 0) > 0;
+      completionsThisWeek = Number(completion?.completionsThisWeek ?? 0);
+      completionsThisMonth = Number(completion?.completionsThisMonth ?? 0);
     }
-
-    const allCompletions = completionsByTaskId.get(taskRow.id) ?? [];
-
-    const lastCompletedDate = allCompletions.length
-      ? allCompletions.reduce(
-          (latest, completion) =>
-            completion.completedDate > latest ? completion.completedDate : latest,
-          allCompletions[0].completedDate,
-        )
-      : undefined;
 
     const recurrenceDays = taskRow.recurrenceDays ? JSON.parse(taskRow.recurrenceDays) : [];
 
@@ -259,7 +305,7 @@ export async function getAllGoals(): Promise<Goal[]> {
       recurrenceType: (taskRow.recurrenceType as GoalTaskRecurrenceType) ?? 'none',
       recurrenceCount: taskRow.recurrenceCount ?? 1,
       recurrenceDays,
-      lastCompletedDate,
+      lastCompletedDate: completion?.lastCompletedDate ?? undefined,
       themeIds: themeIds.length > 0 ? themeIds : undefined,
       themeNames:
         themeIds.length > 0
@@ -354,23 +400,19 @@ export async function getTodayGoalTasks(): Promise<GoalTaskForToday[]> {
     completionsByTaskId.set(completion.goalTaskId, list);
   }
 
+  const notebookTopicStats = new Map<string, { total: number; completed: number }>();
+  for (const topic of notebookTopicRows) {
+    const stats = notebookTopicStats.get(topic.notebookId) ?? { total: 0, completed: 0 };
+    stats.total++;
+    if (topic.completed === 1) stats.completed++;
+    notebookTopicStats.set(topic.notebookId, stats);
+  }
+
   const notebookProgress = new Map<string, number>();
 
   for (const notebookId of notebookIds) {
-    let total = 0;
-    let completed = 0;
-
-    for (const topic of notebookTopicRows) {
-      if (topic.notebookId !== notebookId) continue;
-
-      total++;
-
-      if (topic.completed === 1) {
-        completed++;
-      }
-    }
-
-    notebookProgress.set(notebookId, total ? completed / total : 0);
+    const stats = notebookTopicStats.get(notebookId);
+    notebookProgress.set(notebookId, stats && stats.total > 0 ? stats.completed / stats.total : 0);
   }
 
   const goalById = new Map(activeGoals.map((goal) => [goal.id, goal]));

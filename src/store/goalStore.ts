@@ -71,8 +71,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     if (!force && now - get().lastFetchedAt < 10000) return;
     set({ loading: true });
     try {
-      const goals = await getAllGoals();
-      const today = await getTodayGoalTasks();
+      const [goals, today] = await Promise.all([getAllGoals(), getTodayGoalTasks()]);
       const activeGoalCount = goals.filter(
         (goal) =>
           !goal.archived &&

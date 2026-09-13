@@ -37,6 +37,17 @@ export function getDefaultGamificationConfig(): GamificationConfig {
   return { ...DEFAULT_CONFIG };
 }
 
+function normalizeBooleanFlag(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1 ? true : value === 0 ? false : fallback;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 export async function getGamificationConfig(): Promise<GamificationConfig> {
   const row = await db
     .select()
@@ -59,15 +70,25 @@ export async function getGamificationConfig(): Promise<GamificationConfig> {
     return { ...DEFAULT_CONFIG };
   }
 
+  const taskScoringEnabled = normalizeBooleanFlag(row[0].taskScoringEnabled);
+  const canonicalStoredValue = taskScoringEnabled ? 1 : 0;
+
+  if (row[0].taskScoringEnabled !== canonicalStoredValue) {
+    await db
+      .update(gamificationSettings)
+      .set({ taskScoringEnabled: canonicalStoredValue, updatedAt: now() })
+      .where(eq(gamificationSettings.id, 'default'));
+  }
+
   return {
-    pointsPerFocusHour: Math.max(0, row[0].pointsPerFocusHour),
-    taskScoringEnabled: Boolean(row[0].taskScoringEnabled),
-    taskLevel1Points: Math.max(0, row[0].taskLevel1Points),
-    taskLevel2Points: Math.max(0, row[0].taskLevel2Points),
-    taskLevel3Points: Math.max(0, row[0].taskLevel3Points),
-    topicPoints: Math.max(0, row[0].topicPoints),
-    notebookCompletionPoints: Math.max(0, row[0].notebookCompletionPoints),
-    goalCompletionPoints: Math.max(0, row[0].goalCompletionPoints),
+    pointsPerFocusHour: Math.max(0, Number(row[0].pointsPerFocusHour) || 0),
+    taskScoringEnabled,
+    taskLevel1Points: Math.max(0, Number(row[0].taskLevel1Points) || 0),
+    taskLevel2Points: Math.max(0, Number(row[0].taskLevel2Points) || 0),
+    taskLevel3Points: Math.max(0, Number(row[0].taskLevel3Points) || 0),
+    topicPoints: Math.max(0, Number(row[0].topicPoints) || 0),
+    notebookCompletionPoints: Math.max(0, Number(row[0].notebookCompletionPoints) || 0),
+    goalCompletionPoints: Math.max(0, Number(row[0].goalCompletionPoints) || 0),
   };
 }
 

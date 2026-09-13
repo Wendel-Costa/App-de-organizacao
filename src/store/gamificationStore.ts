@@ -47,9 +47,16 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
   },
 
   updateConfig: async (patch) => {
-    const config = { ...get().config, ...patch };
-    await saveGamificationConfig(config);
-    set({ config });
+    const previous = get().config;
+    const next = { ...previous, ...patch };
+
+    set({ config: next });
+    try {
+      await saveGamificationConfig(next);
+    } catch (error) {
+      set({ config: previous });
+      throw error;
+    }
   },
 
   refreshSummary: async () => {

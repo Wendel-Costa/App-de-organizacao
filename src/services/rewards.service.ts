@@ -48,7 +48,8 @@ export function checkRewardCondition(
   if (type === 'tasks_specific') {
     const ids = reward.condition.taskIds ?? [];
     if (ids.length === 0) return false;
-    return ids.every((id) => tasks.find((t) => t.id === id)?.completed === true);
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    return ids.every((id) => taskById.get(id)?.completed === true);
   }
 
   if (type === 'goal_completed') {
@@ -93,7 +94,11 @@ export function calcRewardProgress(
   if (type === 'tasks_specific') {
     const ids = reward.condition.taskIds ?? [];
     if (ids.length === 0) return 0;
-    const done = ids.filter((id) => tasks.find((t) => t.id === id)?.completed).length;
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    let done = 0;
+    for (const id of ids) {
+      if (taskById.get(id)?.completed) done++;
+    }
     return done / ids.length;
   }
 

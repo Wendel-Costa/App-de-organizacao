@@ -74,30 +74,45 @@ export function getWeeklySummary(sessions: FocusSession[], tasks: Task[]): Weekl
   const weekDates = getWeekDates();
   const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-  const focusDays: DayData[] = weekDates.map((date, i) => {
-    const daySessions = sessions.filter((s) => dateOf(s.startTime) === date);
-    const minutes = daySessions.reduce((acc, s) => acc + s.duration, 0);
-    return { label: labels[i], value: minutes / 60, date };
-  });
+  const weekDateSet = new Set(weekDates);
+  const focusMinutesByDate = new Map<string, number>();
+  for (const session of sessions) {
+    const date = dateOf(session.startTime);
+    if (!weekDateSet.has(date)) continue;
+    focusMinutesByDate.set(date, (focusMinutesByDate.get(date) ?? 0) + session.duration);
+  }
 
-  const taskDays: DayData[] = weekDates.map((date, i) => {
-    const count = tasks.filter((t) => t.completed && dateOf(t.updatedAt) === date).length;
-    return { label: labels[i], value: count, date };
-  });
+  const completedTasksByDate = new Map<string, number>();
+  for (const task of tasks) {
+    if (!task.completed) continue;
+    const date = dateOf(task.updatedAt);
+    if (!weekDateSet.has(date)) continue;
+    completedTasksByDate.set(date, (completedTasksByDate.get(date) ?? 0) + 1);
+  }
+
+  const focusDays: DayData[] = weekDates.map((date, i) => ({
+    label: labels[i],
+    value: (focusMinutesByDate.get(date) ?? 0) / 60,
+    date,
+  }));
+
+  const taskDays: DayData[] = weekDates.map((date, i) => ({
+    label: labels[i],
+    value: completedTasksByDate.get(date) ?? 0,
+    date,
+  }));
 
   const totalHours = focusDays.reduce((acc, d) => acc + d.value, 0);
   const totalTasks = taskDays.reduce((acc, d) => acc + d.value, 0);
   const bestDay = focusDays.reduce((best, d) => (d.value > best.value ? d : best), focusDays[0]);
 
   let streak = 0;
+  const focusDates = new Set(sessions.map((session) => dateOf(session.startTime)));
   const checkDate = new Date();
 
   while (streak <= 365) {
     const dateStr = localDateStr(checkDate);
-    const hasFocus = sessions.some((s) => dateOf(s.startTime) === dateStr);
-
-    if (!hasFocus) break;
-
+    if (!focusDates.has(dateStr)) break;
     streak++;
     checkDate.setDate(checkDate.getDate() - 1);
   }
@@ -143,24 +158,25 @@ export function getMonthlySummary(
   const avgDailyHours = totalHours / daysInMonth;
 
   const themeMap = new Map<string, number>();
-  monthSessions.forEach((s) => {
-    const key = s.themeId ?? '__general__';
-    themeMap.set(key, (themeMap.get(key) ?? 0) + s.duration);
-  });
+  for (const session of monthSessions) {
+    const key = session.themeId ?? '__general__';
+    themeMap.set(key, (themeMap.get(key) ?? 0) + session.duration);
+  }
 
+  const themeById = new Map(themes.map((theme) => [theme.id, theme]));
   const focusByTheme: ThemeData[] = [];
   themeMap.forEach((minutes, key) => {
     if (key === '__general__') {
       focusByTheme.push({ name: 'Geral', minutes, color: '#C8C8B8' });
-    } else {
-      const idx = themes.findIndex((t) => t.id === key);
-      const theme = themes.find((t) => t.id === key);
-      focusByTheme.push({
-        name: theme?.name ?? 'Tema',
-        minutes,
-        color: THEME_PALETTE[idx >= 0 ? idx % THEME_PALETTE.length : 0],
-      });
+      return;
     }
+    const theme = themeById.get(key);
+    const idx = themes.findIndex((t) => t.id === key);
+    focusByTheme.push({
+      name: theme?.name ?? 'Tema',
+      minutes,
+      color: THEME_PALETTE[idx >= 0 ? idx % THEME_PALETTE.length : 0],
+    });
   });
   focusByTheme.sort((a, b) => b.minutes - a.minutes);
 

@@ -84,21 +84,38 @@ export const useRewardStore = create<RewardState>((set, get) => ({
 
   checkAndUnlock: async (sessions, tasks, goals) => {
     const newlyUnlocked: Reward[] = [];
+    const pending = get().rewards.filter((reward) => !reward.unlocked);
+    if (pending.length === 0) return newlyUnlocked;
 
-    for (const reward of get().rewards) {
-      if (reward.unlocked) continue;
-      if (checkRewardCondition(reward, sessions, tasks, goals)) {
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+
+    for (const reward of pending) {
+      let satisfied = false;
+      const condition = reward.condition;
+
+      if (condition.type === 'tasks_specific') {
+        const ids = condition.taskIds ?? [];
+        satisfied = ids.length > 0 && ids.every((id) => taskById.get(id)?.completed === true);
+      } else if (condition.type === 'goal_completed') {
+        const goal = goalById.get(condition.goalId ?? '');
+        satisfied = !!goal && checkRewardCondition(reward, sessions, tasks, goals);
+      } else {
+        satisfied = checkRewardCondition(reward, sessions, tasks, goals);
+      }
+
+      if (satisfied) {
         await unlockReward(reward.id);
         newlyUnlocked.push(reward);
       }
     }
 
     if (newlyUnlocked.length > 0) {
+      const unlockedIds = new Set(newlyUnlocked.map((reward) => reward.id));
+      const unlockedAt = new Date().toISOString();
       set((state) => ({
-        rewards: state.rewards.map((r) =>
-          newlyUnlocked.find((u) => u.id === r.id)
-            ? { ...r, unlocked: true, unlockedAt: new Date().toISOString() }
-            : r,
+        rewards: state.rewards.map((reward) =>
+          unlockedIds.has(reward.id) ? { ...reward, unlocked: true, unlockedAt } : reward,
         ),
       }));
     }
@@ -136,7 +153,8 @@ export const useRewardStore = create<RewardState>((set, get) => ({
           return r ? { ...r, order: index } : null;
         })
         .filter((r): r is Reward => r !== null);
-      const untouched = state.rewards.filter((r) => !orderedIds.includes(r.id));
+      const orderedIdSet = new Set(orderedIds);
+      const untouched = state.rewards.filter((r) => !orderedIdSet.has(r.id));
       return { rewards: [...reordered, ...untouched].sort((a, b) => a.order - b.order) };
     });
     await reorderRewards(orderedIds);

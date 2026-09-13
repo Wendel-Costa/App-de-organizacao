@@ -224,6 +224,69 @@ export async function runMigrations() {
     )
   `);
 
+  async function tableColumns(tableName: string): Promise<Set<string>> {
+    const rows = sqlite.getAllSync<{ name: string }>(`PRAGMA table_info("${tableName}")`);
+    return new Set(rows.map((row) => row.name));
+  }
+
+  async function ensureColumn(tableName: string, columnName: string, definition: string) {
+    const columns = await tableColumns(tableName);
+    if (!columns.has(columnName)) {
+      sqlite.runSync(`ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${definition}`);
+    }
+  }
+
+  const additiveColumns: Array<[string, string, string]> = [
+    ['tasks', 'theme_id', 'TEXT'],
+    ['tasks', 'completed_at', 'TEXT'],
+    ['tasks', 'recurrence_interval', 'INTEGER'],
+    ['tasks', 'score_level', 'INTEGER'],
+    ['goals', 'tolerance', 'REAL NOT NULL DEFAULT 0'],
+    ['goals', 'allow_overflow', 'INTEGER NOT NULL DEFAULT 0'],
+    ['goals', 'allow_beyond_100', 'INTEGER NOT NULL DEFAULT 0'],
+    ['goals', 'archived', 'INTEGER NOT NULL DEFAULT 0'],
+    ['goals', 'sort_order', 'REAL NOT NULL DEFAULT 0'],
+    ['goal_tasks', 'theme_ids', 'TEXT'],
+    ['goal_tasks', 'notebook_id', 'TEXT'],
+    ['goal_tasks', 'recurrence_type', "TEXT NOT NULL DEFAULT 'none'"],
+    ['goal_tasks', 'recurrence_count', 'INTEGER NOT NULL DEFAULT 1'],
+    ['goal_tasks', 'recurrence_days', 'TEXT'],
+    ['rewards', 'condition_target', 'REAL NOT NULL DEFAULT 0'],
+    ['rewards', 'condition_period', "TEXT NOT NULL DEFAULT 'anytime'"],
+    ['rewards', 'condition_theme_id', 'TEXT'],
+    ['rewards', 'condition_task_ids', 'TEXT'],
+    ['rewards', 'condition_goal_id', 'TEXT'],
+    ['rewards', 'condition_custom_start', 'TEXT'],
+    ['rewards', 'condition_custom_end', 'TEXT'],
+    ['rewards', 'archived', 'INTEGER NOT NULL DEFAULT 0'],
+    ['task_completions', 'score_level', 'INTEGER'],
+    ['gamification_settings', 'task_scoring_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+  ];
+
+  for (const [tableName, columnName, definition] of additiveColumns) {
+    await ensureColumn(tableName, columnName, definition);
+  }
+
+  for (const tableName of ['tasks', 'task_completions']) {
+    const columns = await tableColumns(tableName);
+    if (columns.has('priority') && columns.has('score_level')) {
+      sqlite.runSync(
+        `UPDATE "${tableName}" SET score_level = priority WHERE score_level IS NULL AND priority IS NOT NULL`,
+      );
+    }
+  }
+
+  sqlite.runSync(`
+    UPDATE gamification_settings
+    SET task_scoring_enabled = CASE
+      WHEN LOWER(TRIM(CAST(task_scoring_enabled AS TEXT))) IN ('1', 'true', 'yes', 'on') THEN 1
+      ELSE 0
+    END
+  `);
+
+  const CURRENT_SCHEMA_VERSION = 4;
+  sqlite.runSync(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
+
   await db.run(
     sql`
       CREATE INDEX IF NOT EXISTS idx_point_events_entity
