@@ -167,6 +167,13 @@ export function GoalsScreen() {
     await uncompleteTask(goalId, taskId);
   }
 
+  const activeGoals = goals.filter((g) => !g.archived);
+  const archivedGoals = goals.filter((g) => g.archived);
+  const visibleTodayTasks = useMemo(
+    () => todayGoalTasks.filter((task) => isTaskVisibleForFilter(task, taskFilter)),
+    [todayGoalTasks, taskFilter],
+  );
+
   if (screen === 'notebooks') {
     return (
       <NotebooksScreen
@@ -183,7 +190,7 @@ export function GoalsScreen() {
       <CreateGoalScreen
         onBack={() => setScreen('list')}
         onSuccess={() => {
-          fetchGoals();
+          void fetchGoals();
           setScreen('list');
         }}
       />
@@ -200,13 +207,6 @@ export function GoalsScreen() {
       />
     );
   }
-
-  const activeGoals = goals.filter((g) => !g.archived);
-  const archivedGoals = goals.filter((g) => g.archived);
-  const visibleTodayTasks = useMemo(
-    () => todayGoalTasks.filter((task) => isTaskVisibleForFilter(task, taskFilter)),
-    [todayGoalTasks, taskFilter],
-  );
 
   return (
     <View style={globalStyles.screen}>

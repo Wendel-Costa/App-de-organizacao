@@ -1,3 +1,4 @@
+import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { localDateStr, dateOf } from '@/utils/date';
 import type { Task, RecurrenceDay } from '@/types/task.types';
 
@@ -19,14 +20,22 @@ export function getTodayWeekday(): RecurrenceDay {
   return WEEKDAYS[new Date().getDay()];
 }
 
-export function isEveryXDaysDue(task: Task): boolean {
-  const interval = task.recurrenceInterval ?? 1;
-  if (!task.completed || !task.completedAt) return true;
-  const completedDate = dateOf(task.completedAt);
-  const today = getTodayString();
-  const completed = new Date(completedDate + 'T12:00:00');
-  const current = new Date(today + 'T12:00:00');
-  const daysSince = Math.round((current.getTime() - completed.getTime()) / 86400000);
+export function isEveryXDaysTask(task: Task): boolean {
+  return (
+    task.type === 'recurring' &&
+    ((task.recurrenceInterval ?? 0) > 0 || task.recurrenceDays?.includes('every_x_days') === true)
+  );
+}
+
+export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolean {
+  if (!isEveryXDaysTask(task)) return false;
+
+  const interval = Math.max(task.recurrenceInterval ?? 1, 1);
+  if (!task.completed) return true;
+
+  const completedDate = dateOf(task.completedAt ?? task.updatedAt);
+  const daysSince = differenceInCalendarDays(parseISO(todayStr), parseISO(completedDate));
+
   return daysSince >= interval;
 }
 
@@ -40,7 +49,7 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (task.recurrenceDays?.includes('every_x_days')) return true;
+      if (isEveryXDaysTask(task)) return true;
       const todayWeekday = getTodayWeekday();
       return (
         task.recurrenceDays?.includes('daily') ||
@@ -55,8 +64,8 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
 export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
   return tasks.map((task) => {
     if (task.type === 'recurring' && task.completed) {
-      if (task.recurrenceDays?.includes('every_x_days')) {
-        if (isEveryXDaysDue(task)) return { ...task, completed: false };
+      if (isEveryXDaysTask(task)) {
+        if (isEveryXDaysDue(task, todayStr)) return { ...task, completed: false };
       } else {
         const completedDate = dateOf(task.updatedAt);
         if (completedDate !== todayStr) return { ...task, completed: false };
@@ -70,7 +79,7 @@ export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
   const todayStr = getTodayString();
   return tasks.filter((task) => {
     if (task.type !== 'recurring' || !task.completed) return false;
-    if (task.recurrenceDays?.includes('every_x_days')) return false;
+    if (isEveryXDaysTask(task)) return false;
     const completedDate = dateOf(task.completedAt ?? task.updatedAt);
     return completedDate !== todayStr;
   });
@@ -81,7 +90,7 @@ export function getRecurringTasksWithStaleSubtasks(tasks: Task[]): Task[] {
   return tasks.filter((task) => {
     if (task.type !== 'recurring') return false;
     if (task.completed) return false;
-    if (task.recurrenceDays?.includes('every_x_days')) return false;
+    if (isEveryXDaysTask(task)) return false;
     if (!task.subtasks?.some((s) => s.completed)) return false;
     return dateOf(task.updatedAt) !== todayStr;
   });
@@ -91,7 +100,7 @@ export function getEveryXDaysTasksToReset(tasks: Task[]): Task[] {
   return tasks.filter(
     (task) =>
       task.type === 'recurring' &&
-      task.recurrenceDays?.includes('every_x_days') &&
+      isEveryXDaysTask(task) &&
       task.completed &&
       isEveryXDaysDue(task),
   );
@@ -113,7 +122,7 @@ export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (task.recurrenceDays?.includes('every_x_days')) return true;
+      if (isEveryXDaysTask(task)) return true;
       const todayWeekday = getTodayWeekday();
 
       return (
