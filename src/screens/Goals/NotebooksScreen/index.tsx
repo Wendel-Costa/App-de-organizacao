@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -23,7 +23,13 @@ import { globalStyles } from '@/styles/global';
 import { useNotebookStore } from '@/store/notebookStore';
 import { parseTopicInput } from '@/database/queries/notebooks.queries';
 
-export function NotebooksScreen({ onBack }: { onBack: () => void }) {
+export function NotebooksScreen({
+  onBack,
+  openCreateOnMount = false,
+}: {
+  onBack: () => void;
+  openCreateOnMount?: boolean;
+}) {
   const {
     notebooks,
     fetchNotebooks,
@@ -42,6 +48,14 @@ export function NotebooksScreen({ onBack }: { onBack: () => void }) {
   const [topicInput, setTopicInput] = useState('');
   const [topicNotebookId, setTopicNotebookId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  useEffect(() => {
+    if (openCreateOnMount) {
+      setEditingNotebookId(null);
+      setNotebookTitle('');
+      setShowNotebookForm(true);
+    }
+  }, [openCreateOnMount]);
 
   const activeNotebooks = notebooks.filter((notebook) => notebook.progress < 1);
   const completedNotebooks = notebooks.filter((notebook) => notebook.progress >= 1);

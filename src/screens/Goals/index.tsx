@@ -108,6 +108,7 @@ export function GoalsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNotebooks, setShowNotebooks] = useState(true);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
+  const [openCreateNotebookOnMount, setOpenCreateNotebookOnMount] = useState(false);
   const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>([]);
   const [notebookSelectionInitialized, setNotebookSelectionInitialized] = useState(false);
   const knownNotebookIdsRef = useRef<Set<string>>(new Set());
@@ -176,8 +177,10 @@ export function GoalsScreen() {
   if (screen === 'notebooks') {
     return (
       <NotebooksScreen
+        openCreateOnMount={openCreateNotebookOnMount}
         onBack={() => {
           void fetchNotebooks();
+          setOpenCreateNotebookOnMount(false);
           setScreen('list');
         }}
       />
@@ -213,7 +216,10 @@ export function GoalsScreen() {
         title="Metas"
         rightAction={{
           icon: 'book-open-page-variant-outline',
-          onPress: () => setScreen('notebooks'),
+          onPress: () => {
+            setOpenCreateNotebookOnMount(false);
+            setScreen('notebooks');
+          },
         }}
       />
 
@@ -271,11 +277,26 @@ export function GoalsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.notebookAddButton}
-                      onPress={() => setShowNotebookPicker(true)}
+                      onPress={() => {
+                        setOpenCreateNotebookOnMount(true);
+                        setScreen('notebooks');
+                      }}
                       activeOpacity={0.7}
                       hitSlop={6}
                     >
                       <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.notebookAddButton}
+                      onPress={() => setShowNotebookPicker(true)}
+                      activeOpacity={0.7}
+                      hitSlop={6}
+                    >
+                      <MaterialCommunityIcons
+                        name="format-list-bulleted-square"
+                        size={16}
+                        color={colors.primary}
+                      />
                     </TouchableOpacity>
                   </View>
 
