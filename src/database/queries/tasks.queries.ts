@@ -1,7 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../index';
-import { tasks, subtasks } from '../schema';
+import { tasks, subtasks, taskSkips } from '../schema';
 import type { Task } from '@/types/task.types';
+import { localDateStr } from '@/utils/date';
 
 function generateId() {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -15,7 +16,10 @@ export async function getAllTasks(): Promise<Task[]> {
   const rows = await db.select().from(tasks);
   if (rows.length === 0) return [];
   const allSubs = await db.select().from(subtasks);
+  const allSkips = await db.select().from(taskSkips);
   const subsByTaskId = new Map<string, typeof allSubs>();
+  const latestSkipByTaskId = new Map<string, string>();
+
   for (const sub of allSubs) {
     if (!subsByTaskId.has(sub.taskId)) {
       subsByTaskId.set(sub.taskId, []);
@@ -23,7 +27,16 @@ export async function getAllTasks(): Promise<Task[]> {
     subsByTaskId.get(sub.taskId)!.push(sub);
   }
 
-  return rows.map((row) => rowToTask(row, subsByTaskId.get(row.id) ?? []));
+  for (const skip of allSkips) {
+    const current = latestSkipByTaskId.get(skip.taskId);
+    if (!current || skip.skippedDate > current)
+      latestSkipByTaskId.set(skip.taskId, skip.skippedDate);
+  }
+
+  return rows.map((row) => ({
+    ...rowToTask(row, subsByTaskId.get(row.id) ?? []),
+    skippedDate: latestSkipByTaskId.get(row.id),
+  }));
 }
 
 export async function createTask(
@@ -175,4 +188,17 @@ function rowToTask(row: typeof tasks.$inferSelect, subs: (typeof subtasks.$infer
     })),
     completedAt: row.completedAt ?? undefined,
   };
+}
+
+export async function skipTaskOccurrence(id: string): Promise<void> {
+  const skippedDate = localDateStr();
+  await db
+    .delete(taskSkips)
+    .where(and(eq(taskSkips.taskId, id), eq(taskSkips.skippedDate, skippedDate)));
+  await db.insert(taskSkips).values({
+    id: generateId(),
+    taskId: id,
+    skippedDate,
+    createdAt: now(),
+  });
 }

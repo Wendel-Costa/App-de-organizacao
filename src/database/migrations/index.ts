@@ -122,6 +122,15 @@ export async function runMigrations() {
   `);
 
   await db.run(sql`
+    CREATE TABLE IF NOT EXISTS task_skips (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      skipped_date TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  await db.run(sql`
     CREATE TABLE IF NOT EXISTS task_completions (
       id TEXT PRIMARY KEY,
       original_task_id TEXT NOT NULL,
@@ -213,6 +222,17 @@ export async function runMigrations() {
   `);
 
   await db.run(sql`
+    CREATE TABLE IF NOT EXISTS purchasable_reward_purchases (
+      id TEXT PRIMARY KEY,
+      reward_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      cost REAL NOT NULL,
+      purchased_at TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  await db.run(sql`
     CREATE TABLE IF NOT EXISTS purchasable_rewards (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -284,7 +304,7 @@ export async function runMigrations() {
     END
   `);
 
-  const CURRENT_SCHEMA_VERSION = 4;
+  const CURRENT_SCHEMA_VERSION = 5;
   sqlite.runSync(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
 
   await db.run(
@@ -296,8 +316,22 @@ export async function runMigrations() {
 
   await db.run(
     sql`
+      CREATE INDEX IF NOT EXISTS idx_purchasable_reward_purchases_date
+      ON purchasable_reward_purchases(purchased_at)
+    `,
+  );
+
+  await db.run(
+    sql`
       CREATE INDEX IF NOT EXISTS idx_coin_transactions_entity
       ON coin_transactions(entity_type, entity_id)
+    `,
+  );
+
+  await db.run(
+    sql`
+      CREATE INDEX IF NOT EXISTS idx_task_skips_task_date
+      ON task_skips(task_id, skipped_date)
     `,
   );
 

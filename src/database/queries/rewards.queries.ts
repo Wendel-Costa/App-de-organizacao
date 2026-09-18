@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../index';
-import { rewards, purchasableRewards } from '../schema';
+import { rewards, purchasableRewards, purchasableRewardPurchases } from '../schema';
 import type { Reward } from '@/types/reward.types';
 
 function generateId() {
@@ -180,4 +180,27 @@ export async function archivePurchasableReward(id: string, archived: boolean) {
     .update(purchasableRewards)
     .set({ archived: archived ? 1 : 0 })
     .where(eq(purchasableRewards.id, id));
+}
+
+export async function getAllRewardPurchases(): Promise<
+  import('@/types/reward.types').RewardPurchase[]
+> {
+  const rows = await db.select().from(purchasableRewardPurchases);
+  return rows
+    .map((row) => ({
+      id: row.id,
+      rewardId: row.rewardId,
+      title: row.title,
+      cost: row.cost,
+      purchasedAt: row.purchasedAt,
+      archived: row.archived === 1,
+    }))
+    .sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt));
+}
+
+export async function archiveRewardPurchase(id: string): Promise<void> {
+  await db
+    .update(purchasableRewardPurchases)
+    .set({ archived: 1 })
+    .where(eq(purchasableRewardPurchases.id, id));
 }

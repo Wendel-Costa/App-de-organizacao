@@ -31,10 +31,22 @@ export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolea
   if (!isEveryXDaysTask(task)) return false;
 
   const interval = Math.max(task.recurrenceInterval ?? 1, 1);
-  if (!task.completed) return true;
+  if (task.skippedDate === todayStr) return false;
+  if (!task.completed) {
+    if (task.skippedDate) {
+      const daysSinceSkip = differenceInCalendarDays(
+        parseISO(todayStr),
+        parseISO(task.skippedDate),
+      );
+      return daysSinceSkip >= interval;
+    }
+    return true;
+  }
 
   const completedDate = dateOf(task.completedAt ?? task.updatedAt);
-  const daysSince = differenceInCalendarDays(parseISO(todayStr), parseISO(completedDate));
+  const anchorDate =
+    task.skippedDate && task.skippedDate > completedDate ? task.skippedDate : completedDate;
+  const daysSince = differenceInCalendarDays(parseISO(todayStr), parseISO(anchorDate));
 
   return daysSince >= interval;
 }
@@ -43,6 +55,7 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
   const today = getTodayString();
 
   return tasks.filter((task) => {
+    if (task.type === 'recurring' && task.skippedDate === today) return false;
     if (task.type === 'anytime') {
       if (task.completed) return dateOf(task.updatedAt) === today;
       return true;
@@ -110,6 +123,8 @@ export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[
   const today = getTodayString();
 
   return tasks.filter((task) => {
+    if (task.type === 'recurring' && task.skippedDate === today) return false;
+
     if (themeId) {
       if (task.themeId !== themeId) return false;
     } else {

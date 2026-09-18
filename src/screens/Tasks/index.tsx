@@ -77,6 +77,7 @@ export function TasksScreen() {
   const fetchTasks = useTaskStore((state) => state.fetchTasks);
   const toggleComplete = useTaskStore((state) => state.toggleComplete);
   const removeTask = useTaskStore((state) => state.removeTask);
+  const skipRecurringOccurrence = useTaskStore((state) => state.skipRecurringOccurrence);
   const todayGoalTasks = useGoalStore((state) => state.todayGoalTasks);
   const fetchTodayGoalTasks = useGoalStore((state) => state.fetchTodayGoalTasks);
   const completeTask = useGoalStore((state) => state.completeTask);
@@ -150,7 +151,9 @@ export function TasksScreen() {
     return true;
   });
 
-  const effectiveFiltered = applyRecurringReset(filtered, todayStr);
+  const effectiveFiltered = applyRecurringReset(filtered, todayStr).filter(
+    (t) => !(t.type === 'recurring' && t.skippedDate === todayStr),
+  );
 
   const pending = effectiveFiltered.filter((t) => !t.completed);
 
@@ -359,6 +362,7 @@ export function TasksScreen() {
                   onToggle={toggleComplete}
                   onPress={handlePress}
                   onDelete={() => handleDelete(item)}
+                  onSkip={skipRecurringOccurrence}
                 />
               </>
             );

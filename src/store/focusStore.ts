@@ -27,6 +27,7 @@ const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
 
 interface FocusState {
   sessions: FocusSession[];
+  todaySessions: FocusSession[];
   themes: FocusTheme[];
 
   status: FocusStatus;
@@ -46,8 +47,6 @@ interface FocusState {
   fetchThemes: (force?: boolean) => Promise<void>;
   lastSessionsFetchedAt: number;
   lastThemesFetchedAt: number;
-  sessionsScope: 'all' | 'today' | null;
-  sessionsScopeDate: string | null;
   addSession: (data: Omit<FocusSession, 'id' | 'createdAt'>) => Promise<void>;
   addTheme: (name: string, color?: string) => Promise<void>;
   removeSession: (id: string) => Promise<void>;
@@ -81,6 +80,7 @@ function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boo
 
 export const useFocusStore = create<FocusState>((set, get) => ({
   sessions: [],
+  todaySessions: [],
   themes: [],
 
   status: 'idle',
@@ -96,41 +96,21 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   geralThemeHidden: false,
   lastSessionsFetchedAt: 0,
   lastThemesFetchedAt: 0,
-  sessionsScope: null,
-  sessionsScopeDate: null,
 
   fetchSessions: async (force = false) => {
-    if (
-      !force &&
-      get().sessionsScope === 'all' &&
-      Date.now() - get().lastSessionsFetchedAt < 10000
-    ) {
+    if (!force && Date.now() - get().lastSessionsFetchedAt < 10000) {
       return;
     }
     const sessions = await getAllSessions();
     set({
       sessions,
       lastSessionsFetchedAt: Date.now(),
-      sessionsScope: 'all',
-      sessionsScopeDate: null,
     });
   },
 
   fetchTodaySessions: async (date) => {
-    if (
-      get().sessionsScope === 'today' &&
-      get().sessionsScopeDate === date &&
-      Date.now() - get().lastSessionsFetchedAt < 10000
-    ) {
-      return;
-    }
-    const sessions = await getSessionsForDate(date);
-    set({
-      sessions,
-      lastSessionsFetchedAt: Date.now(),
-      sessionsScope: 'today',
-      sessionsScopeDate: date,
-    });
+    const todaySessions = await getSessionsForDate(date);
+    set({ todaySessions });
   },
 
   fetchThemes: async (force = false) => {
@@ -141,7 +121,12 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   addSession: async (data) => {
     const session = await createSession(data);
-    set((state) => ({ sessions: [session, ...state.sessions], lastSessionsFetchedAt: Date.now() }));
+    const isToday = dateOf(session.startTime) === dateOf(new Date().toISOString());
+    set((state) => ({
+      sessions: [session, ...state.sessions],
+      todaySessions: isToday ? [session, ...state.todaySessions] : state.todaySessions,
+      lastSessionsFetchedAt: Date.now(),
+    }));
 
     const config = await getGamificationConfig();
     const points = pointsForFocusDuration(session.duration, config.pointsPerFocusHour);
@@ -168,6 +153,7 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     await useGamificationStore.getState().refreshSummary();
     set((state) => ({
       sessions: state.sessions.filter((s) => s.id !== id),
+      todaySessions: state.todaySessions.filter((s) => s.id !== id),
       lastSessionsFetchedAt: Date.now(),
     }));
   },
@@ -317,6 +303,9 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     await updateSessionTheme(id, themeId, themeName);
     set((state) => ({
       sessions: state.sessions.map((s) => (s.id === id ? { ...s, themeId, themeName } : s)),
+      todaySessions: state.todaySessions.map((s) =>
+        s.id === id ? { ...s, themeId, themeName } : s,
+      ),
     }));
   },
 
@@ -324,11 +313,19 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     await updateSessionTime(id, startTime, endTime, duration);
     await rescoreFocusSession(id, duration);
     await useGamificationStore.getState().refreshSummary();
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
+    set((state) => {
+      const updated = state.sessions.map((s) =>
         s.id === id ? { ...s, startTime, endTime, duration } : s,
-      ),
-    }));
+      );
+      const updatedSession = updated.find((s) => s.id === id);
+      return {
+        sessions: updated,
+        todaySessions:
+          updatedSession && dateOf(updatedSession.startTime) === dateOf(new Date().toISOString())
+            ? [...state.todaySessions.filter((s) => s.id !== id), updatedSession]
+            : state.todaySessions.filter((s) => s.id !== id),
+      };
+    });
   },
 
   fetchGeralThemeVisibility: async () => {

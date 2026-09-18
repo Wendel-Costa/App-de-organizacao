@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useGamificationStore } from '@/store/gamificationStore';
-import type { Reward } from '@/types/reward.types';
+import type { Reward, RewardPurchase } from '@/types/reward.types';
 import type { FocusSession } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
 import type { Goal } from '@/types/goal.types';
@@ -18,6 +18,8 @@ import {
   updatePurchasableReward,
   deletePurchasableReward,
   archivePurchasableReward,
+  getAllRewardPurchases,
+  archiveRewardPurchase,
 } from '@/database/queries/rewards.queries';
 
 import { checkRewardCondition } from '@/services/rewards.service';
@@ -27,6 +29,7 @@ import type { PurchasableReward } from '@/types/reward.types';
 interface RewardState {
   rewards: Reward[];
   purchasableRewards: PurchasableReward[];
+  purchases: RewardPurchase[];
   loading: boolean;
 
   fetchRewards: () => Promise<void>;
@@ -54,11 +57,14 @@ interface RewardState {
   ) => Promise<void>;
   removePurchasableReward: (id: string) => Promise<void>;
   buyPurchasableReward: (reward: PurchasableReward) => Promise<void>;
+  fetchPurchases: () => Promise<void>;
+  archivePurchase: (id: string) => Promise<void>;
 }
 
 export const useRewardStore = create<RewardState>((set, get) => ({
   rewards: [],
   purchasableRewards: [],
+  purchases: [],
   loading: false,
 
   fetchRewards: async () => {
@@ -164,6 +170,10 @@ export const useRewardStore = create<RewardState>((set, get) => ({
     set({ purchasableRewards: await getAllPurchasableRewards() });
   },
 
+  fetchPurchases: async () => {
+    set({ purchases: await getAllRewardPurchases() });
+  },
+
   addPurchasableReward: async (data) => {
     const reward = await createPurchasableReward(data);
     set((state) => ({ purchasableRewards: [...state.purchasableRewards, reward] }));
@@ -188,6 +198,14 @@ export const useRewardStore = create<RewardState>((set, get) => ({
 
   buyPurchasableReward: async (reward) => {
     await spendCoins(reward.id, reward.cost, reward.title);
+    await get().fetchPurchases();
     await useGamificationStore.getState().refreshSummary();
+  },
+
+  archivePurchase: async (id) => {
+    await archiveRewardPurchase(id);
+    set((state) => ({
+      purchases: state.purchases.map((p) => (p.id === id ? { ...p, archived: true } : p)),
+    }));
   },
 }));

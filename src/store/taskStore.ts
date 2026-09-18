@@ -10,6 +10,7 @@ import {
   toggleSubtaskComplete,
   rolloverTask,
   resetTaskSubtasks,
+  skipTaskOccurrence,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
 import {
@@ -23,6 +24,7 @@ import {
   cancelTaskNotifications,
 } from '@/services/notifications.service';
 import { useSettingsStore } from '@/store/settingsStore';
+import { localDateStr } from '@/utils/date';
 
 import {
   awardProductiveAction,
@@ -41,6 +43,7 @@ interface TaskState {
   removeTask: (id: string) => Promise<void>;
   toggleComplete: (id: string, completed: boolean) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
+  skipRecurringOccurrence: (id: string) => Promise<void>;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -200,6 +203,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     } catch (e) {
       throw e;
     }
+  },
+
+  skipRecurringOccurrence: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task || task.type !== 'recurring') return;
+    await skipTaskOccurrence(id);
+    const today = localDateStr();
+    set((state) => ({
+      tasks: state.tasks.map((t) => (t.id === id ? { ...t, skippedDate: today } : t)),
+      lastFetchedAt: Date.now(),
+    }));
   },
 
   toggleSubtask: async (taskId, subtaskId, completed) => {

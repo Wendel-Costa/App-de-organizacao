@@ -35,3 +35,12 @@ export interface PurchasableReward {
   order: number;
   createdAt: string;
 }
+
+export interface RewardPurchase {
+  id: string;
+  rewardId: string;
+  title: string;
+  cost: number;
+  purchasedAt: string;
+  archived: boolean;
+}

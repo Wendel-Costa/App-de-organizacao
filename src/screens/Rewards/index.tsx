@@ -28,7 +28,12 @@ import { RewardCard } from '@/components/RewardCard';
 import { EmptyState } from '@/components/EmptyState';
 import { DatePicker } from '@/components/DatePicker';
 import { DraggableList } from '@/components/DraggableList';
-import type { Reward, RewardConditionType, RewardPeriod } from '@/types/reward.types';
+import type {
+  PurchasableReward,
+  Reward,
+  RewardConditionType,
+  RewardPeriod,
+} from '@/types/reward.types';
 import { RewardDetailScreen } from './RewardDetail';
 import { useGamificationStore } from '@/store/gamificationStore';
 import { formatWholeNumber } from '@/utils/number';
@@ -140,6 +145,11 @@ export function RewardsScreen() {
   const fetchPurchasableRewards = useRewardStore((state) => state.fetchPurchasableRewards);
   const addPurchasableReward = useRewardStore((state) => state.addPurchasableReward);
   const buyPurchasableReward = useRewardStore((state) => state.buyPurchasableReward);
+  const editPurchasableReward = useRewardStore((state) => state.editPurchasableReward);
+  const removePurchasableReward = useRewardStore((state) => state.removePurchasableReward);
+  const purchases = useRewardStore((state) => state.purchases);
+  const fetchPurchases = useRewardStore((state) => state.fetchPurchases);
+  const archivePurchase = useRewardStore((state) => state.archivePurchase);
 
   const sessions = useFocusStore((state) => state.sessions);
   const themes = useFocusStore((state) => state.themes);
@@ -175,6 +185,8 @@ export function RewardsScreen() {
   const [shopTitle, setShopTitle] = useState('');
   const [shopDescription, setShopDescription] = useState('');
   const [shopCost, setShopCost] = useState('50');
+  const [editingShopReward, setEditingShopReward] = useState<PurchasableReward | null>(null);
+  const [showArchivedPurchases, setShowArchivedPurchases] = useState(false);
   const insets = useSafeAreaInsets();
 
   const scrollRef = useRef<ScrollView>(null);
@@ -187,6 +199,7 @@ export function RewardsScreen() {
     fetchTasks();
     fetchGoals();
     fetchPurchasableRewards();
+    fetchPurchases();
     fetchGamification();
   }, []);
 
@@ -217,6 +230,43 @@ export function RewardsScreen() {
     if (editingReward)
       return title !== editingReward.title || description !== (editingReward.description ?? '');
     return title.trim().length > 0;
+  }
+
+  function openShopEditor(reward?: PurchasableReward) {
+    if (reward) {
+      setEditingShopReward(reward);
+      setShopTitle(reward.title);
+      setShopDescription(reward.description ?? '');
+      setShopCost(String(reward.cost));
+    } else {
+      setEditingShopReward(null);
+      setShopTitle('');
+      setShopDescription('');
+      setShopCost('50');
+    }
+    setShopModal(true);
+  }
+
+  function handleShopAction(reward: PurchasableReward) {
+    Alert.alert(reward.title, undefined, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Editar', onPress: () => openShopEditor(reward) },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () =>
+          Alert.alert('Excluir item?', 'Tem certeza que deseja excluir este item da loja?', [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Excluir',
+              style: 'destructive',
+              onPress: () => {
+                void removePurchasableReward(reward.id);
+              },
+            },
+          ]),
+      },
+    ]);
   }
 
   function handleBack() {
@@ -729,7 +779,7 @@ export function RewardsScreen() {
               <View style={styles.sectionHeader}>
                 <MaterialCommunityIcons name="store-outline" size={16} color={colors.primary} />
                 <Text style={styles.sectionTitle}>Loja</Text>
-                <TouchableOpacity onPress={() => setShopModal(true)} hitSlop={6}>
+                <TouchableOpacity onPress={() => openShopEditor()} hitSlop={6}>
                   <MaterialCommunityIcons
                     name="plus-circle-outline"
                     size={18}
@@ -749,6 +799,17 @@ export function RewardsScreen() {
                       <Text style={styles.shopDescription}>{shopReward.description}</Text>
                     ) : null}
                   </View>
+                  <TouchableOpacity
+                    onPress={() => handleShopAction(shopReward)}
+                    style={styles.shopManageButton}
+                    hitSlop={6}
+                  >
+                    <MaterialCommunityIcons
+                      name="dots-vertical"
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.buyButton}
                     onPress={() =>
@@ -910,6 +971,72 @@ export function RewardsScreen() {
                   ))}
               </View>
             )}
+
+            {purchases.length > 0 && (
+              <View style={styles.purchaseSection}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons name="history" size={16} color={colors.primary} />
+                  <Text style={styles.sectionTitle}>Histórico de compras</Text>
+                </View>
+                {purchases
+                  .filter((p) => !p.archived)
+                  .map((purchase) => (
+                    <Card key={purchase.id} style={styles.purchaseCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.shopTitle}>{purchase.title}</Text>
+                        <Text style={styles.purchaseMeta}>
+                          {new Date(purchase.purchasedAt).toLocaleDateString('pt-BR')} ·{' '}
+                          {formatWholeNumber(purchase.cost)} moedas
+                        </Text>
+                      </View>
+                      <TouchableOpacity onPress={() => archivePurchase(purchase.id)} hitSlop={8}>
+                        <MaterialCommunityIcons
+                          name="archive-outline"
+                          size={18}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </Card>
+                  ))}
+                {purchases.some((p) => p.archived) && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.archivedPurchaseToggle}
+                      onPress={() => setShowArchivedPurchases((value) => !value)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.archivedPurchaseNote}>
+                        Compras arquivadas ({purchases.filter((p) => p.archived).length})
+                      </Text>
+                      <MaterialCommunityIcons
+                        name={showArchivedPurchases ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    {showArchivedPurchases &&
+                      purchases
+                        .filter((p) => p.archived)
+                        .map((purchase) => (
+                          <Card key={purchase.id} style={styles.purchaseCard}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.shopTitle}>{purchase.title}</Text>
+                              <Text style={styles.purchaseMeta}>
+                                {new Date(purchase.purchasedAt).toLocaleDateString('pt-BR')} ·{' '}
+                                {formatWholeNumber(purchase.cost)} moedas
+                              </Text>
+                            </View>
+                            <MaterialCommunityIcons
+                              name="archive-check-outline"
+                              size={18}
+                              color={colors.textDisabled}
+                            />
+                          </Card>
+                        ))}
+                  </>
+                )}
+              </View>
+            )}
           </ScrollView>
 
           <Modal
@@ -928,7 +1055,9 @@ export function RewardsScreen() {
                   },
                 ]}
               >
-                <Text style={styles.modalTitle}>Nova recompensa da loja</Text>
+                <Text style={styles.modalTitle}>
+                  {editingShopReward ? 'Editar item da loja' : 'Nova recompensa da loja'}
+                </Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Nome"
@@ -953,7 +1082,7 @@ export function RewardsScreen() {
                   placeholderTextColor={colors.textDisabled}
                 />
                 <Button
-                  label="Adicionar à loja"
+                  label={editingShopReward ? 'Salvar alterações' : 'Adicionar à loja'}
                   fullWidth
                   onPress={async () => {
                     const cost = Number(shopCost);
@@ -961,22 +1090,38 @@ export function RewardsScreen() {
                       Alert.alert('Atenção', 'Informe nome e custo válido.');
                       return;
                     }
-                    await addPurchasableReward({
-                      title: shopTitle.trim(),
-                      description: shopDescription.trim() || undefined,
-                      cost,
-                    });
-                    setShopTitle('');
-                    setShopDescription('');
-                    setShopCost('50');
-                    setShopModal(false);
+                    try {
+                      if (editingShopReward) {
+                        await editPurchasableReward(editingShopReward.id, {
+                          title: shopTitle.trim(),
+                          description: shopDescription.trim() || undefined,
+                          cost,
+                        });
+                      } else {
+                        await addPurchasableReward({
+                          title: shopTitle.trim(),
+                          description: shopDescription.trim() || undefined,
+                          cost,
+                        });
+                      }
+                      setShopTitle('');
+                      setShopDescription('');
+                      setShopCost('50');
+                      setEditingShopReward(null);
+                      setShopModal(false);
+                    } catch {
+                      Alert.alert('Erro', 'Não foi possível salvar o item da loja.');
+                    }
                   }}
                 />
                 <Button
                   label="Cancelar"
                   fullWidth
                   variant="secondary"
-                  onPress={() => setShopModal(false)}
+                  onPress={() => {
+                    setShopModal(false);
+                    setEditingShopReward(null);
+                  }}
                 />
               </View>
             </View>
@@ -1020,7 +1165,19 @@ const styles = StyleSheet.create({
   },
   levelFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
   levelHint: { ...typography.xs, color: colors.textSecondary, marginTop: spacing.xs },
-  shopCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  shopCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  shopManageButton: { width: 28, alignItems: 'center', justifyContent: 'center' },
+  purchaseSection: { gap: spacing.sm, marginTop: spacing.md },
+  purchaseCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  purchaseMeta: { ...typography.xs, color: colors.textSecondary, marginTop: 3 },
+  archivedPurchaseToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: spacing.xs,
+  },
+  archivedPurchaseNote: { ...typography.xs, color: colors.textDisabled, textAlign: 'center' },
   shopTitle: { ...typography.body, fontWeight: '600', color: colors.textPrimary },
   shopDescription: { ...typography.xs, color: colors.textSecondary, marginTop: 2 },
   buyButton: {

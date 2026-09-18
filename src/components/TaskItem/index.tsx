@@ -10,9 +10,10 @@ interface TaskItemProps {
   onToggle: (id: string, completed: boolean) => void;
   onPress: (task: Task) => void;
   onDelete: (id: string) => void;
+  onSkip?: (id: string) => void;
 }
 
-export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
+export function TaskItem({ task, onToggle, onPress, onDelete, onSkip }: TaskItemProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const completedSubs = task.subtasks?.filter((s) => s.completed).length ?? 0;
   const totalSubs = task.subtasks?.length ?? 0;
@@ -94,6 +95,16 @@ export function TaskItem({ task, onToggle, onPress, onDelete }: TaskItemProps) {
         </View>
       </View>
 
+      {task.type === 'recurring' && !task.completed && onSkip && (
+        <TouchableOpacity
+          onPress={() => onSkip(task.id)}
+          style={styles.skipButton}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialCommunityIcons name="skip-next-circle-outline" size={19} color={colors.info} />
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         onPress={() => onDelete(task.id)}
         style={styles.deleteButton}
@@ -151,6 +162,7 @@ const styles = StyleSheet.create({
     ...typography.xs,
     color: colors.textSecondary,
   },
+  skipButton: { width: 28, alignItems: 'center', justifyContent: 'center' },
   deleteButton: {
     width: 28,
     alignItems: 'center',

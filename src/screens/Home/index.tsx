@@ -1,5 +1,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  BackHandler,
+  Alert,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
@@ -44,7 +52,8 @@ export function HomeScreen() {
   const fetchTasks = useTaskStore((state) => state.fetchTasks);
   const toggleComplete = useTaskStore((state) => state.toggleComplete);
   const removeTask = useTaskStore((state) => state.removeTask);
-  const sessions = useFocusStore((state) => state.sessions);
+  const skipRecurringOccurrence = useTaskStore((state) => state.skipRecurringOccurrence);
+  const sessions = useFocusStore((state) => state.todaySessions);
   const fetchTodaySessions = useFocusStore((state) => state.fetchTodaySessions);
   const setMode = useFocusStore((state) => state.setMode);
   const activeGoalCount = useGoalStore((state) => state.activeGoalCount);
@@ -133,6 +142,19 @@ export function HomeScreen() {
       todayMinutes: minutes,
     };
   }, [tasks, sessions, todayStr]);
+
+  function handleDeleteTask(task: Task) {
+    Alert.alert('Excluir tarefa?', `A tarefa "${task.title}" será excluída permanentemente.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          void removeTask(task.id);
+        },
+      },
+    ]);
+  }
 
   const focusLabel =
     todayMinutes === 0
@@ -270,7 +292,8 @@ export function HomeScreen() {
                   setSelectedTask(t);
                   setHomeScreen('detail');
                 }}
-                onDelete={removeTask}
+                onDelete={() => handleDeleteTask(task)}
+                onSkip={skipRecurringOccurrence}
               />
             ))}
           </View>

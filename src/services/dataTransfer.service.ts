@@ -41,8 +41,10 @@ const TABLES: readonly TableDefinition[] = [
   ['tasks', 'tasks', schema.tasks],
   ['subtasks', 'subtasks', schema.subtasks],
   ['taskCompletions', 'task_completions', schema.taskCompletions],
+  ['taskSkips', 'task_skips', schema.taskSkips],
   ['rewards', 'rewards', schema.rewards],
   ['purchasableRewards', 'purchasable_rewards', schema.purchasableRewards],
+  ['purchasableRewardPurchases', 'purchasable_reward_purchases', schema.purchasableRewardPurchases],
 ] as const;
 
 const BOOLEAN_FIELDS = new Set([
@@ -148,10 +150,13 @@ function normalizeBackup(value: unknown): ExportPayload {
   if (typeof value.exportedAt !== 'string') throw new Error('INVALID_STRUCTURE');
   if (!isObject(value.data)) throw new Error('INVALID_STRUCTURE');
 
+  const optionalKeys = new Set(['taskSkips', 'purchasableRewardPurchases']);
   for (const [key] of TABLES) {
-    if (!(key in value.data) || !Array.isArray(value.data[key])) {
-      throw new Error('INVALID_STRUCTURE');
+    if (!(key in value.data)) {
+      if (optionalKeys.has(key)) (value.data as Record<string, unknown[]>)[key] = [];
+      else throw new Error('INVALID_STRUCTURE');
     }
+    if (!Array.isArray(value.data[key])) throw new Error('INVALID_STRUCTURE');
   }
 
   const normalizedData: Record<string, unknown[]> = {};
@@ -309,8 +314,10 @@ async function deleteAllData(
   txn: Parameters<Parameters<typeof sqlite.withExclusiveTransactionAsync>[0]>[0],
 ) {
   const statements = [
+    'DELETE FROM purchasable_reward_purchases',
     'DELETE FROM purchasable_rewards',
     'DELETE FROM rewards',
+    'DELETE FROM task_skips',
     'DELETE FROM task_completions',
     'DELETE FROM subtasks',
     'DELETE FROM tasks',

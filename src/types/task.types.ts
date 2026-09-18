@@ -36,4 +36,5 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  skippedDate?: string;
 }

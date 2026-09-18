@@ -109,6 +109,13 @@ export const rewards = sqliteTable('rewards', {
   createdAt: text('created_at').notNull(),
 });
 
+export const taskSkips = sqliteTable('task_skips', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  skippedDate: text('skipped_date').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 //histórico de tarefas concluídas (vou utilizar em atualizações futuras)
 
 export const taskCompletions = sqliteTable('task_completions', {
@@ -191,6 +198,15 @@ export const notebookTopics = sqliteTable('notebook_topics', {
 });
 
 // loja de recompensas
+export const purchasableRewardPurchases = sqliteTable('purchasable_reward_purchases', {
+  id: text('id').primaryKey(),
+  rewardId: text('reward_id').notNull(),
+  title: text('title').notNull(),
+  cost: real('cost').notNull(),
+  purchasedAt: text('purchased_at').notNull(),
+  archived: int('archived').notNull().default(0),
+});
+
 export const purchasableRewards = sqliteTable('purchasable_rewards', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
