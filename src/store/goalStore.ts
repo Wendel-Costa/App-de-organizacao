@@ -19,11 +19,19 @@ import {
 } from '@/database/queries/goals.queries';
 
 import { calcGoalProgress } from '@/services/goals.service';
-import { grantUniqueAchievement } from '@/services/gamification.service';
+import {
+  grantUniqueAchievement,
+  awardProductiveAction,
+  getGamificationConfig,
+  pointsForTaskLevel,
+  reverseLatestProductiveAction,
+} from '@/services/gamification.service';
 
 function calcGoalProgressSafe(goal: Goal): number {
   return calcGoalProgress(goal);
 }
+
+const pendingGoalTasks = new Set<string>();
 
 interface GoalState {
   goals: Goal[];
@@ -168,66 +176,104 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   completeTask: async (goalId, taskId) => {
+    const key = `${goalId}:${taskId}`;
+    if (pendingGoalTasks.has(key)) return;
+
     const beforeGoal = get().goals.find((g) => g.id === goalId);
     const beforeTask = beforeGoal?.tasks.find((t) => t.id === taskId);
-    if (beforeTask?.type === 'notebook') return;
-    await completeGoalTaskForToday(taskId);
-    set((s) => ({
-      goals: s.goals.map((g) =>
-        g.id === goalId
-          ? {
-              ...g,
-              tasks: g.tasks.map((t) =>
-                t.id === taskId
-                  ? {
-                      ...t,
-                      completedCount: t.completedCount + 1,
-                      completedToday: true,
-                      completionsThisWeek: t.completionsThisWeek + 1,
-                      completionsThisMonth: t.completionsThisMonth + 1,
-                    }
-                  : t,
-              ),
-            }
-          : g,
-      ),
-    }));
-    await get().refreshTodayTasks();
+    if (!beforeTask || beforeTask.type === 'notebook' || beforeTask.completedToday) return;
 
-    const afterGoal = get().goals.find((g) => g.id === goalId);
-    if (afterGoal) {
-      const beforeProgress = beforeGoal ? calcGoalProgressSafe(beforeGoal) : 0;
-      const afterProgress = calcGoalProgressSafe(afterGoal);
-      if (beforeProgress < 1 && afterProgress >= 1) {
-        await grantUniqueAchievement('goal_completion', goalId);
-        await useGamificationStore.getState().refreshSummary();
+    pendingGoalTasks.add(key);
+    const previousGoals = get().goals;
+    try {
+      const inserted = await completeGoalTaskForToday(taskId);
+      if (!inserted) {
+        await get().refreshTodayTasks();
+        return;
       }
+
+      const beforeProgress = beforeGoal ? calcGoalProgressSafe(beforeGoal) : 0;
+      set((s) => ({
+        goals: s.goals.map((g) =>
+          g.id === goalId
+            ? {
+                ...g,
+                tasks: g.tasks.map((t) =>
+                  t.id === taskId
+                    ? {
+                        ...t,
+                        completedCount: t.completedCount + 1,
+                        completedToday: true,
+                        completionsThisWeek: t.completionsThisWeek + 1,
+                        completionsThisMonth: t.completionsThisMonth + 1,
+                      }
+                    : t,
+                ),
+              }
+            : g,
+        ),
+      }));
+
+      const config = await getGamificationConfig();
+      await awardProductiveAction(
+        'goal_task_completion',
+        taskId,
+        pointsForTaskLevel(undefined, config),
+        { metadata: { goalId } },
+      );
+      await get().refreshTodayTasks();
+
+      const afterGoal = get().goals.find((g) => g.id === goalId);
+      if (afterGoal) {
+        const afterProgress = calcGoalProgressSafe(afterGoal);
+        if (beforeProgress < 1 && afterProgress >= 1) {
+          await grantUniqueAchievement('goal_completion', goalId);
+        }
+      }
+      await useGamificationStore.getState().refreshSummary();
+    } catch (error) {
+      set({ goals: previousGoals });
+      throw error;
+    } finally {
+      pendingGoalTasks.delete(key);
     }
   },
 
   uncompleteTask: async (goalId, taskId) => {
-    await uncompleteGoalTaskForToday(taskId);
-    set((s) => ({
-      goals: s.goals.map((g) =>
-        g.id === goalId
-          ? {
-              ...g,
-              tasks: g.tasks.map((t) =>
-                t.id === taskId
-                  ? {
-                      ...t,
-                      completedCount: Math.max(0, t.completedCount - 1),
-                      completedToday: false,
-                      completionsThisWeek: Math.max(0, t.completionsThisWeek - 1),
-                      completionsThisMonth: Math.max(0, t.completionsThisMonth - 1),
-                    }
-                  : t,
-              ),
-            }
-          : g,
-      ),
-    }));
-    await get().refreshTodayTasks();
+    const beforeGoal = get().goals.find((g) => g.id === goalId);
+    const beforeTask = beforeGoal?.tasks.find((t) => t.id === taskId);
+    if (!beforeTask || !beforeTask.completedToday) return;
+    const previousGoals = get().goals;
+
+    try {
+      await uncompleteGoalTaskForToday(taskId);
+      set((s) => ({
+        goals: s.goals.map((g) =>
+          g.id === goalId
+            ? {
+                ...g,
+                tasks: g.tasks.map((t) =>
+                  t.id === taskId
+                    ? {
+                        ...t,
+                        completedCount: Math.max(0, t.completedCount - 1),
+                        completedToday: false,
+                        completionsThisWeek: Math.max(0, t.completionsThisWeek - 1),
+                        completionsThisMonth: Math.max(0, t.completionsThisMonth - 1),
+                      }
+                    : t,
+                ),
+              }
+            : g,
+        ),
+      }));
+      await reverseLatestProductiveAction('goal_task_completion', taskId);
+      await get().refreshTodayTasks();
+      await useGamificationStore.getState().refreshSummary();
+    } catch (error) {
+      set({ goals: previousGoals });
+      throw error;
+    }
   },
 
   refreshTodayTasks: async () => {

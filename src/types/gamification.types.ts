@@ -1,6 +1,7 @@
 export type ProductiveAction =
   | 'task_completion'
   | 'topic_completion'
+  | 'goal_task_completion'
   | 'focus_session'
   | 'notebook_completion'
   | 'goal_completion';

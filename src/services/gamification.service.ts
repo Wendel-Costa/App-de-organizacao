@@ -225,8 +225,13 @@ export async function awardProductiveAction(
     .orderBy(desc(pointEvents.occurredAt))
     .limit(1);
 
-  if (action === 'notebook_completion' || action === 'goal_completion') {
-    if (event) return null;
+  if (event) {
+    const reversals = await db
+      .select({ id: pointEvents.id })
+      .from(pointEvents)
+      .where(eq(pointEvents.reversalOf, event.id))
+      .limit(1);
+    if (reversals.length === 0) return null;
   }
 
   const [inserted] = await db
@@ -366,25 +371,37 @@ export async function rescoreFocusSession(
   }
 }
 
-export async function purchaseReward(rewardId: string, cost: number, title: string): Promise<void> {
-  const [row] = await db
-    .select({ total: sql<number>`coalesce(sum(${coinTransactions.amount}), 0)` })
-    .from(coinTransactions);
+export async function purchaseReward(
+  rewardId: string,
+  cost: number,
+  title: string,
+): Promise<string> {
+  if (cost < 0) throw new Error('INVALID_REWARD_COST');
+  const purchaseId = generateId();
+  const occurredAt = now();
 
-  const balance = Number(row?.total ?? 0);
-  if (cost < 0 || balance < cost) {
-    throw new Error('INSUFFICIENT_COINS');
-  }
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ total: sql<number>`coalesce(sum(${coinTransactions.amount}), 0)` })
+      .from(coinTransactions);
 
-  await db.insert(coinTransactions).values({
-    id: generateId(),
-    type: 'spend',
-    amount: -cost,
-    occurredAt: now(),
-    entityType: 'purchasable_reward',
-    entityId: rewardId,
-    description: `Compra: ${title}`,
+    const balance = Number(row?.total ?? 0);
+    if (balance < cost) {
+      throw new Error('INSUFFICIENT_COINS');
+    }
+
+    await tx.insert(coinTransactions).values({
+      id: generateId(),
+      type: 'spend',
+      amount: -cost,
+      occurredAt,
+      entityType: 'purchasable_reward',
+      entityId: rewardId,
+      description: `Compra: ${title}`,
+    });
   });
+
+  return purchaseId;
 }
 
 export async function getLevelInfo(points: number) {
@@ -427,6 +444,8 @@ function actionLabel(action: ProductiveAction): string {
       return 'conclusão de tarefa';
     case 'topic_completion':
       return 'tópico concluído';
+    case 'goal_task_completion':
+      return 'fator de meta concluído';
     case 'focus_session':
       return 'sessão de foco';
     case 'notebook_completion':

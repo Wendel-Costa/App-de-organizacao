@@ -743,13 +743,28 @@ export async function deleteGoalTask(taskId: string): Promise<void> {
   await db.delete(goalTasks).where(eq(goalTasks.id, taskId));
 }
 
-export async function completeGoalTaskForToday(taskId: string): Promise<void> {
+export async function completeGoalTaskForToday(taskId: string): Promise<boolean> {
+  const todayStr = today();
+  const existing = await db
+    .select({ id: goalTaskCompletions.id })
+    .from(goalTaskCompletions)
+    .where(
+      and(
+        eq(goalTaskCompletions.goalTaskId, taskId),
+        eq(goalTaskCompletions.completedDate, todayStr),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) return false;
+
   await db.insert(goalTaskCompletions).values({
     id: generateId(),
     goalTaskId: taskId,
-    completedDate: today(),
+    completedDate: todayStr,
     createdAt: now(),
   });
+  return true;
 }
 
 export async function uncompleteGoalTaskForToday(taskId: string): Promise<void> {
