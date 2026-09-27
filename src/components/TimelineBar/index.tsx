@@ -34,7 +34,8 @@ const GENERAL_COLOR = '#C8C8B8';
 function getThemeColor(themeId: string | undefined, themes: FocusTheme[]): string {
   if (!themeId) return GENERAL_COLOR;
   const index = themes.findIndex((t) => t.id === themeId);
-  return index >= 0 ? THEME_PALETTE[index % THEME_PALETTE.length] : GENERAL_COLOR;
+  if (index < 0) return GENERAL_COLOR;
+  return themes[index].color ?? THEME_PALETTE[index % THEME_PALETTE.length];
 }
 
 function formatHour(hour: number): string {
@@ -138,14 +139,9 @@ export function TimelineBar({ sessions, themes, selectedDate, onDateChange }: Ti
               <Text style={styles.legendText}>Geral</Text>
             </View>
           )}
-          {activeThemes.map((t, i) => (
+          {activeThemes.map((t) => (
             <View key={t.id} style={styles.legendItem}>
-              <View
-                style={[
-                  styles.legendDot,
-                  { backgroundColor: THEME_PALETTE[i % THEME_PALETTE.length] },
-                ]}
-              />
+              <View style={[styles.legendDot, { backgroundColor: getThemeColor(t.id, themes) }]} />
               <Text style={styles.legendText} numberOfLines={1} ellipsizeMode="tail">
                 {t.name}
               </Text>
