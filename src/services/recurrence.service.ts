@@ -62,7 +62,7 @@ export function filterTasksForHome(tasks: Task[]): Task[] {
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) return true;
+      if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, today);
       const todayWeekday = getTodayWeekday();
       return (
         task.recurrenceDays?.includes('daily') ||
@@ -137,7 +137,7 @@ export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[
     }
     if (task.type === 'scheduled') return task.scheduledDate === today;
     if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) return true;
+      if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, today);
       const todayWeekday = getTodayWeekday();
 
       return (

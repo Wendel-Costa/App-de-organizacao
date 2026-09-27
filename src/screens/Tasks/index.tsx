@@ -28,6 +28,8 @@ import {
   getTodayString,
   getTodayWeekday,
   applyRecurringReset,
+  isEveryXDaysTask,
+  isEveryXDaysDue,
 } from '@/services/recurrence.service';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -138,8 +140,8 @@ export function TasksScreen() {
     if (filter === 'today') {
       if (t.type === 'scheduled') return t.scheduledDate === todayStr;
       if (t.type === 'recurring') {
-        if (t.recurrenceDays?.includes('every_x_days')) {
-          return true;
+        if (isEveryXDaysTask(t)) {
+          return isEveryXDaysDue(t, todayStr);
         }
         const today = getTodayWeekday();
         return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
