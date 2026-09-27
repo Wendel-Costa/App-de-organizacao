@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   Modal,
   TouchableOpacity,
   StyleSheet,
@@ -13,13 +13,12 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
-import { colors, spacing, radius, typography } from '@/styles/theme';
+import { colors, spacing, radius, typography, shadow } from '@/styles/theme';
 import { useGoalStore } from '@/store/goalStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { GoalCard } from '@/components/GoalCard';
 import { DraggableList } from '@/components/DraggableList';
-import { EmptyState } from '@/components/EmptyState';
 import { ProgressRing } from '@/components/ProgressRing';
 import { CreateGoalScreen } from './CreateGoal';
 import { GoalDetailScreen } from './GoalDetail';
@@ -51,6 +50,8 @@ function recurrenceShortLabel(type: GoalTaskRecurrenceType, count: number): stri
       return `${count}x/mês`;
     case 'specific_days':
       return 'Dias espec.';
+    case 'every_x_days':
+      return `A cada ${count} dia(s)`;
     case 'none':
       return 'Total';
     default:
@@ -63,7 +64,6 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 
   if (task.type === 'wildcard') {
     if (task.completedCount >= task.targetCount) return false;
-
     return filter === 'free';
   }
 
@@ -71,14 +71,11 @@ function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolea
 
   switch (filter) {
     case 'all':
-      if (task.recurrenceType === 'none' && task.completedToday) {
-        return true;
-      }
       return true;
     case 'daily':
       return task.recurrenceType === 'daily' || task.recurrenceType === 'specific_days';
     case 'weekly':
-      return task.recurrenceType === 'times_per_week';
+      return task.recurrenceType === 'times_per_week' && !task.completedToday;
     case 'monthly':
       return task.recurrenceType === 'times_per_month';
     case 'free':
@@ -96,9 +93,11 @@ export function GoalsScreen() {
   const completeTask = useGoalStore((state) => state.completeTask);
   const uncompleteTask = useGoalStore((state) => state.uncompleteTask);
   const reorderGoals = useGoalStore((state) => state.reorderGoals);
+
   const notebooks = useNotebookStore((state) => state.notebooks);
   const fetchNotebooks = useNotebookStore((state) => state.fetchNotebooks);
   const toggleTopic = useNotebookStore((state) => state.toggleTopic);
+
   const [screen, setScreen] = useState<Screen>('list');
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -174,6 +173,13 @@ export function GoalsScreen() {
     isTaskVisibleForFilter(task, taskFilter),
   );
 
+  const pendingTodayTasks = todayGoalTasks.filter(({ task, isDue }) => {
+    if (!isDue) return false;
+    if (task.type === 'wildcard') return task.completedCount < task.targetCount;
+    if (task.recurrenceType === 'none') return true;
+    return !task.completedToday;
+  }).length;
+
   if (screen === 'notebooks') {
     return (
       <NotebooksScreen
@@ -212,26 +218,15 @@ export function GoalsScreen() {
 
   return (
     <View style={globalStyles.screen}>
-      <Header
-        title="Metas"
-        rightAction={{
-          icon: 'book-open-page-variant-outline',
-          onPress: () => {
-            setOpenCreateNotebookOnMount(false);
-            setScreen('notebooks');
-          },
-        }}
-      />
+      <Header title="Metas" />
 
       {loading ? (
         <View style={globalStyles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <FlatList
-          data={activeGoals}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -241,274 +236,216 @@ export function GoalsScreen() {
               tintColor={colors.primary}
             />
           }
-          ListEmptyComponent={
-            activeGoals.length === 0 && archivedGoals.length === 0 ? (
-              <EmptyState
-                icon="flag-outline"
-                title="Nenhuma meta criada"
-                description="Defina metas com hábitos e tarefas para acompanhar seu progresso"
-                actionLabel="Criar meta"
-                onAction={() => setScreen('create')}
-              />
-            ) : null
-          }
-          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-          ListHeaderComponent={
-            activeGoals.length > 0 || archivedGoals.length > 0 ? (
-              <View style={styles.sectionsContainer}>
-                <View style={styles.notebookSection}>
-                  <View style={styles.notebookToggleRow}>
-                    <TouchableOpacity
-                      style={styles.notebookToggle}
-                      onPress={() => setShowNotebooks((previous) => !previous)}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialCommunityIcons
-                        name="book-open-page-variant-outline"
-                        size={17}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.notebookEntryText}>Cadernos de estudo</Text>
-                      <MaterialCommunityIcons
-                        name={showNotebooks ? 'chevron-up' : 'chevron-down'}
-                        size={17}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.notebookAddButton}
-                      onPress={() => {
-                        setOpenCreateNotebookOnMount(true);
-                        setScreen('notebooks');
-                      }}
-                      activeOpacity={0.7}
-                      hitSlop={6}
-                    >
-                      <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.notebookAddButton}
-                      onPress={() => setShowNotebookPicker(true)}
-                      activeOpacity={0.7}
-                      hitSlop={6}
-                    >
-                      <MaterialCommunityIcons
-                        name="format-list-bulleted-square"
-                        size={16}
-                        color={colors.primary}
-                      />
-                    </TouchableOpacity>
+        >
+          {/* Ações principais: navegação, não abas */}
+          <View style={styles.navigationActions}>
+            <TouchableOpacity
+              style={styles.navigationAction}
+              onPress={() => setScreen('create')}
+              activeOpacity={0.78}
+            >
+              <View style={[styles.navigationActionIcon, styles.navigationActionIconPrimary]}>
+                <MaterialCommunityIcons name="flag-plus-outline" size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.navigationActionText}>Criar nova meta</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navigationAction, styles.navigationActionLast]}
+              onPress={() => {
+                setOpenCreateNotebookOnMount(false);
+                setScreen('notebooks');
+              }}
+              activeOpacity={0.78}
+            >
+              <View style={[styles.navigationActionIcon, styles.navigationActionIconNotebook]}>
+                <MaterialCommunityIcons
+                  name="book-open-page-variant-outline"
+                  size={20}
+                  color={colors.info}
+                />
+              </View>
+              <Text style={styles.navigationActionText}>Abrir cadernos</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {activeGoals.length > 0 && (
+            <View style={styles.sectionBlock}>
+              <TouchableOpacity
+                style={styles.minimalToggle}
+                onPress={() => setShowTodayTasks((value) => !value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.minimalToggleText}>Hábitos e tarefas de hoje</Text>
+                <View style={styles.minimalToggleRight}>
+                  <MaterialCommunityIcons
+                    name={showTodayTasks ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {showTodayTasks && (
+                <View style={styles.todaySectionContent}>
+                  <View style={styles.filterRowMinimal}>
+                    {TASK_FILTERS.map((filter) => (
+                      <TouchableOpacity
+                        key={filter.key}
+                        style={[
+                          styles.filterChipMinimal,
+                          taskFilter === filter.key && styles.filterChipMinimalActive,
+                        ]}
+                        onPress={() => setTaskFilter(filter.key)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipTextMinimal,
+                            taskFilter === filter.key && styles.filterChipTextMinimalActive,
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
 
-                  {showNotebooks &&
-                    (notebooks.length === 0 ? (
-                      <Text style={styles.filterEmptyText}>Nenhum caderno</Text>
-                    ) : (
-                      <View style={styles.notebookTopicsList}>
-                        {selectedNotebookIds
-                          .map((id) => notebooks.find((notebook) => notebook.id === id))
-                          .filter((notebook): notebook is (typeof notebooks)[number] =>
-                            Boolean(notebook),
-                          )
-                          .map((notebook) => {
-                            const nextTopic = notebook.topics.find((topic) => !topic.completed);
-                            if (!nextTopic) return null;
-
-                            return (
-                              <Card key={notebook.id} style={styles.notebookTopicCard}>
-                                <TouchableOpacity
-                                  style={styles.notebookTopicRow}
-                                  onPress={async () => {
-                                    await toggleTopic(nextTopic.id, true);
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <MaterialCommunityIcons
-                                    name="checkbox-blank-circle-outline"
-                                    size={21}
-                                    color={colors.textDisabled}
-                                  />
-                                  <View style={styles.notebookTopicText}>
-                                    <Text style={styles.notebookTopicTitle} numberOfLines={2}>
-                                      {nextTopic.title}
-                                    </Text>
-                                    <Text style={styles.notebookTopicNotebook}>
-                                      {notebook.title}
-                                    </Text>
-                                  </View>
-                                </TouchableOpacity>
-                              </Card>
-                            );
-                          })}
-                        {selectedNotebookIds.every((id) => {
-                          const notebook = notebooks.find((item) => item.id === id);
-                          return !notebook || !notebook.topics.some((topic) => !topic.completed);
-                        }) && <Text style={styles.filterEmptyText}>Nenhum tópico pendente</Text>}
-                      </View>
-                    ))}
-                </View>
-                {activeGoals.length > 0 && (
-                  <View style={styles.todaySection}>
-                    <TouchableOpacity
-                      style={styles.sectionToggle}
-                      onPress={() => setShowTodayTasks((p) => !p)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.sectionToggleText}>Hábitos e tarefas de hoje</Text>
-                      <MaterialCommunityIcons
-                        name={showTodayTasks ? 'chevron-up' : 'chevron-down'}
-                        size={18}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-
-                    {showTodayTasks && (
-                      <View style={styles.filterRow}>
-                        {TASK_FILTERS.map((f) => (
-                          <TouchableOpacity
-                            key={f.key}
-                            style={[
-                              styles.filterChip,
-                              taskFilter === f.key && styles.filterChipActive,
-                            ]}
-                            onPress={() => setTaskFilter(f.key)}
-                            activeOpacity={0.7}
-                          >
-                            <Text
-                              style={[
-                                styles.filterChipText,
-                                taskFilter === f.key && styles.filterChipTextActive,
-                              ]}
-                            >
-                              {f.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-
-                    {showTodayTasks &&
-                      (visibleTodayTasks.length === 0 ? (
-                        <Text style={styles.filterEmptyText}>Nenhuma tarefa no momento</Text>
-                      ) : (
-                        visibleTodayTasks.map(({ task, goalTitle, goalColor }) => {
-                          const accent = goalColor ?? colors.primary;
-                          const canComplete =
-                            task.type === 'wildcard'
+                  {visibleTodayTasks.length === 0 ? (
+                    <Text style={styles.minimalEmptyText}>Nenhuma tarefa no momento</Text>
+                  ) : (
+                    <View style={styles.todayTaskList}>
+                      {visibleTodayTasks.map(({ task, goalTitle, goalColor }) => {
+                        const accent = goalColor ?? colors.primary;
+                        const canComplete =
+                          task.type === 'wildcard'
+                            ? !task.completedToday
+                            : task.recurrenceType === 'daily' ||
+                                task.recurrenceType === 'specific_days'
                               ? !task.completedToday
-                              : task.recurrenceType === 'daily' ||
-                                  task.recurrenceType === 'specific_days'
-                                ? !task.completedToday
-                                : true;
+                              : true;
 
-                          return (
-                            <Card
-                              key={task.id}
-                              style={[styles.todayTask, { borderLeftColor: accent }]}
-                            >
-                              <View style={globalStyles.rowBetween}>
-                                <View style={styles.todayTaskLeft}>
+                        return (
+                          <Card
+                            key={task.id}
+                            style={[styles.todayTask, { borderLeftColor: accent }]}
+                          >
+                            <View style={globalStyles.rowBetween}>
+                              <View style={styles.todayTaskLeft}>
+                                <View style={styles.goalBadge}>
+                                  <View
+                                    style={[styles.goalBadgeDot, { backgroundColor: accent }]}
+                                  />
                                   <Text style={styles.todayTaskGoal}>{goalTitle}</Text>
-                                  <View style={styles.todayTaskTitleRow}>
-                                    {task.type === 'wildcard' && (
-                                      <MaterialCommunityIcons
-                                        name="lightning-bolt"
-                                        size={14}
-                                        color="#FFD700"
-                                      />
-                                    )}
-                                    <Text style={styles.todayTaskTitle}>{task.title}</Text>
-                                  </View>
-                                  {task.type !== 'wildcard' && (
-                                    <Text style={styles.todayTaskRec}>
-                                      {recurrenceShortLabel(
-                                        task.recurrenceType,
-                                        task.recurrenceCount,
-                                      )}
-                                      {' · '}
-                                      {task.completedCount}/{task.targetCount} total
-                                    </Text>
-                                  )}
                                 </View>
-
-                                <View style={styles.todayTaskActions}>
-                                  {(task.completedToday ||
-                                    task.completionsThisWeek > 0 ||
-                                    task.completionsThisMonth > 0) && (
-                                    <TouchableOpacity
-                                      style={styles.undoBtn}
-                                      onPress={() => handleUncompleteTask(task.goalId, task.id)}
-                                      activeOpacity={0.7}
-                                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    >
-                                      <MaterialCommunityIcons
-                                        name="undo"
-                                        size={16}
-                                        color={colors.textDisabled}
-                                      />
-                                    </TouchableOpacity>
-                                  )}
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.doneBtn,
-                                      { backgroundColor: accent },
-                                      !canComplete && styles.doneBtnDisabled,
-                                    ]}
-                                    onPress={() => handleCompleteTask(task.goalId, task.id)}
-                                    disabled={!canComplete}
-                                    activeOpacity={0.8}
-                                  >
+                                <View style={styles.todayTaskTitleRow}>
+                                  {task.type === 'wildcard' && (
                                     <MaterialCommunityIcons
-                                      name={
-                                        task.completedToday
-                                          ? 'plus'
-                                          : task.type === 'wildcard'
-                                            ? 'lightning-bolt'
-                                            : 'plus'
-                                      }
-                                      size={18}
-                                      color={colors.textOnPrimary}
+                                      name="lightning-bolt"
+                                      size={14}
+                                      color="#FFD700"
                                     />
-                                  </TouchableOpacity>
+                                  )}
+                                  <Text style={styles.todayTaskTitle}>{task.title}</Text>
                                 </View>
+                                {task.type !== 'wildcard' && (
+                                  <Text style={styles.todayTaskRec}>
+                                    {recurrenceShortLabel(
+                                      task.recurrenceType,
+                                      task.recurrenceCount,
+                                    )}
+                                    {' · '}
+                                    {task.completedCount}/{task.targetCount} total
+                                  </Text>
+                                )}
                               </View>
 
-                              {task.type !== 'wildcard' && (
-                                <View style={styles.miniProgress}>
-                                  <View
-                                    style={[
-                                      styles.miniProgressFill,
-                                      {
-                                        width: `${Math.min(task.completedCount / task.targetCount, 1) * 100}%`,
-                                        backgroundColor: accent,
-                                      },
-                                    ]}
+                              <View style={styles.todayTaskActions}>
+                                {(task.completedToday ||
+                                  task.completionsThisWeek > 0 ||
+                                  task.completionsThisMonth > 0) && (
+                                  <TouchableOpacity
+                                    style={styles.undoBtn}
+                                    onPress={() => handleUncompleteTask(task.goalId, task.id)}
+                                    activeOpacity={0.7}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <MaterialCommunityIcons
+                                      name="undo"
+                                      size={16}
+                                      color={colors.textDisabled}
+                                    />
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                  style={[
+                                    styles.doneBtn,
+                                    { backgroundColor: accent },
+                                    !canComplete && styles.doneBtnDisabled,
+                                  ]}
+                                  onPress={() => handleCompleteTask(task.goalId, task.id)}
+                                  disabled={!canComplete}
+                                  activeOpacity={0.8}
+                                >
+                                  <MaterialCommunityIcons
+                                    name={
+                                      task.completedToday
+                                        ? 'plus'
+                                        : task.type === 'wildcard'
+                                          ? 'lightning-bolt'
+                                          : 'plus'
+                                    }
+                                    size={18}
+                                    color={colors.textOnPrimary}
                                   />
-                                </View>
-                              )}
-                            </Card>
-                          );
-                        })
-                      ))}
-                  </View>
-                )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
 
-                {activeGoals.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.sectionToggle}
-                    onPress={() => setShowAllGoals((p) => !p)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.sectionToggleText}>Todas as metas</Text>
-                    <MaterialCommunityIcons
-                      name={showAllGoals ? 'chevron-up' : 'chevron-down'}
-                      size={18}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                )}
+                            {task.type !== 'wildcard' && (
+                              <View style={styles.miniProgress}>
+                                <View
+                                  style={[
+                                    styles.miniProgressFill,
+                                    {
+                                      width: `${Math.min(task.completedCount / task.targetCount, 1) * 100}%`,
+                                      backgroundColor: accent,
+                                    },
+                                  ]}
+                                />
+                              </View>
+                            )}
+                          </Card>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
 
-                {showAllGoals && (
+          <View style={styles.sectionBlock}>
+            <TouchableOpacity
+              style={styles.minimalToggle}
+              onPress={() => setShowAllGoals((value) => !value)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.minimalToggleText}>Todas as metas</Text>
+              <View style={styles.minimalToggleRight}>
+                <MaterialCommunityIcons
+                  name={showAllGoals ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {showAllGoals &&
+              (activeGoals.length > 0 ? (
+                <View style={styles.goalsListWrap}>
                   <DraggableList
                     data={activeGoals}
                     keyExtractor={(item) => item.id}
@@ -524,61 +461,222 @@ export function GoalsScreen() {
                       />
                     )}
                   />
-                )}
+                </View>
+              ) : (
+                <View style={styles.compactEmptyRow}>
+                  <MaterialCommunityIcons
+                    name="flag-outline"
+                    size={20}
+                    color={colors.textDisabled}
+                  />
+                  <Text style={styles.compactEmptyText}>Nenhuma meta criada</Text>
+                  <TouchableOpacity onPress={() => setScreen('create')} activeOpacity={0.7}>
+                    <Text style={styles.compactEmptyAction}>Criar</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+          </View>
 
-                {archivedGoals.length > 0 && (
-                  <View style={styles.archivedSection}>
-                    <TouchableOpacity
-                      style={styles.sectionToggle}
-                      onPress={() => setShowArchived((p) => !p)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.sectionToggleText}>Metas concluídas</Text>
-                      <MaterialCommunityIcons
-                        name={showArchived ? 'chevron-up' : 'chevron-down'}
-                        size={18}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
+          <View style={[styles.sectionBlock, styles.notebookBlock]}>
+            <View style={styles.notebookSectionHeader}>
+              <TouchableOpacity
+                style={styles.minimalToggleNotebook}
+                onPress={() => setShowNotebooks((value) => !value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.minimalToggleText}>Cadernos de estudo</Text>
+                <View style={styles.minimalToggleRight}>
+                  <MaterialCommunityIcons
+                    name={showNotebooks ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
 
-                    {showArchived &&
-                      archivedGoals.map((goal) => {
-                        const progress = calcGoalProgress(goal);
-                        const accent = goal.color ?? colors.primary;
-                        return (
-                          <TouchableOpacity
-                            key={goal.id}
-                            style={styles.archivedCard}
-                            onPress={() => {
-                              setSelectedGoal(goal);
-                              setScreen('detail');
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <View style={[styles.archivedDot, { backgroundColor: accent }]} />
-                            <View style={styles.archivedInfo}>
-                              <Text style={styles.archivedTitle} numberOfLines={1}>
-                                {goal.title}
+              {notebooks.length > 0 && (
+                <TouchableOpacity
+                  style={styles.notebookSelectAction}
+                  onPress={() => setShowNotebookPicker(true)}
+                  activeOpacity={0.7}
+                  hitSlop={6}
+                >
+                  <MaterialCommunityIcons
+                    name="tune-variant"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {showNotebooks &&
+              (notebooks.length === 0 ? (
+                <View style={styles.compactEmptyRow}>
+                  <MaterialCommunityIcons
+                    name="book-open-outline"
+                    size={20}
+                    color={colors.textDisabled}
+                  />
+                  <Text style={styles.compactEmptyText}>Nenhum caderno criado</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setOpenCreateNotebookOnMount(true);
+                      setScreen('notebooks');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.compactEmptyAction, { color: colors.info }]}>Criar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.notebookTopicsList}>
+                  {selectedNotebookIds
+                    .map((id) => notebooks.find((notebook) => notebook.id === id))
+                    .filter((notebook): notebook is (typeof notebooks)[number] => Boolean(notebook))
+                    .map((notebook) => {
+                      const nextTopic = notebook.topics.find((topic) => !topic.completed);
+                      const hasTopics = notebook.totalTopics > 0;
+                      const percentage = Math.round(notebook.progress * 100);
+
+                      return (
+                        <View key={notebook.id} style={styles.notebookItem}>
+                          <View style={styles.notebookItemTop}>
+                            <View style={styles.notebookItemIcon}>
+                              <MaterialCommunityIcons
+                                name="book-open-outline"
+                                size={18}
+                                color={colors.info}
+                              />
+                            </View>
+                            <View style={styles.notebookItemMain}>
+                              <Text style={styles.notebookItemTitle} numberOfLines={1}>
+                                {notebook.title}
                               </Text>
-                              <Text style={styles.archivedDates}>
-                                {new Date(goal.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })}
+                              <Text style={styles.notebookItemMeta}>
+                                {notebook.completedTopics}/{notebook.totalTopics} tópicos
                               </Text>
                             </View>
-                            <ProgressRing progress={progress} size={40} color={accent} />
-                          </TouchableOpacity>
-                        );
-                      })}
-                  </View>
-                )}
-              </View>
-            ) : null
-          }
-          renderItem={() => null}
-        />
+                            {nextTopic ? (
+                              <TouchableOpacity
+                                style={styles.notebookTopicCheck}
+                                onPress={async () => {
+                                  Haptics.selectionAsync().catch(() => {});
+                                  await toggleTopic(nextTopic.id, true);
+                                }}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 7, bottom: 7, left: 7, right: 7 }}
+                              >
+                                <MaterialCommunityIcons
+                                  name="checkbox-blank-circle-outline"
+                                  size={22}
+                                  color={colors.info}
+                                />
+                              </TouchableOpacity>
+                            ) : (
+                              <MaterialCommunityIcons
+                                name="check-circle"
+                                size={22}
+                                color={colors.success}
+                              />
+                            )}
+                          </View>
+
+                          {nextTopic ? (
+                            <View style={styles.notebookNextTopic}>
+                              <Text style={styles.notebookNextTitle} numberOfLines={2}>
+                                {nextTopic.title}
+                              </Text>
+                            </View>
+                          ) : hasTopics ? (
+                            <View style={styles.notebookCompleteState}>
+                              <Text style={styles.notebookCompleteText}>Caderno concluído</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.notebookCompleteState}>
+                              <Text style={styles.notebookEmptyTopicText}>
+                                Nenhum tópico adicionado
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                  {selectedNotebookIds.length === 0 && (
+                    <View style={styles.notebookEmptySelection}>
+                      <Text style={styles.notebookEmptySelectionText}>
+                        Nenhum caderno selecionado.
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowNotebookPicker(true)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.notebookEmptySelectionAction}>Selecionar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+          </View>
+
+          {archivedGoals.length > 0 && (
+            <View style={styles.sectionBlock}>
+              <TouchableOpacity
+                style={styles.minimalToggle}
+                onPress={() => setShowArchived((value) => !value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.minimalToggleText}>Metas concluídas</Text>
+                <View style={styles.minimalToggleRight}>
+                  <Text style={styles.minimalToggleCount}>{archivedGoals.length}</Text>
+                  <MaterialCommunityIcons
+                    name={showArchived ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {showArchived && (
+                <View style={styles.archivedList}>
+                  {archivedGoals.map((goal) => {
+                    const progress = calcGoalProgress(goal);
+                    const accent = goal.color ?? colors.primary;
+
+                    return (
+                      <TouchableOpacity
+                        key={goal.id}
+                        style={styles.archivedCard}
+                        onPress={() => {
+                          setSelectedGoal(goal);
+                          setScreen('detail');
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.archivedDot, { backgroundColor: accent }]} />
+                        <View style={styles.archivedInfo}>
+                          <Text style={styles.archivedTitle} numberOfLines={1}>
+                            {goal.title}
+                          </Text>
+                          <Text style={styles.archivedDates}>
+                            Encerrada em{' '}
+                            {new Date(goal.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </Text>
+                        </View>
+                        <ProgressRing progress={progress} size={40} color={accent} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+        </ScrollView>
       )}
 
       <Modal
@@ -590,38 +688,66 @@ export function GoalsScreen() {
         <View style={styles.notebookModalOverlay}>
           <View style={styles.notebookModalCard}>
             <View style={styles.notebookModalHeader}>
-              <Text style={styles.notebookModalTitle}>Adicionar caderno</Text>
+              <View>
+                <Text style={styles.notebookModalTitle}>Cadernos exibidos</Text>
+                <Text style={styles.notebookModalSubtitle}>
+                  Escolha quais aparecem na aba Metas.
+                </Text>
+              </View>
               <TouchableOpacity onPress={() => setShowNotebookPicker(false)} hitSlop={8}>
                 <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {notebooks.filter((notebook) => !selectedNotebookIds.includes(notebook.id)).length ===
-            0 ? (
-              <Text style={styles.filterEmptyText}>Nenhum caderno</Text>
-            ) : (
-              notebooks
-                .filter((notebook) => !selectedNotebookIds.includes(notebook.id))
-                .map((notebook) => (
-                  <TouchableOpacity
-                    key={notebook.id}
-                    style={styles.notebookPickerItem}
-                    onPress={() => {
-                      setSelectedNotebookIds((current) => [...current, notebook.id]);
-                      setShowNotebookPicker(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
+            {notebooks.map((notebook) => {
+              const selected = selectedNotebookIds.includes(notebook.id);
+
+              return (
+                <TouchableOpacity
+                  key={notebook.id}
+                  style={[styles.notebookPickerItem, selected && styles.notebookPickerItemSelected]}
+                  onPress={() => {
+                    setSelectedNotebookIds((current) =>
+                      selected
+                        ? current.filter((id) => id !== notebook.id)
+                        : [...current, notebook.id],
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.notebookPickerIcon}>
                     <MaterialCommunityIcons
                       name="book-open-outline"
-                      size={19}
-                      color={colors.primary}
+                      size={18}
+                      color={selected ? colors.info : colors.textSecondary}
                     />
+                  </View>
+                  <View style={styles.notebookPickerCopy}>
                     <Text style={styles.notebookPickerText}>{notebook.title}</Text>
-                    <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
-                  </TouchableOpacity>
-                ))
+                    <Text style={styles.notebookPickerMeta}>
+                      {notebook.completedTopics}/{notebook.totalTopics} tópicos
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name={selected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                    size={21}
+                    color={selected ? colors.info : colors.textDisabled}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+
+            {notebooks.length === 0 && (
+              <Text style={styles.filterEmptyText}>Nenhum caderno criado.</Text>
             )}
+
+            <TouchableOpacity
+              style={styles.notebookPickerDone}
+              onPress={() => setShowNotebookPicker(false)}
+              activeOpacity={0.78}
+            >
+              <Text style={styles.notebookPickerDoneText}>Concluir</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -630,24 +756,252 @@ export function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: spacing.md, paddingBottom: spacing.xxl },
-
-  notebookSection: { gap: spacing.xs },
-  notebookToggleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  notebookToggle: {
+  navigationActions: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  navigationAction: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  navigationActionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navigationActionIconPrimary: {
+    backgroundColor: colors.primaryLight,
+  },
+  navigationActionIconNotebook: {
+    backgroundColor: '#EAF5FC',
+  },
+  navigationActionText: {
+    ...typography.label,
+    color: colors.textPrimary,
     flex: 1,
+  },
+  navigationActionLast: {
+    borderBottomWidth: 0,
+  },
+  minimalToggle: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  minimalToggleNotebook: {
+    flex: 1,
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  minimalToggleText: {
+    ...typography.label,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  minimalToggleRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
   },
-  notebookEntryText: { ...typography.label, color: colors.textPrimary, flex: 1 },
-  notebookAddButton: {
-    width: 28,
-    height: 28,
+  minimalToggleCount: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontWeight: '700',
+  },
+  todaySectionContent: {
+    gap: spacing.sm,
+  },
+  filterRowMinimal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  filterChipMinimal: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+  },
+  filterChipMinimalActive: {
+    backgroundColor: colors.primaryLight,
+  },
+  filterChipTextMinimal: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  filterChipTextMinimalActive: {
+    color: colors.primaryDark,
+  },
+  minimalEmptyText: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    paddingVertical: spacing.xs,
+  },
+  goalsListWrap: {
+    gap: spacing.sm,
+  },
+  reorderHintCompact: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    paddingHorizontal: 2,
+  },
+  compactEmptyRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+  },
+  compactEmptyText: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  compactEmptyAction: {
+    ...typography.xs,
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+  notebookSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notebookSelectAction: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+
+  introCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  introCopy: { flex: 1, gap: 4 },
+  introTitle: { ...typography.h3, color: colors.textPrimary },
+  introSubtitle: { ...typography.sm, color: colors.textSecondary },
+  introIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+  },
+  actionButtonPrimary: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    ...shadow.sm,
+  },
+  actionButtonSecondary: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+  },
+  actionButtonText: {
+    ...typography.label,
+    color: colors.textPrimary,
+  },
+  actionButtonTextPrimary: {
+    color: colors.textOnPrimary,
+  },
+
+  sectionBlock: {
+    gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 46,
+  },
+  sectionHeaderMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  sectionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionIconMuted: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+  },
+  sectionTitleWrap: { flex: 1, gap: 1 },
+  sectionTitle: { ...typography.h3, color: colors.textPrimary },
+  sectionSubtitle: { ...typography.xs, color: colors.textSecondary },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  textAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: spacing.xs,
+  },
+  textActionLabel: {
+    ...typography.xs,
+    fontWeight: '700',
+    color: colors.primaryDark,
+  },
+  iconAction: {
+    width: 30,
+    height: 30,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -655,58 +1009,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  notebookTopicsList: { gap: spacing.xs },
-  notebookTopicCard: { padding: spacing.sm },
-  notebookTopicRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  notebookTopicText: { flex: 1, gap: 2 },
-  notebookTopicTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  notebookTopicNotebook: { ...typography.xs, color: colors.textSecondary },
-  notebookModalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  notebookModalCard: {
+  sectionCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadow.sm,
   },
-  notebookModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  notebookModalTitle: { ...typography.h3, color: colors.textPrimary },
-  notebookPickerItem: {
+
+  inlineEmpty: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  inlineEmptyCopy: { flex: 1, gap: 2 },
+  inlineEmptyTitle: { ...typography.label, color: colors.textPrimary },
+  inlineEmptyText: { ...typography.xs, color: colors.textSecondary, lineHeight: 17 },
+  inlineEmptyAction: {
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+  inlineEmptyActionText: {
+    ...typography.xs,
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+
+  reorderHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  reorderHintText: { ...typography.xs, color: colors.textDisabled },
+
+  filterHeader: {
+    gap: spacing.xs,
+    paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  notebookPickerText: { flex: 1, ...typography.body, color: colors.textPrimary },
-  sectionsContainer: { gap: spacing.md },
-
-  todaySection: { gap: spacing.sm },
-
-  sectionToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  sectionToggleText: {
-    ...typography.label,
+  filterHeaderLabel: {
+    ...typography.xs,
     color: colors.textSecondary,
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -732,25 +1090,55 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: colors.textOnPrimary,
   },
-  filterEmptyText: {
-    ...typography.xs,
-    color: colors.textDisabled,
-    textAlign: 'center',
+
+  taskEmpty: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  taskEmptyTitle: { ...typography.label, color: colors.textPrimary },
+  taskEmptyText: { ...typography.xs, color: colors.textSecondary, textAlign: 'center' },
+  todayTaskList: { gap: spacing.sm },
+  todayTask: {
+    borderLeftWidth: 4,
+    gap: spacing.sm,
     paddingVertical: spacing.sm,
   },
-
-  todayTask: { borderLeftWidth: 4, gap: spacing.sm, paddingVertical: spacing.sm },
-  todayTaskLeft: { flex: 1, gap: 2 },
-  todayTaskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  todayTaskLeft: { flex: 1, gap: 3, paddingRight: spacing.sm },
+  goalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  goalBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.full,
+  },
   todayTaskGoal: {
     ...typography.xs,
     color: colors.textDisabled,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  todayTaskTitle: { ...typography.body, color: colors.textPrimary, fontWeight: '600', flex: 1 },
+  todayTaskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  todayTaskTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    flex: 1,
+  },
   todayTaskRec: { ...typography.xs, color: colors.textSecondary },
-  todayTaskActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  todayTaskActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   undoBtn: {
     width: 30,
     height: 30,
@@ -768,7 +1156,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  doneBtnDisabled: { opacity: 0.4 },
+  doneBtnDisabled: { opacity: 0.42 },
   miniProgress: {
     height: 3,
     backgroundColor: colors.border,
@@ -777,14 +1165,132 @@ const styles = StyleSheet.create({
   },
   miniProgressFill: { height: '100%', borderRadius: radius.full },
 
-  dragHint: {
+  notebookBlock: {
+    marginTop: spacing.xs,
+  },
+  notebookSectionCard: {
+    backgroundColor: '#F5FAFF',
+    borderWidth: 1,
+    borderColor: '#DCECF8',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  notebookToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DCECF8',
+  },
+  notebookToolbarTitle: { ...typography.label, color: colors.textPrimary },
+  notebookToolbarSubtitle: { ...typography.xs, color: colors.textSecondary, marginTop: 2 },
+  notebookAddLabelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: '#CFE3F1',
+  },
+  notebookAddLabelText: { ...typography.xs, fontWeight: '700', color: colors.info },
+  notebookTopicsList: { gap: spacing.sm, paddingTop: spacing.sm },
+  notebookItem: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    gap: 5,
+  },
+  notebookItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notebookItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF5FC',
+  },
+  notebookItemMain: { flex: 1, gap: 1 },
+  notebookItemTitle: { ...typography.label, color: colors.textPrimary },
+  notebookItemMeta: { ...typography.xs, color: colors.textSecondary },
+  notebookTopicCheck: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0F8FD',
+  },
+  notebookNextTopic: {
+    paddingLeft: 40,
+    paddingRight: spacing.sm,
+  },
+  notebookNextLabel: {
     ...typography.xs,
     color: colors.textDisabled,
-    fontStyle: 'italic',
-    marginTop: -spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
   },
+  notebookNextTitle: {
+    ...typography.sm,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  notebookCompleteState: {
+    paddingLeft: 40,
+  },
+  notebookCompleteText: { ...typography.xs, color: colors.success, fontWeight: '600' },
+  notebookEmptyTopicText: { ...typography.xs, color: colors.textSecondary, fontWeight: '600' },
+  notebookEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notebookEmptyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF5FC',
+  },
+  notebookEmptySelection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  notebookEmptySelectionText: { ...typography.xs, color: colors.textSecondary, flex: 1 },
+  notebookEmptySelectionAction: { ...typography.xs, fontWeight: '700', color: colors.info },
 
-  archivedSection: { gap: spacing.sm },
+  archivedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+  },
+  archivedToggleMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  archivedToggleTitle: { ...typography.label, color: colors.textPrimary },
+  archivedToggleSubtitle: { ...typography.xs, color: colors.textSecondary, marginTop: 1 },
+  archivedList: { gap: spacing.sm, paddingTop: spacing.sm },
   archivedCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -799,4 +1305,64 @@ const styles = StyleSheet.create({
   archivedInfo: { flex: 1, gap: 2 },
   archivedTitle: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
   archivedDates: { ...typography.xs, color: colors.textDisabled },
+
+  notebookModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  notebookModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    gap: spacing.xs,
+    maxHeight: '80%',
+    ...shadow.md,
+  },
+  notebookModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  notebookModalTitle: { ...typography.h3, color: colors.textPrimary },
+  notebookModalSubtitle: { ...typography.xs, color: colors.textSecondary, marginTop: 2 },
+  notebookPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.md,
+  },
+  notebookPickerItemSelected: {
+    backgroundColor: '#F0F8FD',
+  },
+  notebookPickerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notebookPickerCopy: { flex: 1, gap: 1 },
+  notebookPickerText: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  notebookPickerMeta: { ...typography.xs, color: colors.textSecondary },
+  notebookPickerDone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.info,
+  },
+  notebookPickerDoneText: { ...typography.label, color: colors.surface },
+  filterEmptyText: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
 });

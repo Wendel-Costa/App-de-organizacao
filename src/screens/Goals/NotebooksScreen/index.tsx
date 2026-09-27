@@ -48,6 +48,16 @@ export function NotebooksScreen({
   const [topicInput, setTopicInput] = useState('');
   const [topicNotebookId, setTopicNotebookId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [collapsedNotebooks, setCollapsedNotebooks] = useState<Set<string>>(new Set());
+
+  function toggleNotebook(notebookId: string) {
+    setCollapsedNotebooks((current) => {
+      const next = new Set(current);
+      if (next.has(notebookId)) next.delete(notebookId);
+      else next.add(notebookId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (openCreateOnMount) {
@@ -122,71 +132,92 @@ export function NotebooksScreen({
           </View>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${percentage}%` }]} />
-        </View>
+        <TouchableOpacity
+          style={styles.sectionToggle}
+          onPress={() => toggleNotebook(item.id)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sectionToggleText}>Tópicos ({item.totalTopics})</Text>
+          <MaterialCommunityIcons
+            name={collapsedNotebooks.has(item.id) ? 'chevron-down' : 'chevron-up'}
+            size={18}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
 
-        <View style={styles.topics}>
-          {item.topics.map((topic) => (
-            <View key={topic.id} style={styles.topicRow}>
-              <TouchableOpacity
-                style={styles.topicCheck}
-                onPress={async () => {
-                  Haptics.selectionAsync().catch(() => {});
-                  await toggleTopic(topic.id, !topic.completed);
-                }}
-                hitSlop={8}
-              >
-                <MaterialCommunityIcons
-                  name={topic.completed ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                  size={22}
-                  color={topic.completed ? colors.primary : colors.textDisabled}
-                />
-              </TouchableOpacity>
-              <Text style={[styles.topicTitle, topic.completed && styles.topicCompleted]}>
-                {topic.title}
-              </Text>
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.prompt?.(
-                    'Editar tópico',
-                    undefined,
-                    (value) => value?.trim() && editTopic(topic.id, value),
-                    'plain-text',
-                    topic.title,
-                  )
-                }
-                hitSlop={7}
-              >
-                <MaterialCommunityIcons
-                  name="pencil-outline"
-                  size={17}
-                  color={colors.textDisabled}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert('Excluir tópico?', 'Essa ação é permanente.', [
-                    { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Excluir', style: 'destructive', onPress: () => removeTopic(topic.id) },
-                  ])
-                }
-                hitSlop={7}
-              >
-                <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
-              </TouchableOpacity>
+        {!collapsedNotebooks.has(item.id) && (
+          <>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${percentage}%` }]} />
             </View>
-          ))}
-        </View>
 
-        <Button
-          label="Adicionar tópicos"
-          variant="secondary"
-          onPress={() => {
-            setTopicNotebookId(item.id);
-            setTopicInput('');
-          }}
-        />
+            <View style={styles.topics}>
+              {item.topics.map((topic) => (
+                <View key={topic.id} style={styles.topicRow}>
+                  <TouchableOpacity
+                    style={styles.topicCheck}
+                    onPress={async () => {
+                      Haptics.selectionAsync().catch(() => {});
+                      await toggleTopic(topic.id, !topic.completed);
+                    }}
+                    hitSlop={8}
+                  >
+                    <MaterialCommunityIcons
+                      name={topic.completed ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={22}
+                      color={topic.completed ? colors.primary : colors.textDisabled}
+                    />
+                  </TouchableOpacity>
+                  <Text style={[styles.topicTitle, topic.completed && styles.topicCompleted]}>
+                    {topic.title}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.prompt?.(
+                        'Editar tópico',
+                        undefined,
+                        (value) => value?.trim() && editTopic(topic.id, value),
+                        'plain-text',
+                        topic.title,
+                      )
+                    }
+                    hitSlop={7}
+                  >
+                    <MaterialCommunityIcons
+                      name="pencil-outline"
+                      size={17}
+                      color={colors.textDisabled}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert('Excluir tópico?', 'Essa ação é permanente.', [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Excluir',
+                          style: 'destructive',
+                          onPress: () => removeTopic(topic.id),
+                        },
+                      ])
+                    }
+                    hitSlop={7}
+                  >
+                    <MaterialCommunityIcons name="close" size={18} color={colors.textDisabled} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            <Button
+              label="Adicionar tópicos"
+              variant="secondary"
+              onPress={() => {
+                setTopicNotebookId(item.id);
+                setTopicInput('');
+              }}
+            />
+          </>
+        )}
       </Card>
     );
   }
@@ -354,10 +385,21 @@ const styles = StyleSheet.create({
   list: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
   notebookCard: { gap: spacing.sm },
   headerRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  titleWrap: { flex: 1, gap: 2 },
+  titleWrap: { flex: 1, gap: 2, minWidth: 0 },
   title: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
   progressText: { ...typography.xs, color: colors.textSecondary },
   actions: { flexDirection: 'row', gap: spacing.md, paddingTop: 2 },
+  sectionToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  sectionToggleText: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
   progressTrack: {
     height: 5,
     borderRadius: radius.full,

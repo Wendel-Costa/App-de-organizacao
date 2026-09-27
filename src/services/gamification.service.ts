@@ -481,3 +481,116 @@ export async function grantUniqueAchievement(
     action === 'notebook_completion' ? finalPoints : finalPoints,
   );
 }
+
+export async function awardGoalTaskCompletion(
+  taskId: string,
+  completionId: string,
+  points: number,
+  goalId: string,
+): Promise<PointEvent | null> {
+  return awardProductiveAction('goal_task_completion', completionId, points, {
+    metadata: {
+      goalId,
+      taskId,
+      completionId,
+    },
+  });
+}
+
+export async function reverseGoalTaskCompletion(
+  taskId: string,
+  completionId: string,
+): Promise<PointEvent | null> {
+  const events = await db
+    .select()
+    .from(pointEvents)
+    .where(eq(pointEvents.action, 'goal_task_completion'))
+    .orderBy(desc(pointEvents.occurredAt));
+
+  const reversedIds = new Set(
+    events.map((event) => event.reversalOf).filter((id): id is string => Boolean(id)),
+  );
+
+  let original = events.find(
+    (event) => !event.reversalOf && !reversedIds.has(event.id) && event.entityId === completionId,
+  );
+
+  if (!original) {
+    original = events.find((event) => {
+      if (event.reversalOf || reversedIds.has(event.id) || event.entityId !== taskId) {
+        return false;
+      }
+
+      if (!event.metadata) {
+        return true;
+      }
+
+      try {
+        const metadata = JSON.parse(event.metadata);
+        return metadata.taskId === undefined;
+      } catch {
+        return true;
+      }
+    });
+  }
+
+  if (!original) {
+    return null;
+  }
+
+  const occurredAt = now();
+  const reversalId = generateId();
+
+  const [reversal] = await db
+    .insert(pointEvents)
+    .values({
+      id: reversalId,
+      action: 'goal_task_completion',
+      entityId: original.entityId,
+      points: -original.points,
+      coins: -original.coins,
+      occurredAt,
+      reversalOf: original.id,
+      metadata: JSON.stringify({
+        reversedAt: occurredAt,
+        taskId,
+        completionId,
+      }),
+    })
+    .returning();
+
+  const [coinRow] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${coinTransactions.amount}), 0)`,
+    })
+    .from(coinTransactions);
+
+  const availableCoins = Math.max(0, Number(coinRow?.total ?? 0));
+
+  const coinReversal = -Math.min(Math.max(0, original.coins), availableCoins);
+
+  if (coinReversal !== 0) {
+    await db.insert(coinTransactions).values({
+      id: generateId(),
+      type: 'reversal',
+      amount: coinReversal,
+      occurredAt,
+      entityType: 'goal_task_completion',
+      entityId: original.entityId,
+      reversalOf: original.id,
+      description: `Reversão de ${actionLabel('goal_task_completion')}`,
+    });
+  }
+
+  return reversal
+    ? {
+        id: reversal.id,
+        action: 'goal_task_completion',
+        entityId: original.entityId,
+        points: reversal.points,
+        coins: reversal.coins,
+        occurredAt: reversal.occurredAt,
+        reversalOf: original.id,
+      }
+    : null;
+}

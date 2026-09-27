@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { db } from '../index';
 import { goals, goalTasks, goalTaskCompletions, focusSessions, focusThemes } from '../schema';
 import { notebookTopics } from '../schema';
@@ -743,32 +743,51 @@ export async function deleteGoalTask(taskId: string): Promise<void> {
   await db.delete(goalTasks).where(eq(goalTasks.id, taskId));
 }
 
-export async function completeGoalTaskForToday(taskId: string): Promise<boolean> {
+export async function completeGoalTaskForToday(
+  taskId: string,
+  allowMultipleToday = false,
+): Promise<string | null> {
   const todayStr = today();
-  const existing = await db
-    .select({ id: goalTaskCompletions.id })
-    .from(goalTaskCompletions)
-    .where(
-      and(
-        eq(goalTaskCompletions.goalTaskId, taskId),
-        eq(goalTaskCompletions.completedDate, todayStr),
-      ),
-    )
-    .limit(1);
 
-  if (existing.length > 0) return false;
+  if (!allowMultipleToday) {
+    const existing = await db
+      .select({ id: goalTaskCompletions.id })
+      .from(goalTaskCompletions)
+      .where(
+        and(
+          eq(goalTaskCompletions.goalTaskId, taskId),
+          eq(goalTaskCompletions.completedDate, todayStr),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      return null;
+    }
+  }
+
+  const completionId = generateId();
 
   await db.insert(goalTaskCompletions).values({
-    id: generateId(),
+    id: completionId,
     goalTaskId: taskId,
     completedDate: todayStr,
     createdAt: now(),
   });
-  return true;
+
+  return completionId;
 }
 
-export async function uncompleteGoalTaskForToday(taskId: string): Promise<void> {
+export async function deleteGoalTaskCompletion(completionId: string): Promise<void> {
+  await db.delete(goalTaskCompletions).where(eq(goalTaskCompletions.id, completionId));
+}
+
+export async function uncompleteGoalTaskForToday(taskId: string): Promise<{
+  completionId: string | null;
+  remainingCompletionsToday: number;
+}> {
   const todayStr = today();
+
   const rows = await db
     .select()
     .from(goalTaskCompletions)
@@ -777,12 +796,24 @@ export async function uncompleteGoalTaskForToday(taskId: string): Promise<void> 
         eq(goalTaskCompletions.goalTaskId, taskId),
         eq(goalTaskCompletions.completedDate, todayStr),
       ),
-    );
-  if (rows.length > 0) {
-    await db
-      .delete(goalTaskCompletions)
-      .where(eq(goalTaskCompletions.id, rows[rows.length - 1].id));
+    )
+    .orderBy(desc(goalTaskCompletions.createdAt));
+
+  if (rows.length === 0) {
+    return {
+      completionId: null,
+      remainingCompletionsToday: 0,
+    };
   }
+
+  const completionToRemove = rows[0];
+
+  await db.delete(goalTaskCompletions).where(eq(goalTaskCompletions.id, completionToRemove.id));
+
+  return {
+    completionId: completionToRemove.id,
+    remainingCompletionsToday: rows.length - 1,
+  };
 }
 
 export interface GoalTaskForToday {

@@ -15,16 +15,17 @@ import {
   archiveGoal,
   setAllowBeyond100,
   reorderGoals,
+  deleteGoalTaskCompletion,
   type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
 
 import { calcGoalProgress } from '@/services/goals.service';
 import {
   grantUniqueAchievement,
-  awardProductiveAction,
+  awardGoalTaskCompletion,
   getGamificationConfig,
   pointsForTaskLevel,
-  reverseLatestProductiveAction,
+  reverseGoalTaskCompletion,
 } from '@/services/gamification.service';
 
 function calcGoalProgressSafe(goal: Goal): number {
@@ -61,7 +62,7 @@ interface GoalState {
     local: LocalGoalTask,
   ) => Promise<void>;
   removeTask: (goalId: string, taskId: string) => Promise<void>;
-  completeTask: (goalId: string, taskId: string) => Promise<void>;
+  completeTask: (goalId: string, taskId: string, allowMultipleToday?: boolean) => Promise<void>;
   uncompleteTask: (goalId: string, taskId: string) => Promise<void>;
   refreshTodayTasks: () => Promise<void>;
   reorderGoals: (orderedIds: string[]) => Promise<void>;
@@ -76,15 +77,17 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   fetchGoals: async (force = false) => {
     const now = Date.now();
-    if (!force && now - get().lastFetchedAt < 10000) return;
+
+    if (!force && now - get().lastFetchedAt < 10000) {
+      return;
+    }
+
     set({ loading: true });
     try {
       const [goals, today] = await Promise.all([getAllGoals(), getTodayGoalTasks()]);
+      const currentDate = new Date().toISOString().slice(0, 10);
       const activeGoalCount = goals.filter(
-        (goal) =>
-          !goal.archived &&
-          goal.startDate <= new Date().toISOString().slice(0, 10) &&
-          goal.endDate >= new Date().toISOString().slice(0, 10),
+        (goal) => !goal.archived && goal.startDate <= currentDate && goal.endDate >= currentDate,
       ).length;
       set({
         goals,
@@ -100,21 +103,34 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   fetchActiveGoalCount: async () => {
     try {
-      set({ activeGoalCount: await getActiveGoalCount() });
+      set({
+        activeGoalCount: await getActiveGoalCount(),
+      });
     } catch {}
   },
 
   fetchTodayGoalTasks: async (force = false) => {
-    if (!force && Date.now() - get().lastFetchedAt < 5000) return;
+    if (!force && Date.now() - get().lastFetchedAt < 5000) {
+      return;
+    }
+
     try {
       const today = await getTodayGoalTasks();
-      set({ todayGoalTasks: today });
+
+      set({
+        todayGoalTasks: today,
+      });
     } catch {}
   },
 
   addGoal: async (data, tasks): Promise<Goal> => {
     const goal = await createGoal(data, tasks);
-    set((s) => ({ goals: [goal, ...s.goals], lastFetchedAt: Date.now() }));
+
+    set((s) => ({
+      goals: [goal, ...s.goals],
+      lastFetchedAt: Date.now(),
+    }));
+
     await get().fetchActiveGoalCount();
     await get().refreshTodayTasks();
     return goal;
@@ -123,7 +139,14 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   editGoal: async (id, data) => {
     await updateGoal(id, data);
     set((s) => ({
-      goals: s.goals.map((g) => (g.id === id ? { ...g, ...data } : g)),
+      goals: s.goals.map((g) =>
+        g.id === id
+          ? {
+              ...g,
+              ...data,
+            }
+          : g,
+      ),
       lastFetchedAt: Date.now(),
     }));
   },
@@ -141,7 +164,14 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   archiveGoal: async (id) => {
     await archiveGoal(id);
     set((s) => ({
-      goals: s.goals.map((g) => (g.id === id ? { ...g, archived: true } : g)),
+      goals: s.goals.map((g) =>
+        g.id === id
+          ? {
+              ...g,
+              archived: true,
+            }
+          : g,
+      ),
       lastFetchedAt: Date.now(),
       activeGoalCount: Math.max(0, s.activeGoalCount - 1),
     }));
@@ -151,14 +181,28 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   enableBeyond100: async (id, value) => {
     await setAllowBeyond100(id, value);
     set((s) => ({
-      goals: s.goals.map((g) => (g.id === id ? { ...g, allowBeyond100: value } : g)),
+      goals: s.goals.map((g) =>
+        g.id === id
+          ? {
+              ...g,
+              allowBeyond100: value,
+            }
+          : g,
+      ),
     }));
   },
 
   addTask: async (goalId, startDate, endDate, local) => {
     const task = await addGoalTask(goalId, startDate, endDate, local);
     set((s) => ({
-      goals: s.goals.map((g) => (g.id === goalId ? { ...g, tasks: [...g.tasks, task] } : g)),
+      goals: s.goals.map((g) =>
+        g.id === goalId
+          ? {
+              ...g,
+              tasks: [...g.tasks, task],
+            }
+          : g,
+      ),
       lastFetchedAt: Date.now(),
     }));
     await get().refreshTodayTasks();
@@ -168,26 +212,44 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     await deleteGoalTask(taskId);
     set((s) => ({
       goals: s.goals.map((g) =>
-        g.id === goalId ? { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) } : g,
+        g.id === goalId
+          ? {
+              ...g,
+              tasks: g.tasks.filter((t) => t.id !== taskId),
+            }
+          : g,
       ),
       lastFetchedAt: Date.now(),
     }));
     await get().refreshTodayTasks();
   },
 
-  completeTask: async (goalId, taskId) => {
+  completeTask: async (goalId, taskId, allowMultipleToday = false) => {
     const key = `${goalId}:${taskId}`;
-    if (pendingGoalTasks.has(key)) return;
+    if (!allowMultipleToday && pendingGoalTasks.has(key)) {
+      return;
+    }
 
     const beforeGoal = get().goals.find((g) => g.id === goalId);
     const beforeTask = beforeGoal?.tasks.find((t) => t.id === taskId);
-    if (!beforeTask || beforeTask.type === 'notebook' || beforeTask.completedToday) return;
 
-    pendingGoalTasks.add(key);
+    if (!beforeTask || beforeTask.type === 'notebook') {
+      return;
+    }
+
+    if (!allowMultipleToday && beforeTask.completedToday) {
+      return;
+    }
+
+    if (!allowMultipleToday) {
+      pendingGoalTasks.add(key);
+    }
+
     const previousGoals = get().goals;
     try {
-      const inserted = await completeGoalTaskForToday(taskId);
-      if (!inserted) {
+      const completionId = await completeGoalTaskForToday(taskId, allowMultipleToday);
+
+      if (!completionId) {
         await get().refreshTodayTasks();
         return;
       }
@@ -214,13 +276,17 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         ),
       }));
 
-      const config = await getGamificationConfig();
-      await awardProductiveAction(
-        'goal_task_completion',
-        taskId,
-        pointsForTaskLevel(undefined, config),
-        { metadata: { goalId } },
-      );
+      try {
+        const config = await getGamificationConfig();
+
+        const points = pointsForTaskLevel(undefined, config);
+        await awardGoalTaskCompletion(taskId, completionId, points, goalId);
+      } catch (rewardError) {
+        await deleteGoalTaskCompletion(completionId);
+
+        throw rewardError;
+      }
+
       await get().refreshTodayTasks();
 
       const afterGoal = get().goals.find((g) => g.id === goalId);
@@ -232,21 +298,35 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       }
       await useGamificationStore.getState().refreshSummary();
     } catch (error) {
-      set({ goals: previousGoals });
+      set({
+        goals: previousGoals,
+      });
+
       throw error;
     } finally {
-      pendingGoalTasks.delete(key);
+      if (!allowMultipleToday) {
+        pendingGoalTasks.delete(key);
+      }
     }
   },
 
   uncompleteTask: async (goalId, taskId) => {
     const beforeGoal = get().goals.find((g) => g.id === goalId);
     const beforeTask = beforeGoal?.tasks.find((t) => t.id === taskId);
-    if (!beforeTask || !beforeTask.completedToday) return;
+
+    if (!beforeTask || !beforeTask.completedToday) {
+      return;
+    }
+
     const previousGoals = get().goals;
 
     try {
-      await uncompleteGoalTaskForToday(taskId);
+      const result = await uncompleteGoalTaskForToday(taskId);
+
+      if (!result.completionId) {
+        return;
+      }
+
       set((s) => ({
         goals: s.goals.map((g) =>
           g.id === goalId
@@ -257,7 +337,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
                     ? {
                         ...t,
                         completedCount: Math.max(0, t.completedCount - 1),
-                        completedToday: false,
+                        completedToday: result.remainingCompletionsToday > 0,
                         completionsThisWeek: Math.max(0, t.completionsThisWeek - 1),
                         completionsThisMonth: Math.max(0, t.completionsThisMonth - 1),
                       }
@@ -267,18 +347,26 @@ export const useGoalStore = create<GoalState>((set, get) => ({
             : g,
         ),
       }));
-      await reverseLatestProductiveAction('goal_task_completion', taskId);
+
+      await reverseGoalTaskCompletion(taskId, result.completionId);
+
       await get().refreshTodayTasks();
       await useGamificationStore.getState().refreshSummary();
     } catch (error) {
-      set({ goals: previousGoals });
+      set({
+        goals: previousGoals,
+      });
+
       throw error;
     }
   },
 
   refreshTodayTasks: async () => {
     const today = await getTodayGoalTasks();
-    set({ todayGoalTasks: today });
+
+    set({
+      todayGoalTasks: today,
+    });
   },
 
   reorderGoals: async (orderedIds) => {
@@ -287,11 +375,20 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       const reordered = orderedIds
         .map((id, index) => {
           const g = byId.get(id);
-          return g ? { ...g, order: index } : null;
+
+          return g
+            ? {
+                ...g,
+                order: index,
+              }
+            : null;
         })
         .filter((g): g is Goal => g !== null);
       const untouched = s.goals.filter((g) => !orderedIds.includes(g.id));
-      return { goals: [...reordered, ...untouched].sort((a, b) => a.order - b.order) };
+
+      return {
+        goals: [...reordered, ...untouched].sort((a, b) => a.order - b.order),
+      };
     });
     await reorderGoals(orderedIds);
   },

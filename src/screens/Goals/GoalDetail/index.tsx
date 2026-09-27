@@ -214,7 +214,9 @@ export function GoalDetailScreen({
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [taskHours, setTaskHours] = useState(10);
   const [taskThemeIds, setTaskThemeIds] = useState<string[]>([]);
-  const [taskStartMode, setTaskStartMode] = useState<'goal_start' | 'task_creation'>('task_creation');
+  const [taskStartMode, setTaskStartMode] = useState<'goal_start' | 'task_creation'>(
+    'task_creation',
+  );
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
@@ -516,8 +518,8 @@ export function GoalDetailScreen({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.controlBtnPrimary, { backgroundColor: accentColor }]}
-              onPress={() => completeTask(goal.id, task.id)}
-              onLongPress={() => startContinuous(() => completeTask(goal.id, task.id))}
+              onPress={() => completeTask(goal.id, task.id, true)}
+              onLongPress={() => startContinuous(() => completeTask(goal.id, task.id, true))}
               onPressOut={stopContinuous}
               delayLongPress={300}
               activeOpacity={0.7}
@@ -744,7 +746,7 @@ export function GoalDetailScreen({
                 </TouchableOpacity>
               ))}
             </View>
-            
+
             <Text style={styles.formLabel}>Base de cálculo</Text>
             <Text style={styles.formHint}>
               Escolha a partir de qual data o período desta tarefa deve começar.
@@ -757,10 +759,7 @@ export function GoalDetailScreen({
                 return (
                   <TouchableOpacity
                     key={opt.key}
-                    style={[
-                      styles.startModeCard,
-                      selected && styles.startModeCardActive,
-                    ]}
+                    style={[styles.startModeCard, selected && styles.startModeCardActive]}
                     onPress={() => setTaskStartMode(opt.key)}
                     activeOpacity={0.7}
                   >
@@ -771,18 +770,13 @@ export function GoalDetailScreen({
                         color={selected ? colors.primary : colors.textDisabled}
                       />
                       <Text
-                        style={[
-                          styles.startModeLabel,
-                          selected && styles.startModeLabelActive,
-                        ]}
+                        style={[styles.startModeLabel, selected && styles.startModeLabelActive]}
                       >
                         {opt.label}
                       </Text>
                     </View>
 
-                    <Text style={styles.startModeDescription}>
-                      {opt.description}
-                    </Text>
+                    <Text style={styles.startModeDescription}>{opt.description}</Text>
                   </TouchableOpacity>
                 );
               })}
