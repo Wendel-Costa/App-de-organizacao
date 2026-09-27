@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ export function FocusScreen() {
   const selectedTheme = useFocusStore((state) => state.selectedTheme);
   const setSelectedTheme = useFocusStore((state) => state.setSelectedTheme);
   const mode = useFocusStore((state) => state.mode);
+  const status = useFocusStore((state) => state.status);
   const setMode = useFocusStore((state) => state.setMode);
   const addTheme = useFocusStore((state) => state.addTheme);
   const removeTheme = useFocusStore((state) => state.removeTheme);
@@ -61,6 +62,12 @@ export function FocusScreen() {
       return () => sub.remove();
     }, [screen]),
   );
+
+  useEffect(() => {
+    if (status !== 'idle' && screen === 'home') {
+      setScreen('active');
+    }
+  }, [status, screen]);
 
   if (screen === 'active') {
     return <ActiveFocusScreen onStop={() => setScreen('home')} />;

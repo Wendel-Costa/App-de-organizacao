@@ -24,6 +24,53 @@ import {
 import { dateOf } from '@/utils/date';
 
 const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
+const ACTIVE_FOCUS_KEY = '@foco:activeFocus';
+let activeFocusStorageQueue = Promise.resolve();
+
+function queueActiveFocusStorage(operation: () => Promise<void>): Promise<void> {
+  const next = activeFocusStorageQueue.then(operation, operation);
+  activeFocusStorageQueue = next.catch(() => {});
+  return next;
+}
+
+interface PersistedActiveFocus {
+  status: 'running' | 'paused';
+  mode: FocusMode;
+  selectedTheme: FocusTheme | null;
+  startTime: string;
+  runningSince: string | null;
+  accumulatedSeconds: number;
+  elapsedSeconds: number;
+  pomodoroRounds: number;
+  isOnBreak: boolean;
+  pomodoroWorkMinutes: number;
+  pomodoroBreakMinutes: number;
+}
+
+function calculateElapsedSeconds(
+  accumulatedSeconds: number,
+  runningSince: Date | null,
+  now = Date.now(),
+): number {
+  if (!runningSince) return Math.max(0, Math.floor(accumulatedSeconds));
+  return Math.max(0, Math.floor(accumulatedSeconds + (now - runningSince.getTime()) / 1000));
+}
+
+function getPomodoroState(
+  elapsedSeconds: number,
+  workMinutes: number,
+  breakMinutes: number,
+): Pick<PersistedActiveFocus, 'pomodoroRounds' | 'isOnBreak'> {
+  const workSeconds = Math.max(1, workMinutes * 60);
+  const breakSeconds = Math.max(1, breakMinutes * 60);
+  const cycleSeconds = workSeconds + breakSeconds;
+  const remainder = elapsedSeconds % cycleSeconds;
+
+  return {
+    pomodoroRounds: Math.floor(elapsedSeconds / cycleSeconds),
+    isOnBreak: remainder >= workSeconds && remainder < cycleSeconds,
+  };
+}
 
 interface FocusState {
   sessions: FocusSession[];
@@ -34,6 +81,8 @@ interface FocusState {
   mode: FocusMode;
   selectedTheme: FocusTheme | null;
   startTime: Date | null;
+  runningSince: Date | null;
+  accumulatedSeconds: number;
   elapsedSeconds: number;
 
   pomodoroRounds: number;
@@ -69,6 +118,8 @@ interface FocusState {
   setPomodoroConfig: (workMinutes: number, breakMinutes: number) => void;
 
   recalculateFromStart: () => void;
+  persistActiveFocus: () => Promise<void>;
+  restoreActiveFocus: () => Promise<void>;
 
   fetchGeralThemeVisibility: () => Promise<void>;
   removeGeralTheme: () => Promise<void>;
@@ -87,6 +138,8 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   mode: 'free',
   selectedTheme: null,
   startTime: null,
+  runningSince: null,
+  accumulatedSeconds: 0,
   elapsedSeconds: 0,
 
   pomodoroRounds: 0,
@@ -171,57 +224,99 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   setSelectedTheme: (theme) => set({ selectedTheme: theme }),
 
   startFocus: () => {
+    if (get().status !== 'idle') return;
+
+    const now = new Date();
     set({
       status: 'running',
-      startTime: new Date(),
+      startTime: now,
+      runningSince: now,
+      accumulatedSeconds: 0,
       elapsedSeconds: 0,
       pomodoroRounds: 0,
       isOnBreak: false,
     });
+    void get().persistActiveFocus();
   },
 
-  pauseFocus: () => set({ status: 'paused' }),
+  pauseFocus: () => {
+    const { status, accumulatedSeconds, runningSince } = get();
+    if (status !== 'running') return;
 
-  resumeFocus: () => set({ status: 'running' }),
+    const elapsedSeconds = calculateElapsedSeconds(accumulatedSeconds, runningSince);
+    const pomodoro = getPomodoroState(
+      elapsedSeconds,
+      get().pomodoroWorkMinutes,
+      get().pomodoroBreakMinutes,
+    );
+
+    set({
+      status: 'paused',
+      accumulatedSeconds: elapsedSeconds,
+      elapsedSeconds,
+      runningSince: null,
+      ...pomodoro,
+    });
+    void get().persistActiveFocus();
+  },
+
+  resumeFocus: () => {
+    const { status } = get();
+    if (status !== 'paused') return;
+
+    const now = new Date();
+    set({ status: 'running', runningSince: now });
+    void get().persistActiveFocus();
+  },
 
   tickTimer: () => {
     const {
       status,
+      accumulatedSeconds,
+      runningSince,
       mode,
-      elapsedSeconds,
       pomodoroWorkMinutes,
       pomodoroBreakMinutes,
-      isOnBreak,
-      pomodoroRounds,
     } = get();
 
     if (status !== 'running') return;
 
-    const newElapsed = elapsedSeconds + 1;
+    const elapsedSeconds = calculateElapsedSeconds(accumulatedSeconds, runningSince);
+    const pomodoro =
+      mode === 'pomodoro'
+        ? getPomodoroState(elapsedSeconds, pomodoroWorkMinutes, pomodoroBreakMinutes)
+        : { pomodoroRounds: 0, isOnBreak: false };
 
-    if (mode === 'pomodoro') {
-      const workSeconds = pomodoroWorkMinutes * 60;
-      const breakSeconds = pomodoroBreakMinutes * 60;
-      const cycleSeconds = isOnBreak ? breakSeconds : workSeconds;
-
-      if (newElapsed % cycleSeconds === 0) {
-        if (!isOnBreak) {
-          set({ elapsedSeconds: newElapsed, isOnBreak: true, pomodoroRounds: pomodoroRounds + 1 });
-        } else {
-          set({ elapsedSeconds: newElapsed, isOnBreak: false });
-        }
-        return;
-      }
-    }
-
-    set({ elapsedSeconds: newElapsed });
+    set({ elapsedSeconds, ...pomodoro });
   },
 
   stopFocus: async () => {
-    const { startTime, elapsedSeconds, mode, selectedTheme, pomodoroRounds, sessions } = get();
+    const {
+      startTime,
+      runningSince,
+      accumulatedSeconds,
+      mode,
+      selectedTheme,
+      pomodoroWorkMinutes,
+      pomodoroBreakMinutes,
+      sessions,
+    } = get();
+    const elapsedSeconds = calculateElapsedSeconds(accumulatedSeconds, runningSince);
+    const pomodoro = getPomodoroState(elapsedSeconds, pomodoroWorkMinutes, pomodoroBreakMinutes);
 
     if (!startTime || elapsedSeconds < 10) {
-      set({ status: 'idle', startTime: null, elapsedSeconds: 0 });
+      await queueActiveFocusStorage(() =>
+        AsyncStorage.removeItem(ACTIVE_FOCUS_KEY).then(() => undefined),
+      );
+      set({
+        status: 'idle',
+        startTime: null,
+        runningSince: null,
+        accumulatedSeconds: 0,
+        elapsedSeconds: 0,
+        pomodoroRounds: 0,
+        isOnBreak: false,
+      });
       return { conflict: false };
     }
 
@@ -235,9 +330,14 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     });
 
     if (conflict) {
+      await queueActiveFocusStorage(() =>
+        AsyncStorage.removeItem(ACTIVE_FOCUS_KEY).then(() => undefined),
+      );
       set({
         status: 'idle',
         startTime: null,
+        runningSince: null,
+        accumulatedSeconds: 0,
         elapsedSeconds: 0,
         pomodoroRounds: 0,
         isOnBreak: false,
@@ -245,22 +345,25 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       return { conflict: true };
     }
 
-    const duration = Math.floor(elapsedSeconds / 60);
-
     await get().addSession({
       themeId: selectedTheme?.id,
       themeName: selectedTheme?.name,
       mode,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
-      duration,
+      duration: Math.floor(elapsedSeconds / 60),
       isManual: false,
-      pomodoroRounds: mode === 'pomodoro' ? pomodoroRounds : undefined,
+      pomodoroRounds: mode === 'pomodoro' ? pomodoro.pomodoroRounds : undefined,
     });
 
+    await queueActiveFocusStorage(() =>
+      AsyncStorage.removeItem(ACTIVE_FOCUS_KEY).then(() => undefined),
+    );
     set({
       status: 'idle',
       startTime: null,
+      runningSince: null,
+      accumulatedSeconds: 0,
       elapsedSeconds: 0,
       pomodoroRounds: 0,
       isOnBreak: false,
@@ -273,29 +376,129 @@ export const useFocusStore = create<FocusState>((set, get) => ({
     set({ pomodoroWorkMinutes: workMinutes, pomodoroBreakMinutes: breakMinutes }),
 
   recalculateFromStart: () => {
-    const { startTime, status, mode, pomodoroWorkMinutes, pomodoroBreakMinutes } = get();
-    if (!startTime || status !== 'running') return;
+    const {
+      status,
+      mode,
+      accumulatedSeconds,
+      runningSince,
+      pomodoroWorkMinutes,
+      pomodoroBreakMinutes,
+    } = get();
+    if (status !== 'running' || !runningSince) return;
 
-    const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000);
+    const elapsedSeconds = calculateElapsedSeconds(accumulatedSeconds, runningSince);
+    const pomodoro =
+      mode === 'pomodoro'
+        ? getPomodoroState(elapsedSeconds, pomodoroWorkMinutes, pomodoroBreakMinutes)
+        : { pomodoroRounds: 0, isOnBreak: false };
 
-    if (mode === 'pomodoro') {
-      const workSecs = pomodoroWorkMinutes * 60;
-      const breakSecs = pomodoroBreakMinutes * 60;
-      const cycleSecs = workSecs + breakSecs;
+    set({ elapsedSeconds, ...pomodoro });
+  },
 
-      let remaining = elapsed;
-      let rounds = 0;
-      let onBreak = false;
+  persistActiveFocus: async () => {
+    const {
+      status,
+      mode,
+      selectedTheme,
+      startTime,
+      runningSince,
+      accumulatedSeconds,
+      elapsedSeconds,
+      pomodoroRounds,
+      isOnBreak,
+      pomodoroWorkMinutes,
+      pomodoroBreakMinutes,
+    } = get();
 
-      while (remaining >= cycleSecs) {
-        rounds++;
-        remaining -= cycleSecs;
+    if (status !== 'running' && status !== 'paused') {
+      await queueActiveFocusStorage(() =>
+        AsyncStorage.removeItem(ACTIVE_FOCUS_KEY).then(() => undefined),
+      );
+      return;
+    }
+
+    if (!startTime) return;
+
+    const payload: PersistedActiveFocus = {
+      status,
+      mode,
+      selectedTheme,
+      startTime: startTime.toISOString(),
+      runningSince: runningSince?.toISOString() ?? null,
+      accumulatedSeconds,
+      elapsedSeconds,
+      pomodoroRounds,
+      isOnBreak,
+      pomodoroWorkMinutes,
+      pomodoroBreakMinutes,
+    };
+
+    await queueActiveFocusStorage(() =>
+      AsyncStorage.setItem(ACTIVE_FOCUS_KEY, JSON.stringify(payload)).then(() => undefined),
+    );
+  },
+
+  restoreActiveFocus: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(ACTIVE_FOCUS_KEY);
+      if (!raw) return;
+
+      const persisted = JSON.parse(raw) as Partial<PersistedActiveFocus>;
+      if (persisted.status !== 'running' && persisted.status !== 'paused') {
+        await AsyncStorage.removeItem(ACTIVE_FOCUS_KEY);
+        return;
       }
-      if (remaining >= workSecs) onBreak = true;
+      if (!persisted.startTime || !persisted.mode) {
+        await AsyncStorage.removeItem(ACTIVE_FOCUS_KEY);
+        return;
+      }
 
-      set({ elapsedSeconds: elapsed, pomodoroRounds: rounds, isOnBreak: onBreak });
-    } else {
-      set({ elapsedSeconds: elapsed });
+      const startTime = new Date(persisted.startTime);
+      const runningSince = persisted.runningSince ? new Date(persisted.runningSince) : null;
+      if (
+        Number.isNaN(startTime.getTime()) ||
+        (runningSince && Number.isNaN(runningSince.getTime())) ||
+        (persisted.status === 'running' && !runningSince)
+      ) {
+        await AsyncStorage.removeItem(ACTIVE_FOCUS_KEY);
+        return;
+      }
+
+      const accumulatedSeconds = Math.max(
+        0,
+        Number(persisted.accumulatedSeconds ?? persisted.elapsedSeconds ?? 0),
+      );
+      const elapsedSeconds = calculateElapsedSeconds(
+        accumulatedSeconds,
+        persisted.status === 'running' ? runningSince : null,
+      );
+      const workMinutes = Math.max(1, Number(persisted.pomodoroWorkMinutes ?? 25));
+      const breakMinutes = Math.max(1, Number(persisted.pomodoroBreakMinutes ?? 5));
+      const pomodoro =
+        persisted.mode === 'pomodoro'
+          ? getPomodoroState(elapsedSeconds, workMinutes, breakMinutes)
+          : {
+              pomodoroRounds: Number(persisted.pomodoroRounds ?? 0),
+              isOnBreak: false,
+            };
+
+      set({
+        status: persisted.status,
+        mode: persisted.mode,
+        selectedTheme: persisted.selectedTheme ?? null,
+        startTime,
+        runningSince: persisted.status === 'running' ? runningSince : null,
+        accumulatedSeconds: persisted.status === 'running' ? accumulatedSeconds : elapsedSeconds,
+        elapsedSeconds,
+        pomodoroRounds: pomodoro.pomodoroRounds,
+        isOnBreak: pomodoro.isOnBreak,
+        pomodoroWorkMinutes: workMinutes,
+        pomodoroBreakMinutes: breakMinutes,
+      });
+    } catch {
+      await queueActiveFocusStorage(() =>
+        AsyncStorage.removeItem(ACTIVE_FOCUS_KEY).then(() => undefined),
+      );
     }
   },
 

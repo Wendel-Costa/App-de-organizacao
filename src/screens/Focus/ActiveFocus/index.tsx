@@ -92,11 +92,16 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
     }
   }
 
-  const totalPomodoroSeconds = isOnBreak ? pomodoroBreakMinutes * 60 : pomodoroWorkMinutes * 60;
-
-  const cycleElapsed = mode === 'pomodoro' ? elapsedSeconds % totalPomodoroSeconds : elapsedSeconds;
-
-  const progress = mode === 'pomodoro' ? cycleElapsed / totalPomodoroSeconds : 0;
+  const pomodoroWorkSeconds = pomodoroWorkMinutes * 60;
+  const pomodoroBreakSeconds = pomodoroBreakMinutes * 60;
+  const pomodoroCycleSeconds = pomodoroWorkSeconds + pomodoroBreakSeconds;
+  const pomodoroCycleElapsed = elapsedSeconds % pomodoroCycleSeconds;
+  const pomodoroSegmentElapsed = isOnBreak
+    ? pomodoroCycleElapsed - pomodoroWorkSeconds
+    : pomodoroCycleElapsed;
+  const currentSegmentSeconds = isOnBreak ? pomodoroBreakSeconds : pomodoroWorkSeconds;
+  const cycleElapsed = Math.max(0, pomodoroSegmentElapsed);
+  const progress = mode === 'pomodoro' ? cycleElapsed / currentSegmentSeconds : 0;
   const accentColor = isOnBreak ? colors.mint : colors.primary;
 
   return (
@@ -133,7 +138,7 @@ export function ActiveFocusScreen({ onStop }: ActiveFocusScreenProps) {
             />
           </View>
           <Text style={styles.progressLabel}>
-            {formatTime(totalPomodoroSeconds - cycleElapsed)} restantes
+            {formatTime(Math.max(0, currentSegmentSeconds - cycleElapsed))} restantes
           </Text>
         </View>
       )}

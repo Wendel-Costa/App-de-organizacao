@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { globalStyles } from '@/styles/global';
+import { useFocusStore } from '@/store/focusStore';
 import { colors } from '@/styles/theme';
 import { runMigrations } from '@/database/migrations';
 import { Navigation } from '@/navigation';
@@ -24,7 +25,8 @@ export default function App() {
 
   useEffect(() => {
     runMigrations()
-      .then(() => {
+      .then(async () => {
+        await useFocusStore.getState().restoreActiveFocus();
         setDbReady(true);
         setDbError(false);
       })
