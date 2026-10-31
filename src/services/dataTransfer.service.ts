@@ -4,10 +4,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { sqlite } from '@/database';
 
-export const EXPORT_VERSION = 2 as const;
+export const EXPORT_VERSION = 3 as const;
 
 type ExportPayload = {
-  exportVersion: 2;
+  exportVersion: 3;
   exportedAt: string;
   settings: {
     name: string;
@@ -167,7 +167,9 @@ function normalizeBackup(value: unknown): ExportPayload {
   if (!isObject(value)) throw new Error('INVALID_JSON');
 
   const version = value.exportVersion;
-  if (version !== 1 && version !== EXPORT_VERSION) throw new Error('UNSUPPORTED_VERSION');
+  if (version !== 1 && version !== 2 && version !== EXPORT_VERSION) {
+    throw new Error('UNSUPPORTED_VERSION');
+  }
   if (
     typeof value.exportedAt !== 'string' ||
     value.exportedAt.trim() === '' ||
@@ -216,7 +218,6 @@ async function getSettingsSnapshot(): Promise<ExportPayload['settings']> {
   const name = settingsMap.get(NAME_KEY);
   const notificationSettings = settingsMap.get(SETTINGS_KEY);
   const geralThemeHidden = settingsMap.get(GERAL_THEME_HIDDEN_KEY);
-
   if (geralThemeHidden !== null && geralThemeHidden !== 'true' && geralThemeHidden !== 'false') {
     throw new Error('INVALID_GERAL_THEME_SETTING');
   }

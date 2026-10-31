@@ -6,12 +6,11 @@ import {
   createTask,
   updateTask,
   deleteTask,
-  toggleTaskComplete,
   toggleSubtaskComplete,
   resetRecurringTaskOccurrence,
   skipTaskOccurrence,
 } from '@/database/queries/tasks.queries';
-import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
+import { updateTaskCompletionWithHistory } from '@/database/queries/taskHistory.queries';
 import { getRecurringTasksToReset } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
@@ -182,100 +181,88 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   toggleComplete: async (id, completed) => {
-    try {
-      const taskBefore = get().tasks.find((task) => task.id === id);
-      const startsNextOccurrence =
-        completed &&
-        taskBefore !== undefined &&
-        getRecurringTasksToReset([taskBefore], localDateStr()).length > 0;
+    const taskBefore = get().tasks.find((task) => task.id === id);
+    if (!taskBefore) throw new Error(`TASK_NOT_FOUND:${id}`);
 
-      if (startsNextOccurrence && taskBefore) {
-        const reset = await resetRecurringTaskOccurrence(id, taskBefore.completedAt ?? null);
-        if (reset) {
-          taskMutationVersion += 1;
-          set((state) => ({
-            tasks: state.tasks.map((task) =>
-              task.id === id
+    const startsNextOccurrence =
+      completed && getRecurringTasksToReset([taskBefore], localDateStr()).length > 0;
+
+    const result = await updateTaskCompletionWithHistory(
+      id,
+      completed,
+      startsNextOccurrence
+        ? { resetCompletedOccurrence: { expectedCompletedAt: taskBefore.completedAt ?? null } }
+        : undefined,
+    );
+
+    if (completed && !result.historyRecord) {
+      throw new Error(`TASK_COMPLETION_HISTORY_MISSING:${id}`);
+    }
+
+    if (!result.changed && !result.historyCreated && !completed) return;
+    if (!result.changed && !result.historyCreated && completed) return;
+
+    taskMutationVersion += 1;
+    set((state) => ({
+      lastFetchedAt: Date.now(),
+      tasks: state.tasks.map((task) =>
+        task.id === id
+          ? {
+              ...task,
+              completed,
+              updatedAt: result.updatedAt,
+              completedAt: result.completedAt ?? undefined,
+              ...(startsNextOccurrence
                 ? {
-                    ...task,
-                    completed: false,
-                    completedAt: undefined,
                     subtasks: task.subtasks?.map((subtask) => ({
                       ...subtask,
                       completed: false,
                     })),
                   }
-                : task,
-            ),
-          }));
-        }
-      }
-
-      const taskForCompletion =
-        startsNextOccurrence && taskBefore
-          ? {
-              ...taskBefore,
-              completed: false,
-              completedAt: undefined,
-              subtasks: taskBefore.subtasks?.map((subtask) => ({
-                ...subtask,
-                completed: false,
-              })),
+                : {}),
             }
-          : taskBefore;
+          : task,
+      ),
+    }));
 
-      await toggleTaskComplete(id, completed);
-      taskMutationVersion += 1;
-      const now = new Date().toISOString();
-      set((state) => ({
-        lastFetchedAt: Date.now(),
-        tasks: state.tasks.map((task) =>
-          task.id === id
-            ? {
-                ...task,
-                ...(startsNextOccurrence
-                  ? {
-                      subtasks: task.subtasks?.map((subtask) => ({
-                        ...subtask,
-                        completed: false,
-                      })),
-                    }
-                  : {}),
-                completed,
-                updatedAt: now,
-                completedAt: completed ? now : undefined,
-              }
-            : task,
-        ),
-      }));
+    if (completed) {
+      void cancelTaskNotifications(id).catch((error) => {
+        console.error('[taskStore.toggleComplete] Não foi possível cancelar notificações:', error);
+      });
 
-      if (completed) {
-        cancelTaskNotifications(id).catch(() => {});
-
-        if (taskForCompletion?.type === 'recurring') {
-          saveTaskCompletion({
-            ...taskForCompletion,
-            completed: true,
-            updatedAt: now,
-            completedAt: now,
-          }).catch(() => {});
-        }
-
+      if (result.historyCreated && result.historyRecord) {
         const config = await getGamificationConfig();
         await awardProductiveAction(
           'task_completion',
-          id,
-          pointsForTaskLevel(taskForCompletion?.scoreLevel, config),
-          { metadata: { scoreLevel: taskForCompletion?.scoreLevel ?? 1 } },
+          result.historyRecord.id,
+          pointsForTaskLevel(taskBefore.scoreLevel, config),
+          {
+            metadata: {
+              taskId: id,
+              taskType: taskBefore.type,
+              completionId: result.historyRecord.id,
+              scoreLevel: taskBefore.scoreLevel ?? 1,
+            },
+          },
         );
-        await useGamificationStore.getState().refreshSummary();
-      } else {
-        await reverseLatestProductiveAction('task_completion', id);
-        await useGamificationStore.getState().refreshSummary();
       }
-    } catch (error) {
-      throw error;
+    } else {
+      let legacyRewardNeedsReversal = result.removedHistoryRecords.length === 0;
+
+      for (const removedRecord of result.removedHistoryRecords) {
+        if (removedRecord.id.startsWith('tc:')) {
+          await reverseLatestProductiveAction('task_completion', removedRecord.id);
+        } else {
+          legacyRewardNeedsReversal = true;
+        }
+      }
+
+      if (legacyRewardNeedsReversal && taskBefore.completedAt) {
+        await reverseLatestProductiveAction('task_completion', id);
+      }
     }
+
+    await useGamificationStore.getState().refreshSummary();
   },
 
   skipRecurringOccurrence: async (id) => {

@@ -7,7 +7,10 @@ export interface CompletedTaskRecord {
   description?: string;
   type: TaskType;
   scoreLevel?: ScoreLevel;
+  scheduledDate?: string;
+  dueDate?: string;
   recurrenceDays?: RecurrenceDay[];
+  recurrenceInterval?: number;
   goalId?: string;
   themeId?: string;
   subtasks?: SubTask[];

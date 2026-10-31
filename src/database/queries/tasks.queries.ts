@@ -130,17 +130,6 @@ export async function updateTask(id: string, data: Partial<Task>): Promise<Task>
   return rowToTask(row[0], subs);
 }
 
-export async function toggleTaskComplete(id: string, completed: boolean): Promise<void> {
-  await db
-    .update(tasks)
-    .set({
-      completed: completed ? 1 : 0,
-      completedAt: completed ? now() : null,
-      updatedAt: now(),
-    })
-    .where(eq(tasks.id, id));
-}
-
 export async function toggleSubtaskComplete(id: string, completed: boolean): Promise<void> {
   await db
     .update(subtasks)

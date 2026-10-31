@@ -117,7 +117,7 @@ export const taskSkips = sqliteTable('task_skips', {
   createdAt: text('created_at').notNull(),
 });
 
-//histórico de tarefas concluídas (vou utilizar em atualizações futuras)
+// histórico das conclusões de tarefas
 
 export const taskCompletions = sqliteTable('task_completions', {
   id: text('id').primaryKey(),
@@ -126,7 +126,10 @@ export const taskCompletions = sqliteTable('task_completions', {
   description: text('description'),
   type: text('type').notNull(),
   scoreLevel: int('score_level'),
+  scheduledDate: text('scheduled_date'),
+  dueDate: text('due_date'),
   recurrenceDays: text('recurrence_days'),
+  recurrenceInterval: int('recurrence_interval'),
   goalId: text('goal_id'),
   themeId: text('theme_id'),
   subtasksSnapshot: text('subtasks_snapshot'),
