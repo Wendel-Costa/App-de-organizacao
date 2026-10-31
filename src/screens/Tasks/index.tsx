@@ -14,7 +14,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTaskStore } from '@/store/taskStore';
-import { useFocusStore } from '@/store/focusStore';
 import { useGoalStore } from '@/store/goalStore';
 import { TaskItem } from '@/components/TaskItem';
 import { Header } from '@/components/Header';
@@ -30,7 +29,11 @@ import {
   applyRecurringReset,
   isEveryXDaysTask,
   isEveryXDaysDue,
+  getNextRecurringOccurrenceDate,
+  getRecurringTaskFrequencyLabel,
+  getRecurringTaskStatus,
 } from '@/services/recurrence.service';
+import { dateOf } from '@/utils/date';
 import { useFocusEffect } from '@react-navigation/native';
 
 type Filter = 'all' | 'today' | 'anytime' | 'recurring';
@@ -42,35 +45,58 @@ const filters: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'today', label: 'Hoje' },
   { key: 'anytime', label: 'Livre' },
-  { key: 'recurring', label: 'Rotina' },
+  { key: 'recurring', label: 'Recorrentes' },
 ];
 
 function isGoalTaskDueForTasksToday(t: GoalTaskForToday): boolean {
-  const { task } = t;
+  return t.task.type === 'habit' && t.task.recurrenceType === 'daily' && !t.task.completedToday;
+}
 
-  if (task.type === 'wildcard') return false;
+function getCalendarDayDifference(laterDate: string, earlierDate: string): number {
+  const [laterYear, laterMonth, laterDay] = laterDate.split('-').map(Number);
+  const [earlierYear, earlierMonth, earlierDay] = earlierDate.split('-').map(Number);
+  const later = Date.UTC(laterYear, laterMonth - 1, laterDay);
+  const earlier = Date.UTC(earlierYear, earlierMonth - 1, earlierDay);
+  return Math.round((later - earlier) / 86400000);
+}
 
-  switch (task.recurrenceType) {
-    case 'none':
-      return task.completedCount < task.targetCount;
-    case 'daily':
-      return !task.completedToday;
-    case 'times_per_week':
-      return task.completionsThisWeek < task.recurrenceCount && !task.completedToday;
-    case 'times_per_month':
-      return task.completionsThisMonth < task.recurrenceCount && !task.completedToday;
-    case 'specific_days':
-      return task.recurrenceDays.includes(getTodayWeekday()) && !task.completedToday;
-    case 'every_x_days': {
-      if (!task.lastCompletedDate) return true;
-      const lastDate = new Date(task.lastCompletedDate + 'T12:00:00');
-      const today = new Date(getTodayString() + 'T12:00:00');
-      const daysSince = Math.round((today.getTime() - lastDate.getTime()) / 86400000);
-      return daysSince >= task.recurrenceCount;
-    }
-    default:
-      return false;
+function isWithinLastSevenDays(completedAt: string | undefined, today: string): boolean {
+  if (!completedAt) return false;
+  const completionDate = dateOf(completedAt);
+  const daysAgo = getCalendarDayDifference(today, completionDate);
+  return daysAgo >= 0 && daysAgo < 7;
+}
+
+function formatCalendarDate(dateString: string): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day, 12).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function getRecurringStatusLabel(
+  task: Task,
+  status: ReturnType<typeof getRecurringTaskStatus>,
+  today: string,
+): string {
+  if (status === 'pending') return 'Pendente hoje';
+  if (status === 'skipped') return 'Pulada hoje';
+  if (status === 'completed') {
+    if (!task.completedAt) return 'Concluída (data não registrada)';
+    return dateOf(task.completedAt) === today
+      ? 'Concluída hoje'
+      : `Última ocorrência concluída em ${formatCalendarDate(dateOf(task.completedAt))}`;
   }
+  return 'Aguardando próxima ocorrência';
+}
+
+function getRecurringStatusColor(status: ReturnType<typeof getRecurringTaskStatus>): string {
+  if (status === 'pending') return colors.warning;
+  if (status === 'completed') return colors.success;
+  if (status === 'skipped') return colors.textDisabled;
+  return colors.info;
 }
 
 export function TasksScreen() {
@@ -136,36 +162,51 @@ export function TasksScreen() {
 
   const todayStr = getTodayString();
 
-  const filtered = tasks.filter((t) => {
+  const filtered = tasks.filter((task) => {
     if (filter === 'today') {
-      if (t.type === 'scheduled') return t.scheduledDate === todayStr;
-      if (t.type === 'recurring') {
-        if (isEveryXDaysTask(t)) {
-          return isEveryXDaysDue(t, todayStr);
-        }
-        const today = getTodayWeekday();
-        return t.recurrenceDays?.includes('daily') || t.recurrenceDays?.includes(today) || false;
+      if (task.type === 'scheduled') return task.scheduledDate === todayStr;
+      if (task.type === 'recurring') {
+        if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, todayStr);
+        const todayWeekday = getTodayWeekday();
+        return (
+          task.recurrenceDays?.includes('daily') ||
+          task.recurrenceDays?.includes(todayWeekday) ||
+          false
+        );
       }
       return false;
     }
-    if (filter === 'anytime') return t.type === 'anytime';
-    if (filter === 'recurring') return t.type === 'recurring';
+    if (filter === 'anytime') return task.type === 'anytime';
+    if (filter === 'recurring') return task.type === 'recurring';
     return true;
   });
 
-  const effectiveFiltered = applyRecurringReset(filtered, todayStr).filter(
-    (t) => !(t.type === 'recurring' && t.skippedDate === todayStr),
-  );
+  const effectiveFiltered =
+    filter === 'recurring'
+      ? filtered
+      : applyRecurringReset(filtered, todayStr).filter(
+          (task) => !(task.type === 'recurring' && task.skippedDate === todayStr),
+        );
 
-  const pending = effectiveFiltered.filter((t) => !t.completed);
+  const pending = effectiveFiltered.filter((task) => !task.completed);
 
   const completedSorted = effectiveFiltered
-    .filter((t) => t.completed)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .filter((task) => task.completed && isWithinLastSevenDays(task.completedAt, todayStr))
+    .sort(
+      (a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime(),
+    );
 
   const displayedCompleted = showAllCompleted
     ? completedSorted
     : completedSorted.slice(0, COMPLETED_LIMIT);
+
+  const recurringPanelTasks = tasks
+    .filter((task) => task.type === 'recurring')
+    .sort((a, b) => {
+      const nextA = getNextRecurringOccurrenceDate(a, todayStr) ?? '9999-12-31';
+      const nextB = getNextRecurringOccurrenceDate(b, todayStr) ?? '9999-12-31';
+      return nextA.localeCompare(nextB) || a.title.localeCompare(b.title);
+    });
 
   const dueTodayGoalTasks =
     filter === 'today' ? todayGoalTasks.filter(isGoalTaskDueForTasksToday) : [];
@@ -253,7 +294,7 @@ export function TasksScreen() {
         </View>
       ) : (
         <FlatList
-          data={[...pending, ...displayedCompleted]}
+          data={filter === 'recurring' ? recurringPanelTasks : [...pending, ...displayedCompleted]}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -267,62 +308,82 @@ export function TasksScreen() {
           }
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           ListHeaderComponent={
-            <>
-              {dueTodayGoalTasks.length > 0 && (
-                <View style={styles.goalTasksSection}>
-                  <Text style={styles.sectionLabel}>Hábitos de metas</Text>
-                  {dueTodayGoalTasks.map(({ task, goalTitle, goalColor }) => {
-                    const accent = goalColor ?? colors.primary;
-                    return (
-                      <Card
-                        key={task.id}
-                        style={[styles.goalTaskCard, { borderLeftColor: accent }]}
-                      >
-                        <View style={globalStyles.rowBetween}>
-                          <View style={styles.goalTaskLeft}>
-                            <Text style={styles.goalTaskGoal}>{goalTitle}</Text>
-                            <Text style={styles.goalTaskTitle}>{task.title}</Text>
-                          </View>
-                          <View style={styles.goalTaskActions}>
-                            {task.completedToday && (
+            filter === 'recurring' ? (
+              <View style={styles.recurringPanelHeader}>
+                <Text style={styles.sectionLabel}>Gerenciamento de recorrências</Text>
+                <Text style={styles.recurringPanelDescription}>
+                  Todas as tarefas recorrentes cadastradas, com frequência e próxima ocorrência.
+                  Toque em uma tarefa para ver os detalhes ou editar.
+                </Text>
+                <Text style={styles.recurringPanelCount}>
+                  {recurringPanelTasks.length}{' '}
+                  {recurringPanelTasks.length === 1 ? 'tarefa recorrente' : 'tarefas recorrentes'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {dueTodayGoalTasks.length > 0 && (
+                  <View style={styles.goalTasksSection}>
+                    <Text style={styles.sectionLabel}>Hábitos diários de metas</Text>
+                    {dueTodayGoalTasks.map(({ task, goalTitle, goalColor }) => {
+                      const accent = goalColor ?? colors.primary;
+                      return (
+                        <Card
+                          key={task.id}
+                          style={[styles.goalTaskCard, { borderLeftColor: accent }]}
+                        >
+                          <View style={globalStyles.rowBetween}>
+                            <View style={styles.goalTaskLeft}>
+                              <Text style={styles.goalTaskGoal}>{goalTitle}</Text>
+                              <Text style={styles.goalTaskTitle}>{task.title}</Text>
+                            </View>
+                            <View style={styles.goalTaskActions}>
+                              {task.completedToday && (
+                                <TouchableOpacity
+                                  style={styles.undoBtn}
+                                  onPress={() => uncompleteTask(task.goalId, task.id)}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                  <MaterialCommunityIcons
+                                    name="undo"
+                                    size={14}
+                                    color={colors.textDisabled}
+                                  />
+                                </TouchableOpacity>
+                              )}
                               <TouchableOpacity
-                                style={styles.undoBtn}
-                                onPress={() => uncompleteTask(task.goalId, task.id)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                style={[styles.doneBtn, { backgroundColor: accent }]}
+                                onPress={() => completeTask(task.goalId, task.id)}
+                                activeOpacity={0.8}
                               >
                                 <MaterialCommunityIcons
-                                  name="undo"
-                                  size={14}
-                                  color={colors.textDisabled}
+                                  name={task.completedToday ? 'check' : 'plus'}
+                                  size={16}
+                                  color={colors.textOnPrimary}
                                 />
                               </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                              style={[styles.doneBtn, { backgroundColor: accent }]}
-                              onPress={() => completeTask(task.goalId, task.id)}
-                              activeOpacity={0.8}
-                            >
-                              <MaterialCommunityIcons
-                                name={task.completedToday ? 'check' : 'plus'}
-                                size={16}
-                                color={colors.textOnPrimary}
-                              />
-                            </TouchableOpacity>
+                            </View>
                           </View>
-                        </View>
-                      </Card>
-                    );
-                  })}
-                </View>
-              )}
+                        </Card>
+                      );
+                    })}
+                  </View>
+                )}
 
-              {pending.length > 0 && completedSorted.length > 0 && (
-                <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
-              )}
-            </>
+                {pending.length > 0 && completedSorted.length > 0 && (
+                  <Text style={styles.sectionLabel}>Pendentes ({pending.length})</Text>
+                )}
+              </>
+            )
           }
           ListEmptyComponent={
-            dueTodayGoalTasks.length === 0 ? (
+            filter === 'recurring' ? (
+              <EmptyState
+                icon="repeat"
+                title="Nenhuma tarefa recorrente"
+                description="As tarefas configuradas para se repetir aparecerão aqui."
+              />
+            ) : dueTodayGoalTasks.length === 0 ? (
               <EmptyState
                 icon="playlist-check"
                 title="Nenhuma tarefa aqui"
@@ -331,32 +392,77 @@ export function TasksScreen() {
             ) : null
           }
           ListFooterComponent={
-            <>
-              {completedSorted.length > COMPLETED_LIMIT && !showAllCompleted && (
-                <TouchableOpacity
-                  style={styles.showMoreBtn}
-                  onPress={() => setShowAllCompleted(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.showMoreText}>
-                    Mostrar mais ({completedSorted.length - COMPLETED_LIMIT} tarefas)
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={18}
-                    color={colors.primaryDark}
-                  />
-                </TouchableOpacity>
-              )}
-            </>
+            filter === 'recurring' ? null : (
+              <>
+                {completedSorted.length > COMPLETED_LIMIT && !showAllCompleted && (
+                  <TouchableOpacity
+                    style={styles.showMoreBtn}
+                    onPress={() => setShowAllCompleted(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.showMoreText}>
+                      Mostrar mais ({completedSorted.length - COMPLETED_LIMIT} tarefas)
+                    </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.primaryDark}
+                    />
+                  </TouchableOpacity>
+                )}
+              </>
+            )
           }
           renderItem={({ item, index }) => {
+            if (filter === 'recurring') {
+              const status = getRecurringTaskStatus(item, todayStr);
+              const nextOccurrence = getNextRecurringOccurrenceDate(item, todayStr);
+              const statusColor = getRecurringStatusColor(status);
+              return (
+                <TouchableOpacity onPress={() => handlePress(item)} activeOpacity={0.8}>
+                  <Card style={styles.recurringTaskCard}>
+                    <View style={styles.recurringTaskTop}>
+                      <Text style={styles.recurringTaskTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={20}
+                        color={colors.textDisabled}
+                      />
+                    </View>
+                    <View style={styles.recurringTaskFrequency}>
+                      <MaterialCommunityIcons name="repeat" size={14} color={colors.info} />
+                      <Text style={styles.recurringTaskFrequencyText}>
+                        {getRecurringTaskFrequencyLabel(item)}
+                      </Text>
+                    </View>
+                    <View style={styles.recurringTaskFooter}>
+                      <View style={styles.recurringTaskStatus}>
+                        <View
+                          style={[styles.recurringTaskStatusDot, { backgroundColor: statusColor }]}
+                        />
+                        <Text style={[styles.recurringTaskStatusText, { color: statusColor }]}>
+                          {getRecurringStatusLabel(item, status, todayStr)}
+                        </Text>
+                      </View>
+                      <Text style={styles.recurringTaskNext}>
+                        {nextOccurrence
+                          ? `Próxima: ${formatCalendarDate(nextOccurrence)}`
+                          : 'Próxima ocorrência não definida'}
+                      </Text>
+                    </View>
+                  </Card>
+                </TouchableOpacity>
+              );
+            }
+
             const showCompletedHeader = index === pending.length && displayedCompleted.length > 0;
             return (
               <>
                 {showCompletedHeader && (
                   <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>
-                    Concluídas recentes ({completedSorted.length})
+                    Concluídas recentemente ({completedSorted.length})
                   </Text>
                 )}
                 <TaskItem
@@ -462,6 +568,70 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  recurringPanelHeader: {
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  recurringPanelDescription: {
+    ...typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
+  recurringPanelCount: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  recurringTaskCard: {
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  recurringTaskTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recurringTaskTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  recurringTaskFrequency: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  recurringTaskFrequencyText: {
+    ...typography.xs,
+    color: colors.info,
+    fontWeight: '600',
+  },
+  recurringTaskFooter: {
+    gap: 4,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  recurringTaskStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recurringTaskStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.full,
+  },
+  recurringTaskStatusText: {
+    ...typography.xs,
+    fontWeight: '700',
+  },
+  recurringTaskNext: {
+    ...typography.xs,
+    color: colors.textSecondary,
   },
   showMoreBtn: {
     flexDirection: 'row',

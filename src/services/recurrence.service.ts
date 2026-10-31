@@ -1,7 +1,9 @@
 import { localDateStr, dateOf } from '@/utils/date';
 import type { Task, RecurrenceDay } from '@/types/task.types';
 
-const WEEKDAYS: RecurrenceDay[] = [
+type Weekday = Exclude<RecurrenceDay, 'daily' | 'every_x_days'>;
+
+const WEEKDAYS: Weekday[] = [
   'sunday',
   'monday',
   'tuesday',
@@ -11,15 +13,37 @@ const WEEKDAYS: RecurrenceDay[] = [
   'saturday',
 ];
 
+const DISPLAY_WEEKDAYS: Weekday[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
+
+const WEEKDAY_LABELS: Record<Weekday, string> = {
+  monday: 'segunda-feira',
+  tuesday: 'terça-feira',
+  wednesday: 'quarta-feira',
+  thursday: 'quinta-feira',
+  friday: 'sexta-feira',
+  saturday: 'sábado',
+  sunday: 'domingo',
+};
+
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export type RecurringTaskStatus = 'pending' | 'completed' | 'skipped' | 'upcoming';
 
 export function getTodayString(): string {
   return localDateStr();
 }
 
-export function getTodayWeekday(dateString = getTodayString()): RecurrenceDay {
+export function getTodayWeekday(dateString = getTodayString()): Weekday {
   const [year, month, day] = dateString.split('-').map(Number);
-  return WEEKDAYS[new Date(year, month - 1, day).getDay()];
+  return WEEKDAYS[new Date(year, month - 1, day, 12).getDay()];
 }
 
 function differenceInCalendarDays(laterDate: string, earlierDate: string): number {
@@ -31,14 +55,20 @@ function differenceInCalendarDays(laterDate: string, earlierDate: string): numbe
   return Math.round((later - earlier) / MILLISECONDS_PER_DAY);
 }
 
+function addCalendarDays(dateString: string, amount: number): string {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return localDateStr(new Date(year, month - 1, day + amount, 12));
+}
+
 function wasCompletedOn(task: Task, dateString: string): boolean {
-  if (!task.completed) return false;
-  return dateOf(task.completedAt ?? task.updatedAt) === dateString;
+  if (!task.completed || !task.completedAt) return false;
+  return dateOf(task.completedAt) === dateString;
 }
 
 function isRecurringScheduledToday(task: Task, dateString: string): boolean {
+  const recurrenceDays = task.recurrenceDays ?? [];
   const weekday = getTodayWeekday(dateString);
-  return Boolean(task.recurrenceDays?.includes('daily') || task.recurrenceDays?.includes(weekday));
+  return recurrenceDays.includes('daily') || recurrenceDays.includes(weekday);
 }
 
 export function isEveryXDaysTask(task: Task): boolean {
@@ -57,6 +87,75 @@ export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolea
   const daysSinceCreation = differenceInCalendarDays(todayStr, anchorDate);
 
   return daysSinceCreation >= 0 && daysSinceCreation % interval === 0;
+}
+
+export function getRecurringTaskFrequencyLabel(task: Task): string {
+  if (isEveryXDaysTask(task)) {
+    const interval = Math.max(task.recurrenceInterval ?? 1, 1);
+    return `A cada ${interval} ${interval === 1 ? 'dia' : 'dias'}`;
+  }
+
+  const recurrenceDays = task.recurrenceDays ?? [];
+  if (recurrenceDays.includes('daily')) return 'Todos os dias';
+
+  const selectedDays = DISPLAY_WEEKDAYS.filter((day) => recurrenceDays.includes(day));
+  if (selectedDays.length === 0) return 'Recorrência não definida';
+
+  return selectedDays.map((day) => WEEKDAY_LABELS[day]).join(', ');
+}
+
+export function getNextRecurringOccurrenceDate(
+  task: Task,
+  todayStr = getTodayString(),
+): string | null {
+  if (task.type !== 'recurring') return null;
+
+  const completedToday = wasCompletedOn(task, todayStr);
+  const skippedToday = task.skippedDate === todayStr;
+  const firstCandidateDate =
+    completedToday || skippedToday ? addCalendarDays(todayStr, 1) : todayStr;
+
+  if (isEveryXDaysTask(task)) {
+    const interval = Math.max(task.recurrenceInterval ?? 1, 1);
+    const anchorDate = dateOf(task.createdAt);
+    const daysSinceAnchor = differenceInCalendarDays(firstCandidateDate, anchorDate);
+
+    if (daysSinceAnchor <= 0) return anchorDate;
+
+    const occurrenceNumber = Math.ceil(daysSinceAnchor / interval);
+    return addCalendarDays(anchorDate, occurrenceNumber * interval);
+  }
+
+  const recurrenceDays = task.recurrenceDays ?? [];
+  if (recurrenceDays.includes('daily')) return firstCandidateDate;
+
+  const selectedDays = WEEKDAYS.filter((day) => recurrenceDays.includes(day));
+  if (selectedDays.length === 0) return null;
+
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const candidateDate = addCalendarDays(firstCandidateDate, offset);
+    if (selectedDays.includes(getTodayWeekday(candidateDate))) return candidateDate;
+  }
+
+  return null;
+}
+
+export function getRecurringTaskStatus(
+  task: Task,
+  todayStr = getTodayString(),
+): RecurringTaskStatus {
+  if (wasCompletedOn(task, todayStr)) return 'completed';
+  if (task.skippedDate === todayStr) return 'skipped';
+  if (task.completed && !task.completedAt) return 'completed';
+
+  const isDueToday = isEveryXDaysTask(task)
+    ? isEveryXDaysDue(task, todayStr)
+    : isRecurringScheduledToday(task, todayStr);
+
+  if (isDueToday) return 'pending';
+  if (task.completed) return 'completed';
+
+  return 'upcoming';
 }
 
 export function filterTasksForHome(tasks: Task[], today = getTodayString()): Task[] {
