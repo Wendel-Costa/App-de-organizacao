@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../index';
 import { tasks, subtasks, taskSkips } from '../schema';
 import type { Task } from '@/types/task.types';
@@ -148,35 +148,35 @@ export async function toggleSubtaskComplete(id: string, completed: boolean): Pro
     .where(eq(subtasks.id, id));
 }
 
-export async function resetTaskSubtasks(taskId: string): Promise<void> {
-  await db.update(subtasks).set({ completed: 0 }).where(eq(subtasks.taskId, taskId));
-  await db.update(tasks).set({ updatedAt: now() }).where(eq(tasks.id, taskId));
+export async function resetRecurringTaskOccurrence(
+  taskId: string,
+  expectedCompletedAt: string | null,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const completionCondition =
+      expectedCompletedAt === null
+        ? isNull(tasks.completedAt)
+        : eq(tasks.completedAt, expectedCompletedAt);
+
+    const resetRows = await tx
+      .update(tasks)
+      .set({
+        completed: 0,
+        completedAt: null,
+      })
+      .where(and(eq(tasks.id, taskId), eq(tasks.completed, 1), completionCondition))
+      .returning({ id: tasks.id });
+
+    if (resetRows.length === 0) return false;
+
+    await tx.update(subtasks).set({ completed: 0 }).where(eq(subtasks.taskId, taskId));
+    return true;
+  });
 }
 
 export async function deleteTask(id: string): Promise<void> {
   await db.delete(subtasks).where(eq(subtasks.taskId, id));
   await db.delete(tasks).where(eq(tasks.id, id));
-}
-
-export async function rolloverTask(oldTask: Task): Promise<Task> {
-  const fresh = await createTask({
-    title: oldTask.title,
-    description: oldTask.description,
-    type: oldTask.type,
-    scoreLevel: oldTask.scoreLevel ?? 1,
-    completed: false,
-    scheduledDate: undefined,
-    dueDate: oldTask.dueDate,
-    recurrenceDays: oldTask.recurrenceDays,
-    recurrenceInterval: oldTask.recurrenceInterval,
-    goalId: oldTask.goalId,
-    themeId: oldTask.themeId,
-    subtasks: oldTask.subtasks?.map((s) => ({ id: s.id, title: s.title, completed: false })),
-  });
-
-  await deleteTask(oldTask.id);
-
-  return fresh;
 }
 
 function rowToTask(row: typeof tasks.$inferSelect, subs: (typeof subtasks.$inferSelect)[]): Task {

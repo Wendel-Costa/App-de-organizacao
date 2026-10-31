@@ -1,4 +1,3 @@
-import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { localDateStr, dateOf } from '@/utils/date';
 import type { Task, RecurrenceDay } from '@/types/task.types';
 
@@ -12,12 +11,34 @@ const WEEKDAYS: RecurrenceDay[] = [
   'saturday',
 ];
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
 export function getTodayString(): string {
   return localDateStr();
 }
 
-export function getTodayWeekday(): RecurrenceDay {
-  return WEEKDAYS[new Date().getDay()];
+export function getTodayWeekday(dateString = getTodayString()): RecurrenceDay {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return WEEKDAYS[new Date(year, month - 1, day).getDay()];
+}
+
+function differenceInCalendarDays(laterDate: string, earlierDate: string): number {
+  const [laterYear, laterMonth, laterDay] = laterDate.split('-').map(Number);
+  const [earlierYear, earlierMonth, earlierDay] = earlierDate.split('-').map(Number);
+  const later = Date.UTC(laterYear, laterMonth - 1, laterDay);
+  const earlier = Date.UTC(earlierYear, earlierMonth - 1, earlierDay);
+
+  return Math.round((later - earlier) / MILLISECONDS_PER_DAY);
+}
+
+function wasCompletedOn(task: Task, dateString: string): boolean {
+  if (!task.completed) return false;
+  return dateOf(task.completedAt ?? task.updatedAt) === dateString;
+}
+
+function isRecurringScheduledToday(task: Task, dateString: string): boolean {
+  const weekday = getTodayWeekday(dateString);
+  return Boolean(task.recurrenceDays?.includes('daily') || task.recurrenceDays?.includes(weekday));
 }
 
 export function isEveryXDaysTask(task: Task): boolean {
@@ -29,122 +50,102 @@ export function isEveryXDaysTask(task: Task): boolean {
 
 export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolean {
   if (!isEveryXDaysTask(task)) return false;
+  if (task.skippedDate === todayStr) return false;
 
   const interval = Math.max(task.recurrenceInterval ?? 1, 1);
-  if (task.skippedDate === todayStr) return false;
-  if (!task.completed) {
-    if (task.skippedDate) {
-      const daysSinceSkip = differenceInCalendarDays(
-        parseISO(todayStr),
-        parseISO(task.skippedDate),
-      );
-      return daysSinceSkip >= interval;
-    }
-    return true;
-  }
+  const anchorDate = dateOf(task.createdAt);
+  const daysSinceCreation = differenceInCalendarDays(todayStr, anchorDate);
 
-  const completedDate = dateOf(task.completedAt ?? task.updatedAt);
-  const anchorDate =
-    task.skippedDate && task.skippedDate > completedDate ? task.skippedDate : completedDate;
-  const daysSince = differenceInCalendarDays(parseISO(todayStr), parseISO(anchorDate));
-
-  return daysSince >= interval;
+  return daysSinceCreation >= 0 && daysSinceCreation % interval === 0;
 }
 
-export function filterTasksForHome(tasks: Task[]): Task[] {
-  const today = getTodayString();
-
+export function filterTasksForHome(tasks: Task[], today = getTodayString()): Task[] {
   return tasks.filter((task) => {
     if (task.type === 'recurring' && task.skippedDate === today) return false;
+
     if (task.type === 'anytime') {
       if (task.completed) return dateOf(task.updatedAt) === today;
       return true;
     }
+
     if (task.type === 'scheduled') return task.scheduledDate === today;
+
     if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, today);
-      const todayWeekday = getTodayWeekday();
-      return (
-        task.recurrenceDays?.includes('daily') ||
-        task.recurrenceDays?.includes(todayWeekday) ||
-        false
-      );
+      if (isEveryXDaysTask(task)) {
+        return wasCompletedOn(task, today) || isEveryXDaysDue(task, today);
+      }
+
+      return isRecurringScheduledToday(task, today) || wasCompletedOn(task, today);
     }
+
     return false;
   });
 }
 
 export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
   return tasks.map((task) => {
-    if (task.type === 'recurring' && task.completed) {
-      if (isEveryXDaysTask(task)) {
-        if (isEveryXDaysDue(task, todayStr)) return { ...task, completed: false };
-      } else {
-        const completedDate = dateOf(task.updatedAt);
-        if (completedDate !== todayStr) return { ...task, completed: false };
-      }
+    if (task.type !== 'recurring' || !task.completed) return task;
+
+    const completedDate = dateOf(task.completedAt ?? task.updatedAt);
+    if (completedDate === todayStr) return task;
+
+    if (isEveryXDaysTask(task)) {
+      if (!isEveryXDaysDue(task, todayStr)) return task;
+    } else if (!isRecurringScheduledToday(task, todayStr)) {
+      return task;
     }
-    return task;
+
+    return {
+      ...task,
+      completed: false,
+      completedAt: undefined,
+      subtasks: task.subtasks?.map((subtask) => ({ ...subtask, completed: false })),
+    };
   });
 }
 
-export function getRecurringTasksToRollover(tasks: Task[]): Task[] {
-  const todayStr = getTodayString();
+export function getRecurringTasksToReset(tasks: Task[], todayStr = getTodayString()): Task[] {
   return tasks.filter((task) => {
     if (task.type !== 'recurring' || !task.completed) return false;
-    if (isEveryXDaysTask(task)) return false;
+
     const completedDate = dateOf(task.completedAt ?? task.updatedAt);
-    return completedDate !== todayStr;
+    if (completedDate === todayStr) return false;
+
+    if (isEveryXDaysTask(task)) {
+      return isEveryXDaysDue(task, todayStr);
+    }
+
+    return isRecurringScheduledToday(task, todayStr);
   });
 }
 
-export function getRecurringTasksWithStaleSubtasks(tasks: Task[]): Task[] {
-  const todayStr = getTodayString();
-  return tasks.filter((task) => {
-    if (task.type !== 'recurring') return false;
-    if (task.completed) return false;
-    if (isEveryXDaysTask(task)) return false;
-    if (!task.subtasks?.some((s) => s.completed)) return false;
-    return dateOf(task.updatedAt) !== todayStr;
-  });
-}
-
-export function getEveryXDaysTasksToReset(tasks: Task[]): Task[] {
-  return tasks.filter(
-    (task) =>
-      task.type === 'recurring' &&
-      isEveryXDaysTask(task) &&
-      task.completed &&
-      isEveryXDaysDue(task),
-  );
-}
-
-export function filterTasksForThemeToday(tasks: Task[], themeId?: string): Task[] {
-  const today = getTodayString();
-
+export function filterTasksForThemeToday(
+  tasks: Task[],
+  themeId?: string,
+  today = getTodayString(),
+): Task[] {
   return tasks.filter((task) => {
     if (task.type === 'recurring' && task.skippedDate === today) return false;
 
     if (themeId) {
       if (task.themeId !== themeId) return false;
-    } else {
-      if (task.themeId) return false;
+    } else if (task.themeId) {
+      return false;
     }
 
     if (task.type === 'anytime') {
       if (task.completed) return dateOf(task.updatedAt) === today;
       return true;
     }
-    if (task.type === 'scheduled') return task.scheduledDate === today;
-    if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, today);
-      const todayWeekday = getTodayWeekday();
 
-      return (
-        task.recurrenceDays?.includes('daily') ||
-        task.recurrenceDays?.includes(todayWeekday) ||
-        false
-      );
+    if (task.type === 'scheduled') return task.scheduledDate === today;
+
+    if (task.type === 'recurring') {
+      if (isEveryXDaysTask(task)) {
+        return wasCompletedOn(task, today) || isEveryXDaysDue(task, today);
+      }
+
+      return isRecurringScheduledToday(task, today) || wasCompletedOn(task, today);
     }
 
     return false;

@@ -36,6 +36,7 @@ export interface Goal {
   allowOverflow: boolean;
   allowBeyond100: boolean;
   archived: boolean;
+  archivedAt: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;

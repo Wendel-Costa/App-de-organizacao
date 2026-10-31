@@ -51,12 +51,12 @@ interface GoalState {
   fetchActiveGoalCount: () => Promise<void>;
   fetchTodayGoalTasks: (force?: boolean) => Promise<void>;
   addGoal: (
-    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order' | 'archivedAt'>,
     tasks: LocalGoalTask[],
   ) => Promise<Goal>;
   editGoal: (
     id: string,
-    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
+    data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order' | 'archivedAt'>,
   ) => Promise<void>;
   removeGoal: (id: string) => Promise<void>;
   archiveGoal: (id: string) => Promise<void>;
@@ -219,13 +219,14 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   archiveGoal: async (id) => {
-    await archiveGoal(id);
+    const archivedAt = await archiveGoal(id);
     set((s) => ({
       goals: s.goals.map((g) =>
         g.id === id
           ? {
               ...g,
               archived: true,
+              archivedAt,
             }
           : g,
       ),

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -39,6 +39,10 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
   const { toggleComplete, toggleSubtask, removeTask } = useTaskStore();
   const { themes } = useFocusStore();
   const [localTask, setLocalTask] = useState<Task>(task);
+
+  useEffect(() => {
+    setLocalTask(task);
+  }, [task]);
 
   const themeName = localTask.themeId
     ? themes.find((t) => t.id === localTask.themeId)?.name

@@ -1,6 +1,6 @@
 import { sqlite } from '../index';
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 export async function runMigrations() {
   const versionRow = sqlite.getFirstSync<{ user_version: number }>('PRAGMA user_version');
@@ -90,6 +90,7 @@ export async function runMigrations() {
         allow_overflow INTEGER NOT NULL DEFAULT 0,
         allow_beyond_100 INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
+        archived_at TEXT,
         sort_order REAL NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL

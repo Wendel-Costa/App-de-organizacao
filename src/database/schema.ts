@@ -61,6 +61,7 @@ export const goals = sqliteTable('goals', {
   allowOverflow: int('allow_overflow').notNull().default(0),
   allowBeyond100: int('allow_beyond_100').notNull().default(0),
   archived: int('archived').notNull().default(0),
+  archivedAt: text('archived_at'),
   sortOrder: real('sort_order').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

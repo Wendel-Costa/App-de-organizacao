@@ -669,12 +669,16 @@ export function GoalsScreen() {
                             {goal.title}
                           </Text>
                           <Text style={styles.archivedDates}>
-                            Encerrada em{' '}
-                            {new Date(goal.endDate + 'T12:00:00').toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
+                            {goal.archivedAt
+                              ? `Arquivada em ${new Date(goal.archivedAt).toLocaleDateString(
+                                  'pt-BR',
+                                  {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  },
+                                )}`
+                              : 'Data de arquivamento não registrada'}
                           </Text>
                         </View>
                         <ProgressRing progress={progress} size={40} color={accent} />

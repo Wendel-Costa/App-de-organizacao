@@ -8,16 +8,11 @@ import {
   deleteTask,
   toggleTaskComplete,
   toggleSubtaskComplete,
-  rolloverTask,
-  resetTaskSubtasks,
+  resetRecurringTaskOccurrence,
   skipTaskOccurrence,
 } from '@/database/queries/tasks.queries';
 import { saveTaskCompletion } from '@/database/queries/taskHistory.queries';
-import {
-  getRecurringTasksToRollover,
-  getEveryXDaysTasksToReset,
-  getRecurringTasksWithStaleSubtasks,
-} from '@/services/recurrence.service';
+import { getRecurringTasksToReset } from '@/services/recurrence.service';
 import {
   scheduleTaskReminder,
   scheduleDueDateWarning,
@@ -48,6 +43,7 @@ interface TaskState {
 }
 
 let tasksFetchPromise: Promise<void> | null = null;
+let taskMutationVersion = 0;
 
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
@@ -56,43 +52,40 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   lastRecurrenceSyncDate: null,
 
   fetchTasks: async (force = false) => {
-    if (!force && Date.now() - get().lastFetchedAt < 10000) return;
+    const today = localDateStr();
+    const recurrenceAlreadySynced = get().lastRecurrenceSyncDate === today;
+
+    if (!force && recurrenceAlreadySynced && Date.now() - get().lastFetchedAt < 10000) {
+      return;
+    }
     if (tasksFetchPromise) return tasksFetchPromise;
+
+    const fetchMutationVersion = taskMutationVersion;
 
     tasksFetchPromise = (async () => {
       set({ loading: true });
       try {
         let tasks = await getAllTasks();
-        const today = localDateStr();
         const shouldSyncRecurrence = force || get().lastRecurrenceSyncDate !== today;
 
         if (shouldSyncRecurrence) {
           let recurrenceChanged = false;
+          const tasksToReset = getRecurringTasksToReset(tasks, today);
 
-          const toReset = getEveryXDaysTasksToReset(tasks);
-          for (const task of toReset) {
-            recurrenceChanged = true;
-            await toggleTaskComplete(task.id, false).catch(() => {});
-            if (task.subtasks?.some((s) => s.completed)) {
-              await resetTaskSubtasks(task.id).catch(() => {});
-            }
-          }
-
-          const toResetSubtasks = getRecurringTasksWithStaleSubtasks(tasks);
-          for (const task of toResetSubtasks) {
-            recurrenceChanged = true;
-            await resetTaskSubtasks(task.id).catch(() => {});
-          }
-
-          const toRollover = getRecurringTasksToRollover(tasks);
-          for (const task of toRollover) {
-            recurrenceChanged = true;
-            await rolloverTask(task).catch(() => {});
+          for (const task of tasksToReset) {
+            const reset = await resetRecurringTaskOccurrence(task.id, task.completedAt ?? null);
+            recurrenceChanged = recurrenceChanged || reset;
           }
 
           if (recurrenceChanged) {
             tasks = await getAllTasks();
           }
+        }
+
+        // A fetch that started before a successful mutation must not replace newer Zustand data.
+        if (fetchMutationVersion !== taskMutationVersion) {
+          set({ loading: false });
+          return;
         }
 
         set({
@@ -101,7 +94,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           lastFetchedAt: Date.now(),
           ...(shouldSyncRecurrence ? { lastRecurrenceSyncDate: today } : {}),
         });
-      } catch {
+      } catch (error) {
+        console.error('[taskStore.fetchTasks] Não foi possível atualizar as tarefas:', error);
         set({ loading: false });
       }
     })();
@@ -116,6 +110,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addTask: async (data) => {
     try {
       const newTask = await createTask(data);
+      taskMutationVersion += 1;
       set((state) => ({ tasks: [newTask, ...state.tasks], lastFetchedAt: Date.now() }));
 
       try {
@@ -143,6 +138,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   editTask: async (id, data) => {
     try {
       const savedTask = await updateTask(id, data);
+      taskMutationVersion += 1;
       const recurrenceChanged =
         data.type !== undefined ||
         data.recurrenceDays !== undefined ||
@@ -174,6 +170,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   removeTask: async (id) => {
     try {
       await deleteTask(id);
+      taskMutationVersion += 1;
       await cancelTaskNotifications(id).catch(() => {});
       set((state) => ({
         tasks: state.tasks.filter((t) => t.id !== id),
@@ -186,30 +183,78 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   toggleComplete: async (id, completed) => {
     try {
-      const taskBefore = get().tasks.find((t) => t.id === id);
+      const taskBefore = get().tasks.find((task) => task.id === id);
+      const startsNextOccurrence =
+        completed &&
+        taskBefore !== undefined &&
+        getRecurringTasksToReset([taskBefore], localDateStr()).length > 0;
+
+      if (startsNextOccurrence && taskBefore) {
+        const reset = await resetRecurringTaskOccurrence(id, taskBefore.completedAt ?? null);
+        if (reset) {
+          taskMutationVersion += 1;
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === id
+                ? {
+                    ...task,
+                    completed: false,
+                    completedAt: undefined,
+                    subtasks: task.subtasks?.map((subtask) => ({
+                      ...subtask,
+                      completed: false,
+                    })),
+                  }
+                : task,
+            ),
+          }));
+        }
+      }
+
+      const taskForCompletion =
+        startsNextOccurrence && taskBefore
+          ? {
+              ...taskBefore,
+              completed: false,
+              completedAt: undefined,
+              subtasks: taskBefore.subtasks?.map((subtask) => ({
+                ...subtask,
+                completed: false,
+              })),
+            }
+          : taskBefore;
 
       await toggleTaskComplete(id, completed);
+      taskMutationVersion += 1;
       const now = new Date().toISOString();
       set((state) => ({
         lastFetchedAt: Date.now(),
-        tasks: state.tasks.map((t) =>
-          t.id === id
+        tasks: state.tasks.map((task) =>
+          task.id === id
             ? {
-                ...t,
+                ...task,
+                ...(startsNextOccurrence
+                  ? {
+                      subtasks: task.subtasks?.map((subtask) => ({
+                        ...subtask,
+                        completed: false,
+                      })),
+                    }
+                  : {}),
                 completed,
                 updatedAt: now,
                 completedAt: completed ? now : undefined,
               }
-            : t,
+            : task,
         ),
       }));
 
       if (completed) {
         cancelTaskNotifications(id).catch(() => {});
 
-        if (taskBefore?.type === 'recurring') {
+        if (taskForCompletion?.type === 'recurring') {
           saveTaskCompletion({
-            ...taskBefore,
+            ...taskForCompletion,
             completed: true,
             updatedAt: now,
             completedAt: now,
@@ -220,16 +265,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         await awardProductiveAction(
           'task_completion',
           id,
-          pointsForTaskLevel(taskBefore?.scoreLevel, config),
-          { metadata: { scoreLevel: taskBefore?.scoreLevel ?? 1 } },
+          pointsForTaskLevel(taskForCompletion?.scoreLevel, config),
+          { metadata: { scoreLevel: taskForCompletion?.scoreLevel ?? 1 } },
         );
         await useGamificationStore.getState().refreshSummary();
       } else {
         await reverseLatestProductiveAction('task_completion', id);
         await useGamificationStore.getState().refreshSummary();
       }
-    } catch (e) {
-      throw e;
+    } catch (error) {
+      throw error;
     }
   },
 
@@ -237,6 +282,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const task = get().tasks.find((t) => t.id === id);
     if (!task || task.type !== 'recurring') return;
     await skipTaskOccurrence(id);
+    taskMutationVersion += 1;
     const today = localDateStr();
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, skippedDate: today } : t)),
@@ -245,19 +291,55 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   toggleSubtask: async (taskId, subtaskId, completed) => {
-    try {
-      await toggleSubtaskComplete(subtaskId, completed);
-      set((state) => ({
-        lastFetchedAt: Date.now(),
-        tasks: state.tasks.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                subtasks: t.subtasks?.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
-              }
-            : t,
-        ),
-      }));
-    } catch {}
+    const taskBefore = get().tasks.find((task) => task.id === taskId);
+    const startsNextOccurrence =
+      taskBefore !== undefined && getRecurringTasksToReset([taskBefore], localDateStr()).length > 0;
+
+    if (startsNextOccurrence && taskBefore) {
+      const reset = await resetRecurringTaskOccurrence(taskId, taskBefore.completedAt ?? null);
+      if (reset) {
+        taskMutationVersion += 1;
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === taskId
+              ? {
+                  ...task,
+                  completed: false,
+                  completedAt: undefined,
+                  subtasks: task.subtasks?.map((subtask) => ({ ...subtask, completed: false })),
+                }
+              : task,
+          ),
+        }));
+      }
+    }
+
+    await toggleSubtaskComplete(subtaskId, completed);
+    taskMutationVersion += 1;
+
+    set((state) => ({
+      lastFetchedAt: Date.now(),
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              ...(startsNextOccurrence
+                ? {
+                    completed: false,
+                    completedAt: undefined,
+                    subtasks: task.subtasks?.map((subtask) => ({
+                      ...subtask,
+                      completed: subtask.id === subtaskId ? completed : false,
+                    })),
+                  }
+                : {
+                    subtasks: task.subtasks?.map((subtask) =>
+                      subtask.id === subtaskId ? { ...subtask, completed } : subtask,
+                    ),
+                  }),
+            }
+          : task,
+      ),
+    }));
   },
 }));

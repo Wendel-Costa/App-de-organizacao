@@ -116,6 +116,7 @@ export async function getAllGoals(): Promise<Goal[]> {
       allowOverflow: goals.allowOverflow,
       allowBeyond100: goals.allowBeyond100,
       archived: goals.archived,
+      archivedAt: goals.archivedAt,
       sortOrder: goals.sortOrder,
       createdAt: goals.createdAt,
       updatedAt: goals.updatedAt,
@@ -154,6 +155,7 @@ export async function getAllGoals(): Promise<Goal[]> {
         allowOverflow: Boolean(row.allowOverflow),
         allowBeyond100: Boolean(row.allowBeyond100),
         archived: Boolean(row.archived),
+        archivedAt: row.archivedAt ?? null,
         order: row.sortOrder ?? 0,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
@@ -333,6 +335,7 @@ export async function getAllGoals(): Promise<Goal[]> {
       allowOverflow: Boolean(row.allowOverflow),
       allowBeyond100: Boolean(row.allowBeyond100),
       archived: Boolean(row.archived),
+      archivedAt: row.archivedAt ?? null,
       order: row.sortOrder ?? 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -561,7 +564,7 @@ export async function getTodayGoalTasks(): Promise<GoalTaskForToday[]> {
 }
 
 export async function createGoal(
-  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
+  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order' | 'archivedAt'>,
   localTasks: LocalGoalTask[],
 ): Promise<Goal> {
   const notebookIds = localTasks
@@ -654,6 +657,7 @@ export async function createGoal(
     ...data,
     id,
     archived: false,
+    archivedAt: null,
     order,
     tasks: savedTasks,
     createdAt: timestamp,
@@ -663,7 +667,7 @@ export async function createGoal(
 
 export async function updateGoal(
   id: string,
-  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
+  data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order' | 'archivedAt'>,
 ): Promise<void> {
   await db
     .update(goals)
@@ -680,14 +684,25 @@ export async function updateGoal(
     .where(eq(goals.id, id));
 }
 
-export async function archiveGoal(id: string): Promise<void> {
+export async function archiveGoal(id: string): Promise<string | null> {
+  const archivedAt = now();
+
   await db
     .update(goals)
     .set({
       archived: 1,
-      updatedAt: now(),
+      archivedAt,
+      updatedAt: archivedAt,
     })
-    .where(eq(goals.id, id));
+    .where(and(eq(goals.id, id), eq(goals.archived, 0)));
+
+  const [goal] = await db
+    .select({ archivedAt: goals.archivedAt })
+    .from(goals)
+    .where(eq(goals.id, id))
+    .limit(1);
+
+  return goal?.archivedAt ?? null;
 }
 
 export async function setAllowBeyond100(id: string, value: boolean): Promise<void> {
