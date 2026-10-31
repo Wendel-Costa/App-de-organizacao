@@ -45,11 +45,32 @@ interface CreateTaskScreenProps {
 export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskScreenProps) {
   const isEditing = !!initialTask;
   const { addTask, editTask } = useTaskStore();
-  const { themes } = useFocusStore();
+  const themes = useFocusStore((state) => state.themes);
+  const fetchThemes = useFocusStore((state) => state.fetchThemes);
   const { config } = useGamificationStore();
+  const [themesLoading, setThemesLoading] = useState(true);
+  const [themesLoadError, setThemesLoadError] = useState(false);
+
   useEffect(() => {
     void useGamificationStore.getState().fetch();
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetchThemes()
+      .catch((error) => {
+        console.error('[CreateTask] Não foi possível carregar os temas de foco:', error);
+        if (mounted) setThemesLoadError(true);
+      })
+      .finally(() => {
+        if (mounted) setThemesLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchThemes]);
 
   const [title, setTitle] = useState(initialTask?.title ?? '');
   const [description, setDescription] = useState(initialTask?.description ?? '');
@@ -459,35 +480,40 @@ export function CreateTaskScreen({ onBack, onSuccess, initialTask }: CreateTaskS
           />
         </View>
 
-        {themes.length > 0 && (
-          <>
-            <Text style={styles.label}>Tema de foco (opcional)</Text>
-            <View style={styles.themesRow}>
-              <TouchableOpacity
-                style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
-                onPress={() => setSelectedThemeId(undefined)}
-                activeOpacity={0.7}
+        <Text style={styles.label}>Tema de foco (opcional)</Text>
+        <View style={styles.themesRow}>
+          <TouchableOpacity
+            style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
+            onPress={() => setSelectedThemeId(undefined)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+              Nenhum
+            </Text>
+          </TouchableOpacity>
+          {themes.map((theme) => (
+            <TouchableOpacity
+              key={theme.id}
+              style={[styles.themeChip, selectedThemeId === theme.id && styles.themeChipActive]}
+              onPress={() => setSelectedThemeId(theme.id)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[styles.themeLabel, selectedThemeId === theme.id && styles.themeLabelActive]}
               >
-                <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
-                  Nenhum
-                </Text>
-              </TouchableOpacity>
-              {themes.map((t) => (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
-                  onPress={() => setSelectedThemeId(t.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[styles.themeLabel, selectedThemeId === t.id && styles.themeLabelActive]}
-                  >
-                    {t.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
+                {theme.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {themes.length === 0 && (
+          <Text style={styles.emptyThemesText}>
+            {themesLoading
+              ? 'Carregando temas de foco...'
+              : themesLoadError
+                ? 'Não foi possível carregar os temas de foco.'
+                : 'Nenhum tema cadastrado.'}
+          </Text>
         )}
 
         <Text style={styles.label}>Subtarefas</Text>
@@ -761,6 +787,10 @@ const styles = StyleSheet.create({
   },
   themeLabelActive: {
     color: colors.textOnPrimary,
+  },
+  emptyThemesText: {
+    ...typography.xs,
+    color: colors.textDisabled,
   },
   subtaskInput: {
     flexDirection: 'row',

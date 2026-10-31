@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { globalStyles } from '@/styles/global';
@@ -8,6 +8,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { DatePicker } from '@/components/DatePicker';
 import { TimePicker } from '@/components/TimePicker';
+import { dateOf, localDateStr } from '@/utils/date';
 
 interface ManualRegisterScreenProps {
   onBack: () => void;
@@ -23,15 +24,38 @@ function diffInMinutes(start: Date, end: Date): number {
 }
 
 export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreenProps) {
-  const { addSession, themes, sessions } = useFocusStore();
+  const addSession = useFocusStore((state) => state.addSession);
+  const themes = useFocusStore((state) => state.themes);
+  const sessions = useFocusStore((state) => state.sessions);
+  const geralThemeHidden = useFocusStore((state) => state.geralThemeHidden);
+  const fetchThemes = useFocusStore((state) => state.fetchThemes);
+  const fetchGeralThemeVisibility = useFocusStore((state) => state.fetchGeralThemeVisibility);
+  const [themeSettingsLoaded, setThemeSettingsLoaded] = useState(false);
+  const [themesLoadError, setThemesLoadError] = useState(false);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
 
   const [date, setDate] = useState<string | undefined>(todayStr);
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('09:00');
   const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    Promise.allSettled([fetchThemes(), fetchGeralThemeVisibility()])
+      .then((results) => {
+        if (mounted) setThemesLoadError(results[0].status === 'rejected');
+      })
+      .finally(() => {
+        if (mounted) setThemeSettingsLoaded(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchThemes, fetchGeralThemeVisibility]);
 
   async function handleSave() {
     if (!date) {
@@ -47,7 +71,7 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
       const sessionStart = new Date(session.startTime);
       const sessionEnd = new Date(session.endTime);
 
-      const sameDay = sessionStart.toISOString().split('T')[0] === date;
+      const sameDay = dateOf(session.startTime) === date;
 
       if (!sameDay) return false;
 
@@ -140,30 +164,39 @@ export function ManualRegisterScreen({ onBack, onSuccess }: ManualRegisterScreen
 
         <Text style={styles.label}>Tema (opcional)</Text>
         <View style={styles.themesRow}>
-          <TouchableOpacity
-            style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
-            onPress={() => setSelectedThemeId(undefined)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
-              Geral
-            </Text>
-          </TouchableOpacity>
-          {themes.map((t) => (
+          {themeSettingsLoaded && !geralThemeHidden && (
             <TouchableOpacity
-              key={t.id}
-              style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
-              onPress={() => setSelectedThemeId(t.id)}
+              style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
+              onPress={() => setSelectedThemeId(undefined)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+                Geral
+              </Text>
+            </TouchableOpacity>
+          )}
+          {themes.map((theme) => (
+            <TouchableOpacity
+              key={theme.id}
+              style={[styles.themeChip, selectedThemeId === theme.id && styles.themeChipActive]}
+              onPress={() => setSelectedThemeId(theme.id)}
               activeOpacity={0.7}
             >
               <Text
-                style={[styles.themeLabel, selectedThemeId === t.id && styles.themeLabelActive]}
+                style={[styles.themeLabel, selectedThemeId === theme.id && styles.themeLabelActive]}
               >
-                {t.name}
+                {theme.name}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
+        {themeSettingsLoaded && themes.length === 0 && (
+          <Text style={styles.emptyThemesText}>
+            {themesLoadError
+              ? 'Não foi possível carregar os temas de foco.'
+              : 'Nenhum tema de foco cadastrado.'}
+          </Text>
+        )}
 
         <Button
           label="Salvar registro"
@@ -237,6 +270,10 @@ const styles = StyleSheet.create({
   },
   themeLabelActive: {
     color: colors.textOnPrimary,
+  },
+  emptyThemesText: {
+    ...typography.xs,
+    color: colors.textDisabled,
   },
   saveButton: {
     marginTop: spacing.sm,
