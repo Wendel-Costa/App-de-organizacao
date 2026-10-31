@@ -27,7 +27,16 @@ const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
 const ACTIVE_FOCUS_KEY = '@foco:activeFocus';
 const TODAY_SESSIONS_CACHE_MS = 5000;
 const todaySessionsFetchedAt = new Map<string, number>();
-const todaySessionsFetchPromises = new Map<string, Promise<void>>();
+const todaySessionsFetchPromises = new Map<
+  string,
+  { requestId: number; mutationVersion: number; promise: Promise<void> }
+>();
+let sessionsMutationVersion = 0;
+let sessionsFetchRequestId = 0;
+let sessionsFetchPromise: Promise<void> | null = null;
+let sessionsFetchPromiseVersion = -1;
+let todaySessionsFetchRequestId = 0;
+let latestTodaySessionsRequestedDate: string | null = null;
 let activeFocusStorageQueue = Promise.resolve();
 
 function queueActiveFocusStorage(operation: () => Promise<void>): Promise<void> {
@@ -77,7 +86,9 @@ function getPomodoroState(
 
 interface FocusState {
   sessions: FocusSession[];
+  sessionsLoaded: boolean;
   todaySessions: FocusSession[];
+  todaySessionsDate: string | null;
   themes: FocusTheme[];
 
   status: FocusStatus;
@@ -95,7 +106,7 @@ interface FocusState {
   geralThemeHidden: boolean;
 
   fetchSessions: (force?: boolean) => Promise<void>;
-  fetchTodaySessions: (date: string) => Promise<void>;
+  fetchTodaySessions: (date: string, force?: boolean) => Promise<void>;
   fetchThemes: (force?: boolean) => Promise<void>;
   lastSessionsFetchedAt: number;
   lastThemesFetchedAt: number;
@@ -132,9 +143,23 @@ function hasTimeOverlap(startA: Date, endA: Date, startB: Date, endB: Date): boo
   return startA < endB && endA > startB;
 }
 
+function sortSessions(sessions: FocusSession[]): FocusSession[] {
+  return [...sessions].sort(
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+  );
+}
+
+function mergeSessions(current: FocusSession[], incoming: FocusSession[]): FocusSession[] {
+  const byId = new Map<string, FocusSession>(current.map((session) => [session.id, session]));
+  for (const session of incoming) byId.set(session.id, session);
+  return sortSessions(Array.from(byId.values()));
+}
+
 export const useFocusStore = create<FocusState>((set, get) => ({
   sessions: [],
+  sessionsLoaded: false,
   todaySessions: [],
+  todaySessionsDate: null,
   themes: [],
 
   status: 'idle',
@@ -154,35 +179,111 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   lastThemesFetchedAt: 0,
 
   fetchSessions: async (force = false) => {
-    if (!force && Date.now() - get().lastSessionsFetchedAt < 10000) {
+    if (!force && get().sessionsLoaded && Date.now() - get().lastSessionsFetchedAt < 10000) {
       return;
     }
-    const sessions = await getAllSessions();
-    set({
-      sessions,
-      lastSessionsFetchedAt: Date.now(),
-    });
-  },
 
-  fetchTodaySessions: async (date) => {
-    const now = Date.now();
-    const fetchedAt = todaySessionsFetchedAt.get(date) ?? 0;
-    if (now - fetchedAt < TODAY_SESSIONS_CACHE_MS) return;
+    if (!force && sessionsFetchPromise && sessionsFetchPromiseVersion === sessionsMutationVersion) {
+      return sessionsFetchPromise;
+    }
 
-    const pending = todaySessionsFetchPromises.get(date);
-    if (pending) return pending;
-
+    const requestId = ++sessionsFetchRequestId;
+    const requestMutationVersion = sessionsMutationVersion;
     const request = (async () => {
-      const todaySessions = await getSessionsForDate(date);
-      set({ todaySessions });
-      todaySessionsFetchedAt.set(date, Date.now());
+      try {
+        const sessions = await getAllSessions();
+
+        // Discard reads that started before a newer request or session mutation.
+        if (
+          requestId !== sessionsFetchRequestId ||
+          requestMutationVersion !== sessionsMutationVersion
+        ) {
+          return;
+        }
+
+        set({
+          sessions: sortSessions(sessions),
+          sessionsLoaded: true,
+          lastSessionsFetchedAt: Date.now(),
+        });
+      } catch (error) {
+        console.error('[focusStore.fetchSessions] Não foi possível carregar as sessões:', error);
+      }
     })();
 
-    todaySessionsFetchPromises.set(date, request);
+    sessionsFetchPromise = request;
+    sessionsFetchPromiseVersion = requestMutationVersion;
+
     try {
       await request;
     } finally {
-      todaySessionsFetchPromises.delete(date);
+      if (sessionsFetchPromise === request) {
+        sessionsFetchPromise = null;
+        sessionsFetchPromiseVersion = -1;
+      }
+    }
+  },
+
+  fetchTodaySessions: async (date, force = false) => {
+    const now = Date.now();
+    const fetchedAt = todaySessionsFetchedAt.get(date) ?? 0;
+    if (!force && get().todaySessionsDate === date && now - fetchedAt < TODAY_SESSIONS_CACHE_MS) {
+      return;
+    }
+
+    const pending = todaySessionsFetchPromises.get(date);
+    if (
+      !force &&
+      latestTodaySessionsRequestedDate === date &&
+      pending &&
+      pending.mutationVersion === sessionsMutationVersion
+    ) {
+      return pending.promise;
+    }
+
+    const requestId = ++todaySessionsFetchRequestId;
+    const requestMutationVersion = sessionsMutationVersion;
+    latestTodaySessionsRequestedDate = date;
+
+    if (get().todaySessionsDate !== date) {
+      set({ todaySessionsDate: date, todaySessions: [] });
+    }
+
+    const request = (async () => {
+      try {
+        const todaySessions = await getSessionsForDate(date);
+
+        // A late response for another day or an older database snapshot is ignored.
+        if (
+          requestId !== todaySessionsFetchRequestId ||
+          latestTodaySessionsRequestedDate !== date ||
+          requestMutationVersion !== sessionsMutationVersion
+        ) {
+          return;
+        }
+
+        set({ todaySessions: sortSessions(todaySessions), todaySessionsDate: date });
+        todaySessionsFetchedAt.set(date, Date.now());
+      } catch (error) {
+        console.error(
+          `[focusStore.fetchTodaySessions] Não foi possível carregar as sessões de ${date}:`,
+          error,
+        );
+      }
+    })();
+
+    todaySessionsFetchPromises.set(date, {
+      requestId,
+      mutationVersion: requestMutationVersion,
+      promise: request,
+    });
+
+    try {
+      await request;
+    } finally {
+      if (todaySessionsFetchPromises.get(date)?.requestId === requestId) {
+        todaySessionsFetchPromises.delete(date);
+      }
       const cutoff = Date.now() - 30000;
       for (const [cachedDate, timestamp] of todaySessionsFetchedAt) {
         if (timestamp < cutoff) todaySessionsFetchedAt.delete(cachedDate);
@@ -197,13 +298,30 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   addSession: async (data) => {
+    // Invalidate reads both before and after the write so a query cannot race the insert.
+    sessionsMutationVersion += 1;
     const session = await createSession(data);
-    const isToday = dateOf(session.startTime) === dateOf(new Date().toISOString());
+    sessionsMutationVersion += 1;
+    const sessionDate = dateOf(session.startTime);
+
     set((state) => ({
-      sessions: [session, ...state.sessions],
-      todaySessions: isToday ? [session, ...state.todaySessions] : state.todaySessions,
-      lastSessionsFetchedAt: Date.now(),
+      // Never expose a partial history as if it were the complete session list.
+      sessions: state.sessionsLoaded ? mergeSessions(state.sessions, [session]) : state.sessions,
+      todaySessions:
+        state.todaySessionsDate === sessionDate
+          ? mergeSessions(state.todaySessions, [session])
+          : state.todaySessions,
+      lastSessionsFetchedAt: state.sessionsLoaded ? Date.now() : 0,
     }));
+
+    if (!get().sessionsLoaded) {
+      await get().fetchSessions(true);
+    }
+
+    const loadedTodayDate = get().todaySessionsDate;
+    if (loadedTodayDate) {
+      void get().fetchTodaySessions(loadedTodayDate, true);
+    }
 
     const config = await getGamificationConfig();
     const points = pointsForFocusDuration(session.duration, config.pointsPerFocusHour);
@@ -225,14 +343,26 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   removeSession: async (id) => {
+    sessionsMutationVersion += 1;
     await deleteSession(id);
+    sessionsMutationVersion += 1;
+    set((state) => ({
+      sessions: state.sessions.filter((session) => session.id !== id),
+      todaySessions: state.todaySessions.filter((session) => session.id !== id),
+      lastSessionsFetchedAt: state.sessionsLoaded ? Date.now() : 0,
+    }));
+
+    if (!get().sessionsLoaded) {
+      void get().fetchSessions(true);
+    }
+
+    const loadedTodayDate = get().todaySessionsDate;
+    if (loadedTodayDate) {
+      void get().fetchTodaySessions(loadedTodayDate, true);
+    }
+
     await reverseLatestProductiveAction('focus_session', id);
     await useGamificationStore.getState().refreshSummary();
-    set((state) => ({
-      sessions: state.sessions.filter((s) => s.id !== id),
-      todaySessions: state.todaySessions.filter((s) => s.id !== id),
-      lastSessionsFetchedAt: Date.now(),
-    }));
   },
 
   removeTheme: async (id) => {
@@ -527,32 +657,67 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   editSessionTheme: async (id, themeId, themeName) => {
+    sessionsMutationVersion += 1;
     await updateSessionTheme(id, themeId, themeName);
+    sessionsMutationVersion += 1;
     set((state) => ({
-      sessions: state.sessions.map((s) => (s.id === id ? { ...s, themeId, themeName } : s)),
-      todaySessions: state.todaySessions.map((s) =>
-        s.id === id ? { ...s, themeId, themeName } : s,
+      sessions: state.sessions.map((session) =>
+        session.id === id ? { ...session, themeId, themeName } : session,
       ),
+      todaySessions: state.todaySessions.map((session) =>
+        session.id === id ? { ...session, themeId, themeName } : session,
+      ),
+      lastSessionsFetchedAt: state.sessionsLoaded ? Date.now() : 0,
     }));
+
+    if (!get().sessionsLoaded) {
+      void get().fetchSessions(true);
+    }
+
+    const loadedTodayDate = get().todaySessionsDate;
+    if (loadedTodayDate) {
+      void get().fetchTodaySessions(loadedTodayDate, true);
+    }
   },
 
   editSessionTime: async (id, startTime, endTime, duration) => {
+    sessionsMutationVersion += 1;
     await updateSessionTime(id, startTime, endTime, duration);
-    await rescoreFocusSession(id, duration);
-    await useGamificationStore.getState().refreshSummary();
+    sessionsMutationVersion += 1;
+
     set((state) => {
-      const updated = state.sessions.map((s) =>
-        s.id === id ? { ...s, startTime, endTime, duration } : s,
+      const updated = sortSessions(
+        state.sessions.map((session) =>
+          session.id === id ? { ...session, startTime, endTime, duration } : session,
+        ),
       );
-      const updatedSession = updated.find((s) => s.id === id);
+      const updatedSession = updated.find((session) => session.id === id);
+      const todaySessions = state.todaySessions.filter((session) => session.id !== id);
+      const nextTodaySessions =
+        updatedSession &&
+        state.todaySessionsDate &&
+        dateOf(updatedSession.startTime) === state.todaySessionsDate
+          ? mergeSessions(todaySessions, [updatedSession])
+          : todaySessions;
+
       return {
         sessions: updated,
-        todaySessions:
-          updatedSession && dateOf(updatedSession.startTime) === dateOf(new Date().toISOString())
-            ? [...state.todaySessions.filter((s) => s.id !== id), updatedSession]
-            : state.todaySessions.filter((s) => s.id !== id),
+        todaySessions: nextTodaySessions,
+        lastSessionsFetchedAt: state.sessionsLoaded ? Date.now() : 0,
       };
     });
+
+    if (!get().sessionsLoaded) {
+      void get().fetchSessions(true);
+    }
+
+    const loadedTodayDate = get().todaySessionsDate;
+    if (loadedTodayDate) {
+      void get().fetchTodaySessions(loadedTodayDate, true);
+    }
+
+    await rescoreFocusSession(id, duration);
+    await useGamificationStore.getState().refreshSummary();
   },
 
   fetchGeralThemeVisibility: async () => {
