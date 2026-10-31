@@ -25,6 +25,9 @@ import { dateOf } from '@/utils/date';
 
 const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
 const ACTIVE_FOCUS_KEY = '@foco:activeFocus';
+const TODAY_SESSIONS_CACHE_MS = 5000;
+const todaySessionsFetchedAt = new Map<string, number>();
+const todaySessionsFetchPromises = new Map<string, Promise<void>>();
 let activeFocusStorageQueue = Promise.resolve();
 
 function queueActiveFocusStorage(operation: () => Promise<void>): Promise<void> {
@@ -162,8 +165,29 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   fetchTodaySessions: async (date) => {
-    const todaySessions = await getSessionsForDate(date);
-    set({ todaySessions });
+    const now = Date.now();
+    const fetchedAt = todaySessionsFetchedAt.get(date) ?? 0;
+    if (now - fetchedAt < TODAY_SESSIONS_CACHE_MS) return;
+
+    const pending = todaySessionsFetchPromises.get(date);
+    if (pending) return pending;
+
+    const request = (async () => {
+      const todaySessions = await getSessionsForDate(date);
+      set({ todaySessions });
+      todaySessionsFetchedAt.set(date, Date.now());
+    })();
+
+    todaySessionsFetchPromises.set(date, request);
+    try {
+      await request;
+    } finally {
+      todaySessionsFetchPromises.delete(date);
+      const cutoff = Date.now() - 30000;
+      for (const [cachedDate, timestamp] of todaySessionsFetchedAt) {
+        if (timestamp < cutoff) todaySessionsFetchedAt.delete(cachedDate);
+      }
+    }
   },
 
   fetchThemes: async (force = false) => {

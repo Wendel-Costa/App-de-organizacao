@@ -1,5 +1,5 @@
 import { localDateStr } from '@/utils/date';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import type { Goal, GoalTaskRecurrenceType, GoalTaskType, LocalGoalTask } from '
 import type { RecurrenceDay } from '@/types/task.types';
 import { TOLERANCE_OPTIONS } from '@/services/goals.service';
 import { useNotebookStore } from '@/store/notebookStore';
+import { MultiSelectModal } from '@/components/MultiSelectModal';
 
 const COLORS = [
   '#F5C518',
@@ -192,7 +193,27 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
   const [taskRecDays, setTaskRecDays] = useState<RecurrenceDay[]>([]);
   const [newTaskHours, setNewTaskHours] = useState(10);
   const [newTaskThemeIds, setNewTaskThemeIds] = useState<string[]>([]);
-  const [selectedNotebookId, setSelectedNotebookId] = useState<string | undefined>();
+  const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>([]);
+  const [showNotebookPicker, setShowNotebookPicker] = useState(false);
+  const existingNotebookIds = useMemo(
+    () =>
+      new Set(
+        localTasks
+          .filter((task) => task.type === 'notebook' && task.notebookId)
+          .map((task) => task.notebookId as string),
+      ),
+    [localTasks],
+  );
+  const notebookPickerItems = useMemo(
+    () =>
+      notebooks.map((notebook) => ({
+        id: notebook.id,
+        title: notebook.title,
+        meta: `${notebook.completedTopics}/${notebook.totalTopics} tópicos`,
+        disabled: existingNotebookIds.has(notebook.id),
+      })),
+    [notebooks, existingNotebookIds],
+  );
   const [createRewardToggle, setCreateRewardToggle] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -268,21 +289,21 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
     setTaskRecDays([]);
     setNewTaskHours(10);
     setNewTaskThemeIds([]);
-    setSelectedNotebookId(undefined);
+    setSelectedNotebookIds([]);
   }
 
   function handleAddTask() {
+    if (newTaskType === 'notebook') {
+      setShowNotebookPicker(true);
+      return;
+    }
+
     if (!taskTitle.trim()) {
       Alert.alert('Atenção', 'Dê um nome ao fator/hábito.');
       return;
     }
     if (newTaskType === 'habit' && taskRecType === 'specific_days' && taskRecDays.length === 0) {
       Alert.alert('Atenção', 'Selecione pelo menos um dia da semana.');
-      return;
-    }
-
-    if (newTaskType === 'notebook' && !selectedNotebookId) {
-      Alert.alert('Atenção', 'Selecione um caderno para este fator.');
       return;
     }
 
@@ -294,10 +315,7 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
         : undefined;
 
     const newTask: LocalGoalTask = {
-      title:
-        newTaskType === 'notebook'
-          ? (notebooks.find((n) => n.id === selectedNotebookId)?.title ?? taskTitle.trim())
-          : taskTitle.trim(),
+      title: taskTitle.trim(),
       type: newTaskType,
       recurrenceType: newTaskType === 'habit' ? taskRecType : 'none',
       recurrenceCount: newTaskType === 'habit' ? taskRecCount : 1,
@@ -309,10 +327,42 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           ? selectedThemeNames
           : undefined,
       targetHours: newTaskType === 'focus_hours' ? newTaskHours : undefined,
-      notebookId: newTaskType === 'notebook' ? selectedNotebookId : undefined,
     };
 
     setLocalTasks((prev) => [...prev, newTask]);
+    resetTaskForm();
+    setShowTaskForm(false);
+  }
+
+  function confirmNotebookSelection() {
+    const uniqueSelectedIds = Array.from(new Set(selectedNotebookIds));
+    const duplicateId = uniqueSelectedIds.find((id) => existingNotebookIds.has(id));
+
+    if (duplicateId) {
+      Alert.alert('Caderno já adicionado', 'Esse caderno já é um fator desta meta.');
+      return;
+    }
+
+    const selectedTasks = uniqueSelectedIds
+      .map((id) => notebooks.find((notebook) => notebook.id === id))
+      .filter((notebook): notebook is (typeof notebooks)[number] => Boolean(notebook))
+      .map((notebook): LocalGoalTask => ({
+        title: notebook.title,
+        type: 'notebook',
+        recurrenceType: 'none',
+        recurrenceCount: 1,
+        recurrenceDays: [],
+        notebookId: notebook.id,
+      }));
+
+    if (selectedTasks.length === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos um caderno.');
+      return;
+    }
+
+    setLocalTasks((prev) => [...prev, ...selectedTasks]);
+    setShowNotebookPicker(false);
+    setSelectedNotebookIds([]);
     resetTaskForm();
     setShowTaskForm(false);
   }
@@ -351,6 +401,8 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
         return 'timer-outline';
       case 'wildcard':
         return 'lightning-bolt';
+      case 'notebook':
+        return 'book-open-page-variant-outline';
       default:
         return 'checkbox-marked-circle-outline';
     }
@@ -575,59 +627,42 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
                   </TouchableOpacity>
                 ))}
 
-                <Text style={styles.formLabel}>
-                  {newTaskType === 'wildcard' ? 'Nome da ação coringa *' : 'Nome do fator *'}
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={
-                    newTaskType === 'focus_hours'
-                      ? 'Ex: Horas de estudo de inglês...'
-                      : newTaskType === 'wildcard'
-                        ? 'Ex: Aprovação no exame B2...'
-                        : 'Ex: Ver videoaula, Treinar...'
-                  }
-                  placeholderTextColor={colors.textDisabled}
-                  value={taskTitle}
-                  onChangeText={setTaskTitle}
-                  maxLength={80}
-                />
+                {newTaskType !== 'notebook' && (
+                  <>
+                    <Text style={styles.formLabel}>
+                      {newTaskType === 'wildcard' ? 'Nome da ação coringa *' : 'Nome do fator *'}
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder={
+                        newTaskType === 'focus_hours'
+                          ? 'Ex: Horas de estudo de inglês...'
+                          : newTaskType === 'wildcard'
+                            ? 'Ex: Aprovação no exame B2...'
+                            : 'Ex: Ver videoaula, Treinar...'
+                      }
+                      placeholderTextColor={colors.textDisabled}
+                      value={taskTitle}
+                      onChangeText={setTaskTitle}
+                      maxLength={80}
+                    />
+                  </>
+                )}
 
                 {newTaskType === 'notebook' && (
-                  <>
-                    <Text style={styles.formLabel}>Caderno</Text>
-                    <TouchableOpacity
-                      style={styles.taskTypeRow}
-                      onPress={() =>
-                        Alert.alert('Selecionar caderno', 'Escolha um caderno:', [
-                          ...notebooks.map((n) => ({
-                            text: n.title,
-                            onPress: () => {
-                              setSelectedNotebookId(n.id);
-                              setTaskTitle(n.title);
-                            },
-                          })),
-                          { text: 'Cancelar', style: 'cancel' as const },
-                        ])
-                      }
-                      activeOpacity={0.7}
-                    >
-                      <MaterialCommunityIcons
-                        name="book-open-page-variant-outline"
-                        size={20}
-                        color={colors.primary}
-                      />
-                      <Text style={styles.taskTypeLabel}>
-                        {notebooks.find((n) => n.id === selectedNotebookId)?.title ??
-                          'Selecionar caderno'}
+                  <View style={styles.notebookSelectionInfo}>
+                    <MaterialCommunityIcons
+                      name="book-multiple-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <View style={styles.notebookSelectionCopy}>
+                      <Text style={styles.taskTypeLabel}>Cadernos</Text>
+                      <Text style={styles.formHint}>
+                        Clique em adicionar para abrir o campo de seleção de cadernos
                       </Text>
-                      <MaterialCommunityIcons
-                        name="chevron-right"
-                        size={18}
-                        color={colors.textDisabled}
-                      />
-                    </TouchableOpacity>
-                  </>
+                    </View>
+                  </View>
                 )}
 
                 {newTaskType === 'focus_hours' && (
@@ -1030,6 +1065,33 @@ export function CreateGoalScreen({ onBack, onSuccess, initialGoal }: CreateGoalS
           style={styles.saveButton}
         />
       </ScrollView>
+
+      <MultiSelectModal
+        visible={showNotebookPicker}
+        title="Selecionar cadernos"
+        subtitle="Escolha um ou mais cadernos para virar fatores desta meta."
+        items={notebookPickerItems}
+        selectedIds={selectedNotebookIds}
+        onToggle={(id) =>
+          setSelectedNotebookIds((current) =>
+            current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+          )
+        }
+        onSelectAll={() =>
+          setSelectedNotebookIds(
+            notebooks
+              .filter((notebook) => !existingNotebookIds.has(notebook.id))
+              .map((notebook) => notebook.id),
+          )
+        }
+        onDeselectAll={() => setSelectedNotebookIds([])}
+        onConfirm={confirmNotebookSelection}
+        onCancel={() => {
+          setSelectedNotebookIds([]);
+          setShowNotebookPicker(false);
+        }}
+        confirmLabel="Adicionar cadernos"
+      />
     </View>
   );
 }
@@ -1293,6 +1355,27 @@ const styles = StyleSheet.create({
   },
   dayChipLabelActive: {
     color: colors.textOnPrimary,
+  },
+
+  notebookSelectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+  },
+  notebookSelectionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  notebookSelectionCount: {
+    ...typography.h3,
+    color: colors.primary,
+    minWidth: 24,
+    textAlign: 'center',
   },
 
   taskList: {

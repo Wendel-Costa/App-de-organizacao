@@ -109,9 +109,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                     const permissions = await saf.requestDirectoryPermissionsAsync();
                     if (!permissions.granted) return;
 
-                    const fileName = `backup_focomais_v${payload.exportVersion}_${new Date()
-                      .toISOString()
-                      .slice(0, 10)}.txt`;
+                    const fileName = `backup_focomais_${new Date().toISOString().slice(0, 10)}.txt`;
                     const fileUri = await saf.createFileAsync(
                       permissions.directoryUri,
                       fileName,
@@ -132,7 +130,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
         return;
       }
 
-      const uri = `${FileSystem.cacheDirectory}backup_focomais_v${payload.exportVersion}_${Date.now()}.txt`;
+      const uri = `${FileSystem.cacheDirectory}backup_focomais_${Date.now()}.txt`;
       await FileSystem.writeAsStringAsync(uri, content);
 
       Alert.alert('Exportação concluída', 'O arquivo foi preparado para compartilhamento.', [

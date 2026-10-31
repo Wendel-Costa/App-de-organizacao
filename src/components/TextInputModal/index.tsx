@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -15,8 +15,9 @@ interface TextInputModalProps {
   visible: boolean;
   title: string;
   placeholder?: string;
+  initialValue?: string;
   confirmLabel?: string;
-  onConfirm: (value: string) => void;
+  onConfirm: (value: string) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -24,26 +25,40 @@ export function TextInputModal({
   visible,
   title,
   placeholder,
+  initialValue = '',
   confirmLabel = 'Criar',
   onConfirm,
   onCancel,
 }: TextInputModalProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
 
-  function handleConfirm() {
-    if (value.trim()) {
-      onConfirm(value.trim());
+  useEffect(() => {
+    if (visible) setValue(initialValue);
+  }, [visible, initialValue]);
+
+  async function handleConfirm() {
+    const trimmed = value.trim();
+    if (!trimmed || saving) return;
+
+    setSaving(true);
+    try {
+      await onConfirm(trimmed);
       setValue('');
+    } catch {
+    } finally {
+      setSaving(false);
     }
   }
 
   function handleCancel() {
+    if (saving) return;
     setValue('');
     onCancel();
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
@@ -57,20 +72,23 @@ export function TextInputModal({
             value={value}
             onChangeText={setValue}
             autoFocus
-            onSubmitEditing={handleConfirm}
+            editable={!saving}
+            onSubmitEditing={() => void handleConfirm()}
             returnKeyType="done"
           />
           <View style={styles.buttons}>
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={handleCancel}
+              disabled={saving}
               activeOpacity={0.7}
             >
               <Text style={styles.cancelLabel}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.confirmButton}
-              onPress={handleConfirm}
+              onPress={() => void handleConfirm()}
+              disabled={saving}
               activeOpacity={0.7}
             >
               <Text style={styles.confirmLabel}>{confirmLabel}</Text>

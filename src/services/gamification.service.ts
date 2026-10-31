@@ -7,7 +7,6 @@ import {
   achievements,
 } from '@/database/schema';
 import type {
-  CoinTransaction,
   GamificationConfig,
   GamificationSummary,
   PointEvent,
@@ -31,10 +30,6 @@ function generateId() {
 
 function now() {
   return new Date().toISOString();
-}
-
-export function getDefaultGamificationConfig(): GamificationConfig {
-  return { ...DEFAULT_CONFIG };
 }
 
 function normalizeBooleanFlag(value: unknown, fallback = false): boolean {
@@ -142,34 +137,6 @@ export function pointsForTaskLevel(
 
 export function pointsForFocusDuration(durationMinutes: number, pointsPerHour: number): number {
   return Math.round((Math.max(0, durationMinutes) / 60) * Math.max(0, pointsPerHour) * 100) / 100;
-}
-
-export async function getPointEvents(): Promise<PointEvent[]> {
-  const rows = await db.select().from(pointEvents).orderBy(desc(pointEvents.occurredAt));
-  return rows.map((r) => ({
-    id: r.id,
-    action: r.action as ProductiveAction,
-    entityId: r.entityId,
-    points: r.points,
-    coins: r.coins,
-    occurredAt: r.occurredAt,
-    reversalOf: r.reversalOf ?? undefined,
-    metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
-  }));
-}
-
-export async function getCoinTransactions(): Promise<CoinTransaction[]> {
-  const rows = await db.select().from(coinTransactions).orderBy(desc(coinTransactions.occurredAt));
-  return rows.map((r) => ({
-    id: r.id,
-    type: r.type as CoinTransaction['type'],
-    amount: r.amount,
-    occurredAt: r.occurredAt,
-    entityType: r.entityType ?? undefined,
-    entityId: r.entityId ?? undefined,
-    reversalOf: r.reversalOf ?? undefined,
-    description: r.description ?? undefined,
-  }));
 }
 
 export async function getSummary(): Promise<GamificationSummary> {
@@ -404,20 +371,6 @@ export async function purchaseReward(
   return purchaseId;
 }
 
-export async function getLevelInfo(points: number) {
-  const level = levelForPoints(points);
-  return {
-    level,
-    currentLevelPoints: levelThreshold(level),
-    nextLevelPoints: levelThreshold(level + 1),
-    progress: Math.min(
-      1,
-      (points - levelThreshold(level)) /
-        Math.max(1, levelThreshold(level + 1) - levelThreshold(level)),
-    ),
-  };
-}
-
 const FIXED_LEVEL_THRESHOLDS = [0, 100, 250, 500, 850, 1300, 1850, 2500, 3250, 4100];
 
 export function levelThreshold(level: number): number {
@@ -432,10 +385,6 @@ export function levelForPoints(points: number): number {
   let level = 1;
   while (levelThreshold(level + 1) <= points) level += 1;
   return level;
-}
-
-export async function refreshGamificationSummary(): Promise<GamificationSummary> {
-  return getSummary();
 }
 
 function actionLabel(action: ProductiveAction): string {

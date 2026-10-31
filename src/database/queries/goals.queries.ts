@@ -93,14 +93,14 @@ export function calculateTargetCount(
 export async function getActiveGoalCount(): Promise<number> {
   const todayStr = today();
 
-  const rows = await db
-    .select({ id: goals.id })
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
     .from(goals)
     .where(
       and(eq(goals.archived, 0), lte(goals.startDate, todayStr), gte(goals.endDate, todayStr)),
     );
 
-  return rows.length;
+  return Number(row?.count ?? 0);
 }
 
 export async function getAllGoals(): Promise<Goal[]> {
@@ -187,7 +187,15 @@ export async function getAllGoals(): Promise<Goal[]> {
   const focusSessionStart = `${dateWithOffset(minGoalDate, -1)}T00:00:00.000Z`;
   const focusSessionEnd = `${dateWithOffset(maxGoalDate, 1)}T23:59:59.999Z`;
 
-  const [completionStats, focusStats, notebookStats] = await Promise.all([
+  const usedThemeIds = Array.from(new Set(taskRows.flatMap((task) => parseThemeIds(task))));
+  const themeRowsPromise = usedThemeIds.length
+    ? db
+        .select({ id: focusThemes.id, name: focusThemes.name })
+        .from(focusThemes)
+        .where(inArray(focusThemes.id, usedThemeIds))
+    : Promise.resolve([]);
+
+  const [completionStats, focusStats, notebookStats, themeRows] = await Promise.all([
     db
       .select({
         goalTaskId: goalTaskCompletions.goalTaskId,
@@ -248,15 +256,8 @@ export async function getAllGoals(): Promise<Goal[]> {
             ),
           )
           .groupBy(notebookTopics.notebookId),
+    themeRowsPromise,
   ]);
-
-  const usedThemeIds = Array.from(new Set(taskRows.flatMap((task) => parseThemeIds(task))));
-  const themeRows = usedThemeIds.length
-    ? await db
-        .select({ id: focusThemes.id, name: focusThemes.name })
-        .from(focusThemes)
-        .where(inArray(focusThemes.id, usedThemeIds))
-    : [];
 
   const completionByTaskId = new Map(completionStats.map((row) => [row.goalTaskId, row]));
   const focusByTaskId = new Map(focusStats.map((row) => [row.taskId, row]));
@@ -358,7 +359,14 @@ export async function getTodayGoalTasks(): Promise<GoalTaskForToday[]> {
   const todayWeekday = WEEKDAYS[new Date().getDay()];
 
   const activeGoals = await db
-    .select()
+    .select({
+      id: goals.id,
+      title: goals.title,
+      startDate: goals.startDate,
+      endDate: goals.endDate,
+      color: goals.color,
+      archived: goals.archived,
+    })
     .from(goals)
     .where(
       and(eq(goals.archived, 0), lte(goals.startDate, todayStr), gte(goals.endDate, todayStr)),
@@ -368,14 +376,34 @@ export async function getTodayGoalTasks(): Promise<GoalTaskForToday[]> {
 
   const goalIds = activeGoals.map((goal) => goal.id);
 
-  const taskRows = await db.select().from(goalTasks).where(inArray(goalTasks.goalId, goalIds));
+  const taskRows = await db
+    .select({
+      id: goalTasks.id,
+      goalId: goalTasks.goalId,
+      title: goalTasks.title,
+      targetCount: goalTasks.targetCount,
+      type: goalTasks.type,
+      themeId: goalTasks.themeId,
+      themeIds: goalTasks.themeIds,
+      notebookId: goalTasks.notebookId,
+      recurrenceType: goalTasks.recurrenceType,
+      recurrenceCount: goalTasks.recurrenceCount,
+      recurrenceDays: goalTasks.recurrenceDays,
+    })
+    .from(goalTasks)
+    .where(inArray(goalTasks.goalId, goalIds));
 
   if (taskRows.length === 0) return [];
 
   const taskIds = taskRows.map((task) => task.id);
 
   const completionRows = await db
-    .select()
+    .select({
+      id: goalTaskCompletions.id,
+      goalTaskId: goalTaskCompletions.goalTaskId,
+      completedDate: goalTaskCompletions.completedDate,
+      createdAt: goalTaskCompletions.createdAt,
+    })
     .from(goalTaskCompletions)
     .where(inArray(goalTaskCompletions.goalTaskId, taskIds));
 
@@ -386,7 +414,11 @@ export async function getTodayGoalTasks(): Promise<GoalTaskForToday[]> {
   const notebookTopicRows =
     notebookIds.length > 0
       ? await db
-          .select()
+          .select({
+            id: notebookTopics.id,
+            notebookId: notebookTopics.notebookId,
+            completed: notebookTopics.completed,
+          })
           .from(notebookTopics)
           .where(inArray(notebookTopics.notebookId, notebookIds))
       : [];
@@ -532,12 +564,21 @@ export async function createGoal(
   data: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'tasks' | 'order'>,
   localTasks: LocalGoalTask[],
 ): Promise<Goal> {
+  const notebookIds = localTasks
+    .filter((task) => task.type === 'notebook' && task.notebookId)
+    .map((task) => task.notebookId as string);
+
+  if (new Set(notebookIds).size !== notebookIds.length) {
+    throw new Error('DUPLICATE_NOTEBOOK_FACTOR');
+  }
+
   const id = generateId();
   const timestamp = now();
 
-  const existing = await db.select().from(goals);
-  const maxOrder = existing.reduce((m, g) => Math.max(m, g.sortOrder ?? 0), 0);
-  const order = existing.length > 0 ? maxOrder + 1 : 0;
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: sql<number | null>`max(${goals.sortOrder})` })
+    .from(goals);
+  const order = maxOrder == null ? 0 : Number(maxOrder) + 1;
 
   await db.insert(goals).values({
     id,
@@ -686,8 +727,27 @@ export async function addGoalTask(
   endDate: string,
   local: LocalGoalTask,
 ): Promise<GoalTask> {
-  const id = generateId();
   const taskType = local.type ?? 'habit';
+
+  if (taskType === 'notebook' && local.notebookId) {
+    const existingNotebookFactor = await db
+      .select({ id: goalTasks.id })
+      .from(goalTasks)
+      .where(
+        and(
+          eq(goalTasks.goalId, goalId),
+          eq(goalTasks.type, 'notebook'),
+          eq(goalTasks.notebookId, local.notebookId),
+        ),
+      )
+      .limit(1);
+
+    if (existingNotebookFactor.length > 0) {
+      throw new Error('DUPLICATE_NOTEBOOK_FACTOR');
+    }
+  }
+
+  const id = generateId();
 
   let targetCount: number;
 
@@ -789,7 +849,11 @@ export async function uncompleteGoalTaskForToday(taskId: string): Promise<{
   const todayStr = today();
 
   const rows = await db
-    .select()
+    .select({
+      id: goalTaskCompletions.id,
+      completedDate: goalTaskCompletions.completedDate,
+      createdAt: goalTaskCompletions.createdAt,
+    })
     .from(goalTaskCompletions)
     .where(
       and(

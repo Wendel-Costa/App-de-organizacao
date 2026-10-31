@@ -37,6 +37,7 @@ interface TaskState {
   tasks: Task[];
   loading: boolean;
   lastFetchedAt: number;
+  lastRecurrenceSyncDate: string | null;
   fetchTasks: (force?: boolean) => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   editTask: (id: string, data: Partial<Task>) => Promise<void>;
@@ -46,47 +47,69 @@ interface TaskState {
   skipRecurringOccurrence: (id: string) => Promise<void>;
 }
 
+let tasksFetchPromise: Promise<void> | null = null;
+
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   loading: false,
   lastFetchedAt: 0,
+  lastRecurrenceSyncDate: null,
 
   fetchTasks: async (force = false) => {
     if (!force && Date.now() - get().lastFetchedAt < 10000) return;
-    set({ loading: true });
-    try {
-      let tasks = await getAllTasks();
+    if (tasksFetchPromise) return tasksFetchPromise;
 
-      const toReset = getEveryXDaysTasksToReset(tasks);
-      if (toReset.length > 0) {
-        for (const task of toReset) {
-          await toggleTaskComplete(task.id, false).catch(() => {});
-          if (task.subtasks?.some((s) => s.completed)) {
+    tasksFetchPromise = (async () => {
+      set({ loading: true });
+      try {
+        let tasks = await getAllTasks();
+        const today = localDateStr();
+        const shouldSyncRecurrence = force || get().lastRecurrenceSyncDate !== today;
+
+        if (shouldSyncRecurrence) {
+          let recurrenceChanged = false;
+
+          const toReset = getEveryXDaysTasksToReset(tasks);
+          for (const task of toReset) {
+            recurrenceChanged = true;
+            await toggleTaskComplete(task.id, false).catch(() => {});
+            if (task.subtasks?.some((s) => s.completed)) {
+              await resetTaskSubtasks(task.id).catch(() => {});
+            }
+          }
+
+          const toResetSubtasks = getRecurringTasksWithStaleSubtasks(tasks);
+          for (const task of toResetSubtasks) {
+            recurrenceChanged = true;
             await resetTaskSubtasks(task.id).catch(() => {});
           }
-        }
-        tasks = await getAllTasks();
-      }
 
-      const toResetSubtasks = getRecurringTasksWithStaleSubtasks(tasks);
-      if (toResetSubtasks.length > 0) {
-        for (const task of toResetSubtasks) {
-          await resetTaskSubtasks(task.id).catch(() => {});
-        }
-        tasks = await getAllTasks();
-      }
+          const toRollover = getRecurringTasksToRollover(tasks);
+          for (const task of toRollover) {
+            recurrenceChanged = true;
+            await rolloverTask(task).catch(() => {});
+          }
 
-      const toRollover = getRecurringTasksToRollover(tasks);
-      if (toRollover.length > 0) {
-        for (const task of toRollover) {
-          await rolloverTask(task).catch(() => {});
+          if (recurrenceChanged) {
+            tasks = await getAllTasks();
+          }
         }
-        tasks = await getAllTasks();
-      }
 
-      set({ tasks, loading: false, lastFetchedAt: Date.now() });
-    } catch {
-      set({ loading: false });
+        set({
+          tasks,
+          loading: false,
+          lastFetchedAt: Date.now(),
+          ...(shouldSyncRecurrence ? { lastRecurrenceSyncDate: today } : {}),
+        });
+      } catch {
+        set({ loading: false });
+      }
+    })();
+
+    try {
+      await tasksFetchPromise;
+    } finally {
+      tasksFetchPromise = null;
     }
   },
 
@@ -120,9 +143,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   editTask: async (id, data) => {
     try {
       const savedTask = await updateTask(id, data);
+      const recurrenceChanged =
+        data.type !== undefined ||
+        data.recurrenceDays !== undefined ||
+        data.recurrenceInterval !== undefined;
       set((state) => ({
         tasks: state.tasks.map((t) => (t.id === id ? savedTask : t)),
         lastFetchedAt: Date.now(),
+        ...(recurrenceChanged ? { lastRecurrenceSyncDate: null } : {}),
       }));
 
       await cancelTaskNotifications(id).catch(() => {});

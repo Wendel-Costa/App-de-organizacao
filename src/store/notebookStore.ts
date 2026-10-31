@@ -23,10 +23,7 @@ import {
 } from '@/services/gamification.service';
 
 const pendingTopicToggles = new Set<string>();
-
-async function syncDependentGoals() {
-  await useGoalStore.getState().fetchGoals(true);
-}
+let notebooksFetchPromise: Promise<void> | null = null;
 
 interface NotebookState {
   notebooks: Notebook[];
@@ -51,18 +48,27 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
   fetchNotebooks: async (force = false) => {
     if (!force && Date.now() - get().lastFetchedAt < 10000) return;
-    set({ loading: true });
+    if (notebooksFetchPromise) return notebooksFetchPromise;
+
+    notebooksFetchPromise = (async () => {
+      set({ loading: true });
+      try {
+        set({ notebooks: await getAllNotebooks(), loading: false, lastFetchedAt: Date.now() });
+      } catch {
+        set({ loading: false });
+      }
+    })();
+
     try {
-      set({ notebooks: await getAllNotebooks(), loading: false, lastFetchedAt: Date.now() });
-    } catch {
-      set({ loading: false });
+      await notebooksFetchPromise;
+    } finally {
+      notebooksFetchPromise = null;
     }
   },
 
   addNotebook: async (title) => {
     const notebook = await createNotebook(title);
     set((state) => ({ notebooks: [...state.notebooks, notebook], lastFetchedAt: Date.now() }));
-    await syncDependentGoals();
     return notebook;
   },
 
@@ -74,7 +80,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         n.id === id ? { ...n, title: title.trim(), updatedAt: new Date().toISOString() } : n,
       ),
     }));
-    await syncDependentGoals();
   },
 
   removeNotebook: async (id) => {
@@ -83,7 +88,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       notebooks: state.notebooks.filter((n) => n.id !== id),
       lastFetchedAt: Date.now(),
     }));
-    await syncDependentGoals();
+    useGoalStore.getState().updateNotebookFactorProgress(id, 0, 0);
   },
 
   addTopics: async (notebookId, input) => {
@@ -103,7 +108,12 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
       }),
       lastFetchedAt: Date.now(),
     }));
-    await syncDependentGoals();
+    const notebook = get().notebooks.find((item) => item.id === notebookId);
+    if (notebook) {
+      useGoalStore
+        .getState()
+        .updateNotebookFactorProgress(notebookId, notebook.totalTopics, notebook.completedTopics);
+    }
     return created.length;
   },
 
@@ -122,7 +132,6 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     }));
     try {
       await updateTopic(id, trimmed);
-      await syncDependentGoals();
     } catch (error) {
       set({ notebooks: previous });
       throw error;
@@ -131,6 +140,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
   removeTopic: async (id) => {
     const previous = get().notebooks;
+    const notebookBefore = previous.find((item) => item.topics.some((topic) => topic.id === id));
     set((state) => ({
       notebooks: state.notebooks.map((notebook) => {
         const removed = notebook.topics.some((topic) => topic.id === id);
@@ -149,7 +159,19 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
     }));
     try {
       await deleteTopic(id);
-      await syncDependentGoals();
+
+      const notebook = notebookBefore
+        ? get().notebooks.find((item) => item.id === notebookBefore.id)
+        : undefined;
+      if (notebook) {
+        useGoalStore
+          .getState()
+          .updateNotebookFactorProgress(
+            notebook.id,
+            notebook.totalTopics,
+            notebook.completedTopics,
+          );
+      }
     } catch (error) {
       set({ notebooks: previous });
       throw error;
@@ -186,7 +208,13 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
 
     try {
       await setTopicCompleted(id, completed);
+    } catch (error) {
+      set({ notebooks: previous });
+      pendingTopicToggles.delete(id);
+      throw error;
+    }
 
+    try {
       if (completed && !before.completed) {
         const config = await getGamificationConfig();
         await awardProductiveAction('topic_completion', id, config.topicPoints, {
@@ -206,10 +234,17 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
         await reverseLatestProductiveAction('topic_completion', id);
         await useGamificationStore.getState().refreshSummary();
       }
-      await syncDependentGoals();
-    } catch (error) {
-      set({ notebooks: previous });
-      throw error;
+
+      const notebook = get().notebooks.find((item) => item.id === before.notebookId);
+      if (notebook) {
+        useGoalStore
+          .getState()
+          .updateNotebookFactorProgress(
+            notebook.id,
+            notebook.totalTopics,
+            notebook.completedTopics,
+          );
+      }
     } finally {
       pendingTopicToggles.delete(id);
     }

@@ -186,6 +186,7 @@ export function RewardsScreen() {
   const [shopDescription, setShopDescription] = useState('');
   const [shopCost, setShopCost] = useState('50');
   const [editingShopReward, setEditingShopReward] = useState<PurchasableReward | null>(null);
+  const [shopActionReward, setShopActionReward] = useState<PurchasableReward | null>(null);
   const [showArchivedPurchases, setShowArchivedPurchases] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -248,25 +249,11 @@ export function RewardsScreen() {
   }
 
   function handleShopAction(reward: PurchasableReward) {
-    Alert.alert(reward.title, undefined, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Editar', onPress: () => openShopEditor(reward) },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Excluir item?', 'Tem certeza que deseja excluir este item da loja?', [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Excluir',
-              style: 'destructive',
-              onPress: () => {
-                void removePurchasableReward(reward.id);
-              },
-            },
-          ]),
-      },
-    ]);
+    setShopActionReward(reward);
+  }
+
+  function closeShopAction() {
+    setShopActionReward(null);
   }
 
   function handleBack() {
@@ -1126,6 +1113,71 @@ export function RewardsScreen() {
               </View>
             </View>
           </Modal>
+
+          <Modal
+            visible={shopActionReward !== null}
+            transparent
+            animationType="fade"
+            onRequestClose={closeShopAction}
+          >
+            <View style={styles.shopActionOverlay}>
+              <View style={styles.shopActionCard}>
+                <Text style={styles.shopActionTitle} numberOfLines={2}>
+                  {shopActionReward?.title}
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.shopActionButton, styles.shopActionCancel]}
+                  onPress={closeShopAction}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.shopActionCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shopActionButton}
+                  onPress={() => {
+                    const reward = shopActionReward;
+                    closeShopAction();
+                    if (reward) openShopEditor(reward);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
+                  <Text style={styles.shopActionButtonText}>Editar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.shopActionButton, styles.shopActionButtonDanger]}
+                  onPress={() => {
+                    const reward = shopActionReward;
+                    closeShopAction();
+                    if (!reward) return;
+                    Alert.alert(
+                      'Excluir item?',
+                      'Tem certeza que deseja excluir este item da loja?',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        {
+                          text: 'Excluir',
+                          style: 'destructive',
+                          onPress: () => {
+                            void removePurchasableReward(reward.id);
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                  <Text style={[styles.shopActionButtonText, styles.shopActionDangerText]}>
+                    Excluir
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </View>
@@ -1399,6 +1451,62 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: spacing.xl,
+  },
+
+  shopActionOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  shopActionCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  shopActionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  shopActionButton: {
+    width: '100%',
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.md,
+  },
+  shopActionButtonDanger: {
+    borderColor: colors.error + '44',
+    backgroundColor: colors.error + '0A',
+  },
+  shopActionButtonText: {
+    ...typography.label,
+    color: colors.primaryDark,
+  },
+  shopActionDangerText: {
+    color: colors.error,
+  },
+  shopActionCancel: {
+    width: '100%',
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+  },
+  shopActionCancelText: {
+    ...typography.label,
+    color: colors.textSecondary,
   },
 
   modalOverlay: {

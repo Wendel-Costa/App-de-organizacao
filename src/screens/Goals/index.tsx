@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  Modal,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -28,6 +27,7 @@ import * as Haptics from 'expo-haptics';
 import { calcGoalProgress } from '@/services/goals.service';
 import { NotebooksScreen } from './NotebooksScreen';
 import { useNotebookStore } from '@/store/notebookStore';
+import { MultiSelectModal } from '@/components/MultiSelectModal';
 
 type Screen = 'list' | 'create' | 'detail' | 'notebooks';
 type TaskFilter = 'all' | 'daily' | 'weekly' | 'monthly' | 'free';
@@ -61,6 +61,7 @@ function recurrenceShortLabel(type: GoalTaskRecurrenceType, count: number): stri
 
 function isTaskVisibleForFilter(t: GoalTaskForToday, filter: TaskFilter): boolean {
   const { task, isDue } = t;
+  if (task.type === 'notebook') return false;
 
   if (task.type === 'wildcard') {
     if (task.completedCount >= task.targetCount) return false;
@@ -111,6 +112,15 @@ export function GoalsScreen() {
   const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>([]);
   const [notebookSelectionInitialized, setNotebookSelectionInitialized] = useState(false);
   const knownNotebookIdsRef = useRef<Set<string>>(new Set());
+  const notebookPickerItems = useMemo(
+    () =>
+      notebooks.map((notebook) => ({
+        id: notebook.id,
+        title: notebook.title,
+        meta: `${notebook.completedTopics}/${notebook.totalTopics} tópicos`,
+      })),
+    [notebooks],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -237,7 +247,6 @@ export function GoalsScreen() {
             />
           }
         >
-          {/* Ações principais: navegação, não abas */}
           <View style={styles.navigationActions}>
             <TouchableOpacity
               style={styles.navigationAction}
@@ -679,78 +688,22 @@ export function GoalsScreen() {
         </ScrollView>
       )}
 
-      <Modal
+      <MultiSelectModal
         visible={showNotebookPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNotebookPicker(false)}
-      >
-        <View style={styles.notebookModalOverlay}>
-          <View style={styles.notebookModalCard}>
-            <View style={styles.notebookModalHeader}>
-              <View>
-                <Text style={styles.notebookModalTitle}>Cadernos exibidos</Text>
-                <Text style={styles.notebookModalSubtitle}>
-                  Escolha quais aparecem na aba Metas.
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowNotebookPicker(false)} hitSlop={8}>
-                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {notebooks.map((notebook) => {
-              const selected = selectedNotebookIds.includes(notebook.id);
-
-              return (
-                <TouchableOpacity
-                  key={notebook.id}
-                  style={[styles.notebookPickerItem, selected && styles.notebookPickerItemSelected]}
-                  onPress={() => {
-                    setSelectedNotebookIds((current) =>
-                      selected
-                        ? current.filter((id) => id !== notebook.id)
-                        : [...current, notebook.id],
-                    );
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.notebookPickerIcon}>
-                    <MaterialCommunityIcons
-                      name="book-open-outline"
-                      size={18}
-                      color={selected ? colors.info : colors.textSecondary}
-                    />
-                  </View>
-                  <View style={styles.notebookPickerCopy}>
-                    <Text style={styles.notebookPickerText}>{notebook.title}</Text>
-                    <Text style={styles.notebookPickerMeta}>
-                      {notebook.completedTopics}/{notebook.totalTopics} tópicos
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons
-                    name={selected ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-                    size={21}
-                    color={selected ? colors.info : colors.textDisabled}
-                  />
-                </TouchableOpacity>
-              );
-            })}
-
-            {notebooks.length === 0 && (
-              <Text style={styles.filterEmptyText}>Nenhum caderno criado.</Text>
-            )}
-
-            <TouchableOpacity
-              style={styles.notebookPickerDone}
-              onPress={() => setShowNotebookPicker(false)}
-              activeOpacity={0.78}
-            >
-              <Text style={styles.notebookPickerDoneText}>Concluir</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        title="Cadernos exibidos"
+        subtitle="Escolha quais aparecem na aba Metas."
+        items={notebookPickerItems}
+        selectedIds={selectedNotebookIds}
+        onToggle={(id) =>
+          setSelectedNotebookIds((current) =>
+            current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+          )
+        }
+        onSelectAll={() => setSelectedNotebookIds(notebooks.map((notebook) => notebook.id))}
+        onDeselectAll={() => setSelectedNotebookIds([])}
+        onConfirm={() => setShowNotebookPicker(false)}
+        onCancel={() => setShowNotebookPicker(false)}
+      />
     </View>
   );
 }
@@ -1305,64 +1258,4 @@ const styles = StyleSheet.create({
   archivedInfo: { flex: 1, gap: 2 },
   archivedTitle: { ...typography.body, color: colors.textSecondary, fontWeight: '600' },
   archivedDates: { ...typography.xs, color: colors.textDisabled },
-
-  notebookModalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  notebookModalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    gap: spacing.xs,
-    maxHeight: '80%',
-    ...shadow.md,
-  },
-  notebookModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  notebookModalTitle: { ...typography.h3, color: colors.textPrimary },
-  notebookModalSubtitle: { ...typography.xs, color: colors.textSecondary, marginTop: 2 },
-  notebookPickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.md,
-  },
-  notebookPickerItemSelected: {
-    backgroundColor: '#F0F8FD',
-  },
-  notebookPickerIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notebookPickerCopy: { flex: 1, gap: 1 },
-  notebookPickerText: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  notebookPickerMeta: { ...typography.xs, color: colors.textSecondary },
-  notebookPickerDone: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 42,
-    marginTop: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.info,
-  },
-  notebookPickerDoneText: { ...typography.label, color: colors.surface },
-  filterEmptyText: {
-    ...typography.xs,
-    color: colors.textDisabled,
-    textAlign: 'center',
-    paddingVertical: spacing.sm,
-  },
 });

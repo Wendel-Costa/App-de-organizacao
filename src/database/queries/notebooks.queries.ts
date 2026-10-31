@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '../index';
 import { notebookTopics, notebooks } from '../schema';
 import type { Notebook, NotebookProgress, NotebookTopic } from '@/types/notebook.types';
@@ -59,8 +59,10 @@ export async function getAllNotebooks(): Promise<Notebook[]> {
 
 export async function createNotebook(title: string): Promise<Notebook> {
   const timestamp = now();
-  const rows = await db.select().from(notebooks);
-  const order = rows.length ? Math.max(...rows.map((n) => n.sortOrder)) + 1 : 0;
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: sql<number | null>`max(${notebooks.sortOrder})` })
+    .from(notebooks);
+  const order = maxOrder == null ? 0 : Number(maxOrder) + 1;
   const id = generateId();
 
   await db.insert(notebooks).values({
@@ -99,11 +101,11 @@ export async function deleteNotebook(id: string): Promise<void> {
 export async function addTopics(notebookId: string, titles: string[]): Promise<NotebookTopic[]> {
   const clean = titles.map((title) => title.trim()).filter(Boolean);
   if (clean.length === 0) return [];
-  const existing = await db
-    .select()
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: sql<number | null>`max(${notebookTopics.sortOrder})` })
     .from(notebookTopics)
     .where(eq(notebookTopics.notebookId, notebookId));
-  const startOrder = existing.length ? Math.max(...existing.map((t) => t.sortOrder)) + 1 : 0;
+  const startOrder = maxOrder == null ? 0 : Number(maxOrder) + 1;
   const timestamp = now();
   const rows = clean.map((title, index) => ({
     id: generateId(),

@@ -16,11 +16,13 @@ import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useGoalStore } from '@/store/goalStore';
 import { useRewardStore } from '@/store/rewardStore';
 import { useFocusStore } from '@/store/focusStore';
+import { useNotebookStore } from '@/store/notebookStore';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { ProgressRing } from '@/components/ProgressRing';
 import { TextInputModal } from '@/components/TextInputModal';
+import { MultiSelectModal } from '@/components/MultiSelectModal';
 import type {
   Goal,
   GoalTask,
@@ -61,22 +63,20 @@ const NEW_TASK_TYPE_OPTIONS: { key: GoalTaskType; label: string; icon: string }[
   { key: 'habit', label: 'Hábito / Tarefa', icon: 'checkbox-marked-outline' },
   { key: 'focus_hours', label: 'Horas de foco', icon: 'timer-outline' },
   { key: 'wildcard', label: 'Coringa', icon: 'lightning-bolt' },
+  { key: 'notebook', label: 'Caderno', icon: 'book-open-page-variant-outline' },
 ];
 
 const TASK_START_MODE_OPTIONS: {
   key: 'goal_start' | 'task_creation';
   label: string;
-  description: string;
 }[] = [
   {
     key: 'goal_start',
     label: 'Início da meta',
-    description: 'Conta desde o primeiro dia da meta',
   },
   {
     key: 'task_creation',
     label: 'Criação da tarefa',
-    description: 'Conta a partir do dia em que a tarefa for criada',
   },
 ];
 
@@ -203,7 +203,7 @@ export function GoalDetailScreen({
   } = useGoalStore();
   const { addReward } = useRewardStore();
   const { themes } = useFocusStore();
-
+  const { notebooks, fetchNotebooks } = useNotebookStore();
   const goal = goals.find((g) => g.id === initialGoalProp.id) || initialGoalProp;
 
   const [showForm, setShowForm] = useState(false);
@@ -217,12 +217,27 @@ export function GoalDetailScreen({
   const [taskStartMode, setTaskStartMode] = useState<'goal_start' | 'task_creation'>(
     'task_creation',
   );
+  const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>([]);
+  const [showNotebookPicker, setShowNotebookPicker] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const longPressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+  const existingNotebookIds = new Set(
+    (goal.tasks ?? [])
+      .filter((task) => task.type === 'notebook' && task.notebookId)
+      .map((task) => task.notebookId as string),
+  );
+  const notebookPickerItems = notebooks.map((notebook) => ({
+    id: notebook.id,
+    title: notebook.title,
+    meta: `${notebook.completedTopics}/${notebook.totalTopics} tópicos`,
+    disabled: existingNotebookIds.has(notebook.id),
+  }));
+  useEffect(() => {
+    fetchNotebooks();
+  }, []);
   useEffect(() => {
     return () => {
       stopContinuous();
@@ -259,9 +274,47 @@ export function GoalDetailScreen({
     setTaskHours(10);
     setTaskThemeIds([]);
     setTaskStartMode('task_creation');
+    setSelectedNotebookIds([]);
   }
-
+  async function confirmNotebookSelection() {
+    const uniqueSelectedIds = Array.from(new Set(selectedNotebookIds));
+    const duplicateId = uniqueSelectedIds.find((id) => existingNotebookIds.has(id));
+    if (duplicateId) {
+      Alert.alert('Caderno já adicionado', 'Esse caderno já é um fator desta meta.');
+      return;
+    }
+    const selectedNotebooks = uniqueSelectedIds
+      .map((id) => notebooks.find((notebook) => notebook.id === id))
+      .filter((notebook): notebook is (typeof notebooks)[number] => Boolean(notebook));
+    if (selectedNotebooks.length === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos um caderno.');
+      return;
+    }
+    try {
+      for (const notebook of selectedNotebooks) {
+        await addTask(goal.id, goal.startDate, goal.endDate, {
+          title: notebook.title,
+          type: 'notebook',
+          recurrenceType: 'none',
+          recurrenceCount: 1,
+          recurrenceDays: [],
+          notebookId: notebook.id,
+        });
+      }
+      setSelectedNotebookIds([]);
+      setShowNotebookPicker(false);
+      resetForm();
+      setShowForm(false);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Não foi possível adicionar o caderno como fator.');
+    }
+  }
   async function handleAddTask() {
+    if (newTaskType === 'notebook') {
+      setShowNotebookPicker(true);
+      return;
+    }
     if (!taskTitle.trim()) {
       Alert.alert('Atenção', 'Dê um nome ao fator/hábito.');
       return;
@@ -357,6 +410,46 @@ export function GoalDetailScreen({
   }
 
   function renderTaskProgress(task: GoalTask) {
+    if (task.type === 'notebook') {
+      const notebookPct = Math.max(0, Math.min(100, Math.round(task.completedCount * 100)));
+      const done = notebookPct >= 100;
+      return (
+        <Card key={task.id} style={[styles.taskCard, done && styles.taskCardDone]}>
+          <View style={globalStyles.rowBetween}>
+            <View style={styles.taskLeft}>
+              <View style={styles.taskTitleRow}>
+                <MaterialCommunityIcons
+                  name="book-open-page-variant-outline"
+                  size={16}
+                  color={accentColor}
+                />
+                <Text style={styles.taskTitle}>{task.title}</Text>
+              </View>
+              <Text style={[styles.taskRec, done && { color: colors.success }]}>
+                Progresso automático do caderno
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleRemoveTask(task.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialCommunityIcons name="close" size={16} color={colors.textDisabled} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${notebookPct}%`, backgroundColor: accentColor },
+              ]}
+            />
+          </View>
+          <Text style={[styles.taskProgress, done && { color: colors.success }]}>
+            {notebookPct}%
+          </Text>
+        </Card>
+      );
+    }
     const allowTaskOverflow = goal.allowOverflow || goal.allowBeyond100;
     const taskProg = calcTaskProgress(task, goal.tolerance, allowTaskOverflow);
 
@@ -746,54 +839,69 @@ export function GoalDetailScreen({
                 </TouchableOpacity>
               ))}
             </View>
-
-            <Text style={styles.formLabel}>Base de cálculo</Text>
-            <Text style={styles.formHint}>
-              Escolha a partir de qual data o período desta tarefa deve começar.
-            </Text>
-
-            <View style={styles.startModeRow}>
-              {TASK_START_MODE_OPTIONS.map((opt) => {
-                const selected = taskStartMode === opt.key;
-
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={[styles.startModeCard, selected && styles.startModeCardActive]}
-                    onPress={() => setTaskStartMode(opt.key)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.startModeHeader}>
-                      <MaterialCommunityIcons
-                        name={selected ? 'radiobox-marked' : 'radiobox-blank'}
-                        size={18}
-                        color={selected ? colors.primary : colors.textDisabled}
-                      />
-                      <Text
-                        style={[styles.startModeLabel, selected && styles.startModeLabelActive]}
+            {newTaskType !== 'notebook' && (
+              <>
+                <Text style={styles.formLabel}>Base de cálculo</Text>
+                <Text style={styles.formHint}>
+                  Escolha a partir de qual data o contagem deste fator deve começar.
+                </Text>
+                <View style={styles.startModeRow}>
+                  {TASK_START_MODE_OPTIONS.map((opt) => {
+                    const selected = taskStartMode === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[styles.startModeCard, selected && styles.startModeCardActive]}
+                        onPress={() => setTaskStartMode(opt.key)}
+                        activeOpacity={0.7}
                       >
-                        {opt.label}
-                      </Text>
-                    </View>
-
-                    <Text style={styles.startModeDescription}>{opt.description}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={styles.formLabel}>Nome</Text>
-            <View style={styles.inlineInput}>
-              <TextInput
-                style={styles.inlineTextInput}
-                placeholder="Nome do fator..."
-                placeholderTextColor={colors.textDisabled}
-                value={taskTitle}
-                onChangeText={setTaskTitle}
-                maxLength={80}
-              />
-            </View>
-
+                        <View style={styles.startModeHeader}>
+                          <MaterialCommunityIcons
+                            name={selected ? 'radiobox-marked' : 'radiobox-blank'}
+                            size={18}
+                            color={selected ? colors.primary : colors.textDisabled}
+                          />
+                          <Text
+                            style={[styles.startModeLabel, selected && styles.startModeLabelActive]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+            {newTaskType === 'notebook' ? (
+              <View style={styles.notebookSelectionInfo}>
+                <MaterialCommunityIcons
+                  name="book-multiple-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+                <View style={styles.notebookSelectionCopy}>
+                  <Text style={styles.typeChipLabel}>Cadernos</Text>
+                  <Text style={styles.formHint}>
+                    Selecione um ou mais cadernos para acompanhar o progresso automaticamente.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.formLabel}>Nome</Text>
+                <View style={styles.inlineInput}>
+                  <TextInput
+                    style={styles.inlineTextInput}
+                    placeholder="Nome do fator..."
+                    placeholderTextColor={colors.textDisabled}
+                    value={taskTitle}
+                    onChangeText={setTaskTitle}
+                    maxLength={80}
+                  />
+                </View>
+              </>
+            )}
             {newTaskType === 'focus_hours' && (
               <>
                 <Text style={styles.formLabel}>Meta de horas</Text>
@@ -1038,7 +1146,7 @@ export function GoalDetailScreen({
             )}
 
             <Button
-              label="Adicionar"
+              label={newTaskType === 'notebook' ? 'Selecionar cadernos' : 'Adicionar'}
               onPress={handleAddTask}
               variant="secondary"
               fullWidth
@@ -1050,7 +1158,7 @@ export function GoalDetailScreen({
         {!goal.tasks || goal.tasks.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>
-              Nenhum fator ainda. Adicione hábitos, metas de foco ou ações coringa.
+              Nenhum fator ainda. Adicione hábitos, metas de foco, cadernos ou ações coringa.
             </Text>
           </Card>
         ) : (
@@ -1090,6 +1198,32 @@ export function GoalDetailScreen({
           style={styles.deleteButton}
         />
       </ScrollView>
+      <MultiSelectModal
+        visible={showNotebookPicker}
+        title="Selecionar cadernos"
+        subtitle="Escolha um ou mais cadernos para virar fatores desta meta."
+        items={notebookPickerItems}
+        selectedIds={selectedNotebookIds}
+        onToggle={(id) =>
+          setSelectedNotebookIds((current) =>
+            current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+          )
+        }
+        onSelectAll={() =>
+          setSelectedNotebookIds(
+            notebooks
+              .filter((notebook) => !existingNotebookIds.has(notebook.id))
+              .map((notebook) => notebook.id),
+          )
+        }
+        onDeselectAll={() => setSelectedNotebookIds([])}
+        onConfirm={confirmNotebookSelection}
+        onCancel={() => {
+          setSelectedNotebookIds([]);
+          setShowNotebookPicker(false);
+        }}
+        confirmLabel="Adicionar cadernos"
+      />
     </View>
   );
 }
@@ -1331,7 +1465,7 @@ const styles = StyleSheet.create({
   },
   wildcardInfo: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: spacing.xs,
     backgroundColor: colors.primaryLight,
     padding: spacing.sm,
@@ -1342,6 +1476,20 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     flex: 1,
     lineHeight: 15,
+  },
+  notebookSelectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  notebookSelectionCopy: {
+    flex: 1,
+    gap: 1,
   },
   recTypeRow: {
     flexDirection: 'row',
@@ -1476,7 +1624,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     backgroundColor: colors.primary,
   },
-
   startModeRow: {
     gap: spacing.xs,
   },
@@ -1504,11 +1651,5 @@ const styles = StyleSheet.create({
   },
   startModeLabelActive: {
     color: colors.primaryDark,
-  },
-  startModeDescription: {
-    ...typography.xs,
-    color: colors.textDisabled,
-    marginTop: 3,
-    marginLeft: 22,
   },
 });

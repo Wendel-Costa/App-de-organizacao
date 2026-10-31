@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  FlatList,
+  SectionList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,6 +18,7 @@ import { Card } from '@/components/Card';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/Button';
+import { TextInputModal } from '@/components/TextInputModal';
 import { colors, radius, spacing, typography } from '@/styles/theme';
 import { globalStyles } from '@/styles/global';
 import { useNotebookStore } from '@/store/notebookStore';
@@ -49,6 +50,7 @@ export function NotebooksScreen({
   const [topicNotebookId, setTopicNotebookId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [collapsedNotebooks, setCollapsedNotebooks] = useState<Set<string>>(new Set());
+  const [editingTopic, setEditingTopic] = useState<{ id: string; title: string } | null>(null);
 
   function toggleNotebook(notebookId: string) {
     setCollapsedNotebooks((current) => {
@@ -67,8 +69,29 @@ export function NotebooksScreen({
     }
   }, [openCreateOnMount]);
 
+  useEffect(() => {
+    const validNotebookIds = new Set(notebooks.map((notebook) => notebook.id));
+    setCollapsedNotebooks((current) => {
+      const next = new Set([...current].filter((id) => validNotebookIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [notebooks]);
+
   const activeNotebooks = notebooks.filter((notebook) => notebook.progress < 1);
   const completedNotebooks = notebooks.filter((notebook) => notebook.progress >= 1);
+
+  function expandAllNotebooks() {
+    setCollapsedNotebooks(new Set());
+  }
+
+  function collapseAllNotebooks() {
+    setCollapsedNotebooks(new Set(notebooks.map((notebook) => notebook.id)));
+  }
+
+  const sections = [
+    { key: 'active', data: activeNotebooks },
+    { key: 'completed', data: showCompleted ? completedNotebooks : [] },
+  ];
 
   useFocusEffect(
     useCallback(() => {
@@ -172,15 +195,7 @@ export function NotebooksScreen({
                     {topic.title}
                   </Text>
                   <TouchableOpacity
-                    onPress={() =>
-                      Alert.prompt?.(
-                        'Editar tópico',
-                        undefined,
-                        (value) => value?.trim() && editTopic(topic.id, value),
-                        'plain-text',
-                        topic.title,
-                      )
-                    }
+                    onPress={() => setEditingTopic({ id: topic.id, title: topic.title })}
                     hitSlop={7}
                   >
                     <MaterialCommunityIcons
@@ -246,45 +261,59 @@ export function NotebooksScreen({
         }}
       />
 
-      <FlatList
-        data={activeNotebooks}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <EmptyState
-            icon="book-open-outline"
-            title="Nenhum caderno"
-            description="Crie um caderno e cole sua lista de tópicos de uma só vez."
-            actionLabel="Criar caderno"
-            onAction={() => setShowNotebookForm(true)}
-          />
-        }
         renderItem={renderNotebook}
-        ListFooterComponent={
-          completedNotebooks.length > 0 ? (
-            <View style={styles.completedSection}>
-              <TouchableOpacity
-                style={styles.completedHeader}
-                onPress={() => setShowCompleted((value) => !value)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name="check-circle-outline"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-                <Text style={styles.completedHeaderText}>
-                  Cadernos concluídos ({completedNotebooks.length})
-                </Text>
-                <MaterialCommunityIcons
-                  name={showCompleted ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-              {showCompleted && completedNotebooks.map((item) => renderNotebook({ item }))}
+        renderSectionHeader={({ section }) =>
+          section.key === 'completed' && completedNotebooks.length > 0 ? (
+            <TouchableOpacity
+              style={styles.completedHeader}
+              onPress={() => setShowCompleted((value) => !value)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="check-circle-outline"
+                size={18}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.completedHeaderText}>
+                Cadernos concluídos ({completedNotebooks.length})
+              </Text>
+              <MaterialCommunityIcons
+                name={showCompleted ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : null
+        }
+        ListHeaderComponent={
+          notebooks.length > 0 ? (
+            <View style={styles.expansionControls}>
+              <Text style={styles.expansionLabel}>Tópicos</Text>
+              <View style={styles.expansionActions}>
+                <TouchableOpacity onPress={expandAllNotebooks} hitSlop={6} activeOpacity={0.7}>
+                  <Text style={styles.expansionActionText}>Expandir todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={collapseAllNotebooks} hitSlop={6} activeOpacity={0.7}>
+                  <Text style={styles.expansionActionText}>Recolher todos</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          completedNotebooks.length === 0 ? (
+            <EmptyState
+              icon="book-open-outline"
+              title="Nenhum caderno"
+              description="Crie um caderno e cole sua lista de tópicos de uma só vez."
+              actionLabel="Criar caderno"
+              onAction={() => setShowNotebookForm(true)}
+            />
           ) : null
         }
       />
@@ -327,6 +356,24 @@ export function NotebooksScreen({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <TextInputModal
+        visible={editingTopic !== null}
+        title="Editar tópico"
+        placeholder="Nome do tópico"
+        initialValue={editingTopic?.title ?? ''}
+        confirmLabel="Salvar"
+        onCancel={() => setEditingTopic(null)}
+        onConfirm={async (value) => {
+          if (!editingTopic) return;
+          try {
+            await editTopic(editingTopic.id, value);
+            setEditingTopic(null);
+          } catch {
+            Alert.alert('Erro', 'Não foi possível salvar o tópico.');
+          }
+        }}
+      />
 
       <Modal
         visible={!!topicNotebookId}
@@ -383,6 +430,16 @@ export function NotebooksScreen({
 
 const styles = StyleSheet.create({
   list: { padding: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  expansionControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  expansionLabel: { ...typography.xs, color: colors.textSecondary },
+  expansionActions: { flexDirection: 'row', gap: spacing.md },
+  expansionActionText: { ...typography.xs, color: colors.primaryDark, fontWeight: '700' },
   notebookCard: { gap: spacing.sm },
   headerRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   titleWrap: { flex: 1, gap: 2, minWidth: 0 },
@@ -439,7 +496,6 @@ const styles = StyleSheet.create({
   multiline: { minHeight: 160 },
   countText: { ...typography.xs, color: colors.textSecondary },
   modalButtons: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end' },
-  completedSection: { marginTop: spacing.lg, gap: spacing.sm, paddingBottom: spacing.lg },
   completedHeader: {
     flexDirection: 'row',
     alignItems: 'center',

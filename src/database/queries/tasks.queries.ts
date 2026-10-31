@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../index';
 import { tasks, subtasks, taskSkips } from '../schema';
 import type { Task } from '@/types/task.types';
@@ -15,8 +15,24 @@ function now() {
 export async function getAllTasks(): Promise<Task[]> {
   const rows = await db.select().from(tasks);
   if (rows.length === 0) return [];
-  const allSubs = await db.select().from(subtasks);
-  const allSkips = await db.select().from(taskSkips);
+  const taskIds = rows.map((row) => row.id);
+  const allSubs = await db
+    .select({
+      id: subtasks.id,
+      taskId: subtasks.taskId,
+      title: subtasks.title,
+      completed: subtasks.completed,
+    })
+    .from(subtasks)
+    .where(inArray(subtasks.taskId, taskIds));
+  const latestSkips = await db
+    .select({
+      taskId: taskSkips.taskId,
+      skippedDate: sql<string>`max(${taskSkips.skippedDate})`,
+    })
+    .from(taskSkips)
+    .where(inArray(taskSkips.taskId, taskIds))
+    .groupBy(taskSkips.taskId);
   const subsByTaskId = new Map<string, typeof allSubs>();
   const latestSkipByTaskId = new Map<string, string>();
 
@@ -27,10 +43,8 @@ export async function getAllTasks(): Promise<Task[]> {
     subsByTaskId.get(sub.taskId)!.push(sub);
   }
 
-  for (const skip of allSkips) {
-    const current = latestSkipByTaskId.get(skip.taskId);
-    if (!current || skip.skippedDate > current)
-      latestSkipByTaskId.set(skip.taskId, skip.skippedDate);
+  for (const skip of latestSkips) {
+    if (skip.skippedDate) latestSkipByTaskId.set(skip.taskId, skip.skippedDate);
   }
 
   return rows.map((row) => ({

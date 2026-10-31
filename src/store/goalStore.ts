@@ -5,6 +5,7 @@ import {
   getAllGoals,
   getActiveGoalCount,
   getTodayGoalTasks,
+  getGoalTasksForToday,
   createGoal,
   deleteGoal,
   addGoalTask,
@@ -33,6 +34,10 @@ function calcGoalProgressSafe(goal: Goal): number {
 }
 
 const pendingGoalTasks = new Set<string>();
+let goalsFetchPromise: Promise<void> | null = null;
+let todayGoalTasksFetchPromise: Promise<void> | null = null;
+let activeGoalCountFetchPromise: Promise<void> | null = null;
+let lastActiveGoalCountFetchedAt = 0;
 
 interface GoalState {
   goals: Goal[];
@@ -40,6 +45,7 @@ interface GoalState {
   loading: boolean;
   activeGoalCount: number;
   lastFetchedAt: number;
+  lastTodayFetchedAt: number;
 
   fetchGoals: (force?: boolean) => Promise<void>;
   fetchActiveGoalCount: () => Promise<void>;
@@ -65,6 +71,11 @@ interface GoalState {
   completeTask: (goalId: string, taskId: string, allowMultipleToday?: boolean) => Promise<void>;
   uncompleteTask: (goalId: string, taskId: string) => Promise<void>;
   refreshTodayTasks: () => Promise<void>;
+  updateNotebookFactorProgress: (
+    notebookId: string,
+    totalTopics: number,
+    completedTopics: number,
+  ) => void;
   reorderGoals: (orderedIds: string[]) => Promise<void>;
 }
 
@@ -74,6 +85,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   loading: false,
   activeGoalCount: 0,
   lastFetchedAt: 0,
+  lastTodayFetchedAt: 0,
 
   fetchGoals: async (force = false) => {
     const now = Date.now();
@@ -82,45 +94,90 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       return;
     }
 
-    set({ loading: true });
+    if (goalsFetchPromise) {
+      return goalsFetchPromise;
+    }
+
+    goalsFetchPromise = (async () => {
+      set({ loading: true });
+      try {
+        const goals = await getAllGoals();
+        const today = await getGoalTasksForToday(goals);
+        const currentDate = new Date().toISOString().slice(0, 10);
+        const activeGoalCount = goals.filter(
+          (goal) => !goal.archived && goal.startDate <= currentDate && goal.endDate >= currentDate,
+        ).length;
+        const fetchedAt = Date.now();
+        set({
+          goals,
+          todayGoalTasks: today,
+          activeGoalCount,
+          loading: false,
+          lastFetchedAt: fetchedAt,
+          lastTodayFetchedAt: fetchedAt,
+        });
+      } catch {
+        set({ loading: false });
+      }
+    })();
+
     try {
-      const [goals, today] = await Promise.all([getAllGoals(), getTodayGoalTasks()]);
-      const currentDate = new Date().toISOString().slice(0, 10);
-      const activeGoalCount = goals.filter(
-        (goal) => !goal.archived && goal.startDate <= currentDate && goal.endDate >= currentDate,
-      ).length;
-      set({
-        goals,
-        todayGoalTasks: today,
-        activeGoalCount,
-        loading: false,
-        lastFetchedAt: Date.now(),
-      });
-    } catch {
-      set({ loading: false });
+      await goalsFetchPromise;
+    } finally {
+      goalsFetchPromise = null;
     }
   },
 
   fetchActiveGoalCount: async () => {
+    if (Date.now() - lastActiveGoalCountFetchedAt < 5000) return;
+    if (activeGoalCountFetchPromise) return activeGoalCountFetchPromise;
+
+    activeGoalCountFetchPromise = (async () => {
+      try {
+        set({
+          activeGoalCount: await getActiveGoalCount(),
+        });
+        lastActiveGoalCountFetchedAt = Date.now();
+      } catch {}
+    })();
+
     try {
-      set({
-        activeGoalCount: await getActiveGoalCount(),
-      });
-    } catch {}
+      await activeGoalCountFetchPromise;
+    } finally {
+      activeGoalCountFetchPromise = null;
+    }
   },
 
   fetchTodayGoalTasks: async (force = false) => {
-    if (!force && Date.now() - get().lastFetchedAt < 5000) {
+    const now = Date.now();
+    if (!force && now - get().lastTodayFetchedAt < 5000) {
       return;
     }
 
-    try {
-      const today = await getTodayGoalTasks();
+    if (todayGoalTasksFetchPromise) {
+      return todayGoalTasksFetchPromise;
+    }
 
-      set({
-        todayGoalTasks: today,
-      });
-    } catch {}
+    todayGoalTasksFetchPromise = (async () => {
+      try {
+        const state = get();
+        const today =
+          state.lastFetchedAt > 0 && Date.now() - state.lastFetchedAt < 10000
+            ? await getGoalTasksForToday(state.goals)
+            : await getTodayGoalTasks();
+
+        set({
+          todayGoalTasks: today,
+          lastTodayFetchedAt: Date.now(),
+        });
+      } catch {}
+    })();
+
+    try {
+      await todayGoalTasksFetchPromise;
+    } finally {
+      todayGoalTasksFetchPromise = null;
+    }
   },
 
   addGoal: async (data, tasks): Promise<Goal> => {
@@ -362,11 +419,47 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   refreshTodayTasks: async () => {
-    const today = await getTodayGoalTasks();
+    const today = await getGoalTasksForToday(get().goals);
 
     set({
       todayGoalTasks: today,
+      lastTodayFetchedAt: Date.now(),
     });
+  },
+
+  updateNotebookFactorProgress: (notebookId, totalTopics, completedTopics) => {
+    const progress = totalTopics > 0 ? completedTopics / totalTopics : 0;
+
+    set((state) => ({
+      goals: state.goals.map((goal) => ({
+        ...goal,
+        tasks: goal.tasks.map((task) =>
+          task.type === 'notebook' && task.notebookId === notebookId
+            ? {
+                ...task,
+                targetCount: 1,
+                completedCount: progress,
+                completedToday: false,
+              }
+            : task,
+        ),
+      })),
+      todayGoalTasks: state.todayGoalTasks.map((entry) =>
+        entry.task.type === 'notebook' && entry.task.notebookId === notebookId
+          ? {
+              ...entry,
+              task: {
+                ...entry.task,
+                targetCount: 1,
+                completedCount: progress,
+                completedToday: false,
+              },
+              isDue: progress < 1,
+            }
+          : entry,
+      ),
+      lastTodayFetchedAt: Date.now(),
+    }));
   },
 
   reorderGoals: async (orderedIds) => {
