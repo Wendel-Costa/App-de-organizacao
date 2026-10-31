@@ -6,16 +6,20 @@ export async function runMigrations() {
   const versionRow = sqlite.getFirstSync<{ user_version: number }>('PRAGMA user_version');
   const currentVersion = Number(versionRow?.user_version ?? 0);
 
-  if (currentVersion >= CURRENT_SCHEMA_VERSION) {
+  if (currentVersion === CURRENT_SCHEMA_VERSION) {
     try {
       sqlite.runSync('PRAGMA optimize');
-    } catch {}
+    } catch (error) {
+      console.warn('[database] Não foi possível otimizar o banco:', error);
+    }
     return;
   }
 
   if (currentVersion !== 0) {
     throw new Error(
-      `[database] Versão de schema não suportada: ${currentVersion}. Esta versão do aplicativo espera um banco novo (schema v1).`,
+      `[database] Versão de schema não suportada: ${currentVersion}. ` +
+        `Esta versão do aplicativo espera schema v${CURRENT_SCHEMA_VERSION}. ` +
+        'Exporte seus dados, reinstale o aplicativo e importe o backup.',
     );
   }
 
@@ -338,16 +342,20 @@ export async function runMigrations() {
       WHERE type = 'notebook' AND notebook_id IS NOT NULL
     `);
 
-    sqlite.runSync('COMMIT');
     sqlite.runSync(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
+    sqlite.runSync('COMMIT');
   } catch (error) {
     try {
       sqlite.runSync('ROLLBACK');
-    } catch {}
+    } catch (rollbackError) {
+      console.error('[database] Falha ao reverter a criação do schema:', rollbackError);
+    }
     throw error;
   }
 
   try {
     sqlite.runSync('PRAGMA optimize');
-  } catch {}
+  } catch (error) {
+    console.warn('[database] Não foi possível otimizar o banco:', error);
+  }
 }

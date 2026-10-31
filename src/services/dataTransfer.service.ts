@@ -2,8 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { db, sqlite } from '@/database';
-import * as schema from '@/database/schema';
+import { sqlite } from '@/database';
 
 export const EXPORT_VERSION = 2 as const;
 
@@ -18,33 +17,44 @@ type ExportPayload = {
   data: Record<string, unknown[]>;
 };
 
-type LegacyPayload = Omit<ExportPayload, 'exportVersion'> & { exportVersion: 1 };
+type TableDefinition = readonly [string, string];
+type StoredSetting = readonly [string, string | null];
 
-type TableDefinition = readonly [keyof ExportPayload['data'], string, unknown];
+type SQLiteTransaction = Parameters<Parameters<typeof sqlite.withExclusiveTransactionAsync>[0]>[0];
 
 const NAME_KEY = '@focomais:user_name';
 const SETTINGS_KEY = '@focomais:notification_settings';
 const GERAL_THEME_HIDDEN_KEY = '@foco:geralThemeHidden';
+const SETTING_KEYS = [NAME_KEY, SETTINGS_KEY, GERAL_THEME_HIDDEN_KEY];
 
 const TABLES: readonly TableDefinition[] = [
-  ['gamificationSettings', 'gamification_settings', schema.gamificationSettings],
-  ['pointEvents', 'point_events', schema.pointEvents],
-  ['coinTransactions', 'coin_transactions', schema.coinTransactions],
-  ['achievements', 'achievements', schema.achievements],
-  ['notebooks', 'notebooks', schema.notebooks],
-  ['notebookTopics', 'notebook_topics', schema.notebookTopics],
-  ['goals', 'goals', schema.goals],
-  ['goalTasks', 'goal_tasks', schema.goalTasks],
-  ['goalTaskCompletions', 'goal_task_completions', schema.goalTaskCompletions],
-  ['focusThemes', 'focus_themes', schema.focusThemes],
-  ['focusSessions', 'focus_sessions', schema.focusSessions],
-  ['tasks', 'tasks', schema.tasks],
-  ['subtasks', 'subtasks', schema.subtasks],
-  ['taskCompletions', 'task_completions', schema.taskCompletions],
-  ['taskSkips', 'task_skips', schema.taskSkips],
-  ['rewards', 'rewards', schema.rewards],
-  ['purchasableRewards', 'purchasable_rewards', schema.purchasableRewards],
-  ['purchasableRewardPurchases', 'purchasable_reward_purchases', schema.purchasableRewardPurchases],
+  ['gamificationSettings', 'gamification_settings'],
+  ['pointEvents', 'point_events'],
+  ['coinTransactions', 'coin_transactions'],
+  ['achievements', 'achievements'],
+  ['notebooks', 'notebooks'],
+  ['notebookTopics', 'notebook_topics'],
+  ['goals', 'goals'],
+  ['goalTasks', 'goal_tasks'],
+  ['goalTaskCompletions', 'goal_task_completions'],
+  ['focusThemes', 'focus_themes'],
+  ['focusSessions', 'focus_sessions'],
+  ['tasks', 'tasks'],
+  ['subtasks', 'subtasks'],
+  ['taskCompletions', 'task_completions'],
+  ['taskSkips', 'task_skips'],
+  ['rewards', 'rewards'],
+  ['purchasableRewards', 'purchasable_rewards'],
+  ['purchasableRewardPurchases', 'purchasable_reward_purchases'],
+] as const;
+
+const LEGACY_OPTIONAL_TABLES = new Set(['taskSkips', 'purchasableRewardPurchases']);
+
+const REQUIRED_RELATIONSHIPS = [
+  { childTable: 'notebookTopics', childColumn: 'notebookId', parentTable: 'notebooks' },
+  { childTable: 'goalTasks', childColumn: 'goalId', parentTable: 'goals' },
+  { childTable: 'goalTaskCompletions', childColumn: 'goalTaskId', parentTable: 'goalTasks' },
+  { childTable: 'subtasks', childColumn: 'taskId', parentTable: 'tasks' },
 ] as const;
 
 const BOOLEAN_FIELDS = new Set([
@@ -55,7 +65,6 @@ const BOOLEAN_FIELDS = new Set([
   'archived',
   'unlocked',
   'task_scoring_enabled',
-  'geralThemeHidden',
 ]);
 
 const INTEGER_FIELDS = new Set([
@@ -95,39 +104,49 @@ function camelToSnake(value: string): string {
     .replace(/^_/, '');
 }
 
-function normalizeBoolean(value: unknown, fallback = false): 0 | 1 {
+function snakeToCamel(value: string): string {
+  return value.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+}
+
+function normalizeBoolean(value: unknown, column: string): 0 | 1 {
   if (typeof value === 'boolean') return value ? 1 : 0;
-  if (typeof value === 'number') return value === 1 ? 1 : value === 0 ? 0 : fallback ? 1 : 0;
+  if (value === 1 || value === '1') return 1;
+  if (value === 0 || value === '0') return 0;
+
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
-    if (['1', 'true', 'yes', 'on'].includes(normalized)) return 1;
-    if (['0', 'false', 'no', 'off'].includes(normalized)) return 0;
+    if (['true', 'yes', 'on'].includes(normalized)) return 1;
+    if (['false', 'no', 'off'].includes(normalized)) return 0;
   }
-  return fallback ? 1 : 0;
+
+  throw new Error(`INVALID_FIELD_TYPE:${column}`);
+}
+
+function normalizeInteger(value: unknown, column: string): number {
+  if (typeof value === 'string' && value.trim() === '') {
+    throw new Error(`INVALID_FIELD_TYPE:${column}`);
+  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    throw new Error(`INVALID_FIELD_TYPE:${column}`);
+  }
+  return parsed;
+}
+
+function normalizeReal(value: unknown, column: string): number {
+  if (typeof value === 'string' && value.trim() === '') {
+    throw new Error(`INVALID_FIELD_TYPE:${column}`);
+  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) throw new Error(`INVALID_FIELD_TYPE:${column}`);
+  return parsed;
 }
 
 function normalizeScalar(value: unknown, column: string): unknown {
-  if (value === undefined) return null;
-  if (value === null) return null;
-
-  if (BOOLEAN_FIELDS.has(column)) return normalizeBoolean(value);
-
-  if (INTEGER_FIELDS.has(column)) {
-    if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
-      return Math.trunc(Number(value));
-    }
-    throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  }
-
-  if (REAL_FIELDS.has(column)) {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
-      return Number(value);
-    }
-    throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  }
-
+  if (value === undefined || value === null) return null;
+  if (BOOLEAN_FIELDS.has(column)) return normalizeBoolean(value, column);
+  if (INTEGER_FIELDS.has(column)) return normalizeInteger(value, column);
+  if (REAL_FIELDS.has(column)) return normalizeReal(value, column);
   return value;
 }
 
@@ -136,6 +155,7 @@ function validateSettings(settings: unknown): ExportPayload['settings'] {
   if (typeof settings.name !== 'string') throw new Error('INVALID_STRUCTURE');
   if (!isObject(settings.notificationSettings)) throw new Error('INVALID_STRUCTURE');
   if (typeof settings.geralThemeHidden !== 'boolean') throw new Error('INVALID_STRUCTURE');
+
   return {
     name: settings.name,
     notificationSettings: settings.notificationSettings,
@@ -145,55 +165,67 @@ function validateSettings(settings: unknown): ExportPayload['settings'] {
 
 function normalizeBackup(value: unknown): ExportPayload {
   if (!isObject(value)) throw new Error('INVALID_JSON');
-  const version = value.exportVersion;
-  if (version !== 1 && version !== 2) throw new Error('UNSUPPORTED_VERSION');
-  if (typeof value.exportedAt !== 'string') throw new Error('INVALID_STRUCTURE');
-  if (!isObject(value.data)) throw new Error('INVALID_STRUCTURE');
 
-  const optionalKeys = new Set(['taskSkips', 'purchasableRewardPurchases']);
-  for (const [key] of TABLES) {
-    if (!(key in value.data)) {
-      if (optionalKeys.has(key)) (value.data as Record<string, unknown[]>)[key] = [];
-      else throw new Error('INVALID_STRUCTURE');
-    }
-    if (!Array.isArray(value.data[key])) throw new Error('INVALID_STRUCTURE');
+  const version = value.exportVersion;
+  if (version !== 1 && version !== EXPORT_VERSION) throw new Error('UNSUPPORTED_VERSION');
+  if (
+    typeof value.exportedAt !== 'string' ||
+    value.exportedAt.trim() === '' ||
+    !isObject(value.data)
+  ) {
+    throw new Error('INVALID_STRUCTURE');
+  }
+
+  const expectedKeys = new Set(TABLES.map(([key]) => key));
+  for (const key of Object.keys(value.data)) {
+    if (!expectedKeys.has(key)) throw new Error(`UNKNOWN_TABLE:${key}`);
   }
 
   const normalizedData: Record<string, unknown[]> = {};
 
   for (const [key] of TABLES) {
-    normalizedData[key] = (value.data[key] as unknown[]).map((row) => {
-      if (!isObject(row)) throw new Error('INVALID_STRUCTURE');
-      const out: Record<string, unknown> = {};
+    const tableData = value.data[key];
+    if (tableData === undefined && version === 1 && LEGACY_OPTIONAL_TABLES.has(key)) {
+      normalizedData[key] = [];
+      continue;
+    }
+    if (!Array.isArray(tableData)) throw new Error(`INVALID_TABLE_DATA:${key}`);
+
+    normalizedData[key] = tableData.map((row) => {
+      if (!isObject(row)) throw new Error(`INVALID_ROW:${key}`);
+
+      const normalizedRow: Record<string, unknown> = {};
       for (const [field, fieldValue] of Object.entries(row)) {
-        const dbColumn = camelToSnake(field);
-        out[field] = normalizeScalar(fieldValue, dbColumn);
+        normalizedRow[field] = normalizeScalar(fieldValue, camelToSnake(field));
       }
-      return out;
+      return normalizedRow;
     });
   }
 
   return {
-    exportVersion: 2,
+    exportVersion: EXPORT_VERSION,
     exportedAt: value.exportedAt,
     settings: validateSettings(value.settings),
     data: normalizedData,
   };
 }
 
-async function getSettingsSnapshot() {
-  const [name, notificationSettings, geralThemeHidden] = await Promise.all([
-    AsyncStorage.getItem(NAME_KEY),
-    AsyncStorage.getItem(SETTINGS_KEY),
-    AsyncStorage.getItem(GERAL_THEME_HIDDEN_KEY),
-  ]);
+async function getSettingsSnapshot(): Promise<ExportPayload['settings']> {
+  const settingsEntries = await AsyncStorage.multiGet(SETTING_KEYS);
+  const settingsMap = new Map(settingsEntries);
+  const name = settingsMap.get(NAME_KEY);
+  const notificationSettings = settingsMap.get(SETTINGS_KEY);
+  const geralThemeHidden = settingsMap.get(GERAL_THEME_HIDDEN_KEY);
+
+  if (geralThemeHidden !== null && geralThemeHidden !== 'true' && geralThemeHidden !== 'false') {
+    throw new Error('INVALID_GERAL_THEME_SETTING');
+  }
 
   let parsedSettings: Record<string, unknown> = {};
   if (notificationSettings) {
-    try {
-      const parsed = JSON.parse(notificationSettings);
-      if (isObject(parsed)) parsedSettings = parsed;
-    } catch {}
+    const parsed: unknown = JSON.parse(notificationSettings);
+    if (!isObject(parsed)) throw new Error('INVALID_NOTIFICATION_SETTINGS');
+    parsedSettings = parsed;
   }
 
   return {
@@ -204,15 +236,20 @@ async function getSettingsSnapshot() {
 }
 
 export async function buildExportPayload(): Promise<ExportPayload> {
-  const [rows, settings] = await Promise.all([
-    Promise.all(TABLES.map(([, , table]) => db.select().from(table as any))),
-    getSettingsSnapshot(),
-  ]);
-
   const tableData: Record<string, unknown[]> = {};
-  TABLES.forEach(([key], index) => {
-    tableData[key] = rows[index] as unknown[];
+
+  await sqlite.withExclusiveTransactionAsync(async (txn) => {
+    for (const [key, tableName] of TABLES) {
+      const rows = await txn.getAllAsync<Record<string, unknown>>(`SELECT * FROM "${tableName}"`);
+      tableData[key] = rows.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).map(([column, value]) => [snakeToCamel(column), value]),
+        ),
+      );
+    }
   });
+
+  const settings = await getSettingsSnapshot();
 
   return {
     exportVersion: EXPORT_VERSION,
@@ -222,9 +259,28 @@ export async function buildExportPayload(): Promise<ExportPayload> {
   };
 }
 
+export async function exportData(format: 'json' | 'txt' = 'json'): Promise<string> {
+  const payload = await buildExportPayload();
+  const extension = format === 'txt' ? 'txt' : 'json';
+  const mimeType = format === 'txt' ? 'text/plain' : 'application/json';
+  const uti = format === 'txt' ? 'public.plain-text' : 'public.json';
+  const uri = `${FileSystem.cacheDirectory}focomais-export-v${EXPORT_VERSION}-${Date.now()}.${extension}`;
+  await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2));
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, {
+      mimeType,
+      dialogTitle: 'Exportar dados do FocoMais',
+      UTI: uti,
+    });
+  }
+
+  return uri;
+}
+
 export async function pickImportFile(): Promise<ExportPayload | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['text/plain'],
+    type: ['text/plain', 'application/json'],
     copyToCacheDirectory: true,
     multiple: false,
   });
@@ -249,70 +305,97 @@ function getTableMetadata(tableName: string) {
     pk: number;
     dflt_value: string | null;
   }>(`PRAGMA table_info("${tableName}")`);
+
   if (rows.length === 0) throw new Error(`UNKNOWN_TABLE:${tableName}`);
   return new Map(rows.map((row) => [row.name, row]));
 }
 
-function validateRowsAgainstSchema(tableName: string, rows: unknown[]) {
+function validateRowsAgainstSchema(tableName: string, rows: unknown[]): string {
   const columns = getTableMetadata(tableName);
   const primaryKey = Array.from(columns.values()).find((column) => column.pk)?.name;
-  const seenPrimaryKeys = new Set<unknown>();
+  if (!primaryKey) throw new Error(`MISSING_PRIMARY_KEY_DEFINITION:${tableName}`);
+
+  const seenPrimaryKeys = new Set<string>();
 
   for (const row of rows) {
-    if (!isObject(row)) throw new Error('INVALID_STRUCTURE');
+    if (!isObject(row)) throw new Error(`INVALID_ROW:${tableName}`);
 
     const seenColumns = new Set<string>();
+    const normalizedColumns = new Map<string, unknown>();
+
     for (const [field, rawValue] of Object.entries(row)) {
       const dbColumn = camelToSnake(field);
       const metadata = columns.get(dbColumn);
       if (!metadata) throw new Error(`UNKNOWN_COLUMN:${tableName}.${field}`);
+
+      if (seenColumns.has(dbColumn)) {
+        throw new Error(`DUPLICATE_COLUMN:${tableName}.${field}`);
+      }
       seenColumns.add(dbColumn);
+      normalizedColumns.set(dbColumn, rawValue);
 
       if (rawValue === null) {
-        if (metadata.notnull && !metadata.dflt_value) {
-          throw new Error(`NULL_NOT_ALLOWED:${tableName}.${field}`);
-        }
+        if (metadata.notnull) throw new Error(`NULL_NOT_ALLOWED:${tableName}.${field}`);
         continue;
       }
 
-      if (metadata.type.toUpperCase().includes('INT') && !BOOLEAN_FIELDS.has(dbColumn)) {
+      const columnType = metadata.type.toUpperCase();
+      if (columnType.includes('INT') && !BOOLEAN_FIELDS.has(dbColumn)) {
         if (typeof rawValue !== 'number' || !Number.isInteger(rawValue)) {
           throw new Error(`INVALID_FIELD_TYPE:${tableName}.${field}`);
         }
-      }
-      if (metadata.type.toUpperCase().includes('REAL')) {
+      } else if (columnType.includes('REAL')) {
         if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
           throw new Error(`INVALID_FIELD_TYPE:${tableName}.${field}`);
         }
-      }
-      if (metadata.type.toUpperCase().includes('TEXT') && typeof rawValue !== 'string') {
+      } else if (columnType.includes('TEXT') && typeof rawValue !== 'string') {
         throw new Error(`INVALID_FIELD_TYPE:${tableName}.${field}`);
       }
     }
 
-    if (primaryKey) {
-      const primaryField = Object.entries(row).find(
-        ([field]) => camelToSnake(field) === primaryKey,
-      )?.[1];
-      if (primaryField !== undefined) {
-        if (seenPrimaryKeys.has(primaryField)) {
-          throw new Error(`DUPLICATE_PRIMARY_KEY:${tableName}.${primaryKey}`);
-        }
-        seenPrimaryKeys.add(primaryField);
-      }
+    const primaryValue = normalizedColumns.get(primaryKey);
+    if (typeof primaryValue !== 'string' || primaryValue.length === 0) {
+      throw new Error(`MISSING_PRIMARY_KEY:${tableName}.${primaryKey}`);
     }
+    if (seenPrimaryKeys.has(primaryValue)) {
+      throw new Error(`DUPLICATE_PRIMARY_KEY:${tableName}.${primaryKey}`);
+    }
+    seenPrimaryKeys.add(primaryValue);
 
     for (const [column, metadata] of columns) {
-      if (!metadata.notnull || metadata.pk || metadata.dflt_value !== null) continue;
-      if (!seenColumns.has(column))
+      if (metadata.pk || !metadata.notnull || metadata.dflt_value !== null) continue;
+      if (!seenColumns.has(column)) {
         throw new Error(`MISSING_REQUIRED_COLUMN:${tableName}.${column}`);
+      }
+    }
+  }
+
+  return primaryKey;
+}
+
+function validateRequiredRelationships(data: Record<string, unknown[]>): void {
+  for (const relationship of REQUIRED_RELATIONSHIPS) {
+    const parentIds = new Set(
+      data[relationship.parentTable]
+        .filter(isObject)
+        .map((row) => row.id)
+        .filter((id): id is string => typeof id === 'string'),
+    );
+
+    for (const row of data[relationship.childTable]) {
+      if (!isObject(row)) throw new Error(`INVALID_ROW:${relationship.childTable}`);
+
+      const parentId = row[relationship.childColumn];
+      if (typeof parentId !== 'string' || !parentIds.has(parentId)) {
+        throw new Error(
+          `INVALID_RELATIONSHIP:${relationship.childTable}.${relationship.childColumn}`,
+        );
+      }
     }
   }
 }
 
-async function deleteAllData(
-  txn: Parameters<Parameters<typeof sqlite.withExclusiveTransactionAsync>[0]>[0],
-) {
+async function deleteAllData(txn: SQLiteTransaction): Promise<void> {
   const statements = [
     'DELETE FROM purchasable_reward_purchases',
     'DELETE FROM purchasable_rewards',
@@ -333,44 +416,153 @@ async function deleteAllData(
     'DELETE FROM point_events',
     'DELETE FROM gamification_settings',
   ];
+
   for (const statement of statements) await txn.execAsync(statement);
+}
+
+async function insertTableRows(
+  txn: SQLiteTransaction,
+  tableName: string,
+  rows: unknown[],
+): Promise<void> {
+  for (const row of rows) {
+    if (!isObject(row)) throw new Error(`INVALID_ROW:${tableName}`);
+
+    const entries = Object.entries(row).map(
+      ([field, value]) => [camelToSnake(field), value] as const,
+    );
+    if (entries.length === 0) throw new Error(`EMPTY_ROW:${tableName}`);
+
+    const columns = entries.map(([column]) => column);
+    const placeholders = columns.map(() => '?').join(', ');
+    const columnSql = columns.map((column) => `"${column.replace(/"/g, '""')}"`).join(', ');
+    const values = entries.map(([, value]) => (value === undefined ? null : value));
+
+    await txn.runAsync(
+      `INSERT INTO "${tableName}" (${columnSql}) VALUES (${placeholders})`,
+      ...(values as any[]),
+    );
+  }
+}
+
+async function verifyRestoredRows(
+  txn: SQLiteTransaction,
+  data: Record<string, unknown[]>,
+  primaryKeyColumns: Map<string, string>,
+): Promise<void> {
+  for (const [key, tableName] of TABLES) {
+    const primaryKey = primaryKeyColumns.get(key);
+    if (!primaryKey) throw new Error(`MISSING_PRIMARY_KEY_DEFINITION:${tableName}`);
+
+    const escapedPrimaryKey = primaryKey.replace(/"/g, '""');
+    const restoredRows = await txn.getAllAsync<{ primaryKey: string }>(
+      `SELECT "${escapedPrimaryKey}" AS primaryKey FROM "${tableName}"`,
+    );
+    const restoredIds = new Set(restoredRows.map((row) => row.primaryKey));
+    const expectedIds = data[key].map((row): string => {
+      if (!isObject(row)) throw new Error(`INVALID_ROW:${tableName}`);
+
+      const id = row[snakeToCamel(primaryKey)];
+      if (typeof id !== 'string') throw new Error(`MISSING_PRIMARY_KEY:${tableName}.${primaryKey}`);
+      return id;
+    });
+    const expectedIdSet = new Set(expectedIds);
+
+    if (
+      restoredRows.length !== expectedIds.length ||
+      restoredIds.size !== expectedIdSet.size ||
+      expectedIds.some((id) => !restoredIds.has(id))
+    ) {
+      throw new Error(`RESTORE_VERIFICATION_FAILED:${tableName}`);
+    }
+  }
+}
+
+function buildSettingsEntries(settings: ExportPayload['settings']): [string, string][] {
+  return [
+    [NAME_KEY, settings.name],
+    [SETTINGS_KEY, JSON.stringify(settings.notificationSettings)],
+    [GERAL_THEME_HIDDEN_KEY, settings.geralThemeHidden ? 'true' : 'false'],
+  ];
+}
+
+async function writeAndVerifySettings(settings: ExportPayload['settings']): Promise<void> {
+  const expectedEntries = buildSettingsEntries(settings);
+  await AsyncStorage.multiSet(expectedEntries);
+
+  const actualEntries = await AsyncStorage.multiGet(SETTING_KEYS);
+  const actualByKey = new Map(actualEntries);
+
+  for (const [key, expectedValue] of expectedEntries) {
+    if (actualByKey.get(key) !== expectedValue) {
+      throw new Error(`SETTINGS_RESTORE_FAILED:${key}`);
+    }
+  }
+}
+
+async function restoreSettingsSnapshot(snapshot: readonly StoredSetting[]): Promise<void> {
+  const entriesToRestore: [string, string][] = [];
+  const keysToRemove: string[] = [];
+
+  for (const [key, value] of snapshot) {
+    if (value === null) keysToRemove.push(key);
+    else entriesToRestore.push([key, value]);
+  }
+
+  if (entriesToRestore.length > 0) await AsyncStorage.multiSet(entriesToRestore);
+  if (keysToRemove.length > 0) await AsyncStorage.multiRemove(keysToRemove);
+
+  const restoredEntries = await AsyncStorage.multiGet(SETTING_KEYS);
+  const restoredByKey = new Map(restoredEntries);
+
+  for (const [key, previousValue] of snapshot) {
+    if (restoredByKey.get(key) !== previousValue) {
+      throw new Error(`SETTINGS_ROLLBACK_FAILED:${key}`);
+    }
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function importData(payload: unknown): Promise<void> {
   const normalized = normalizeBackup(payload);
 
+  const primaryKeyColumns = new Map<string, string>();
   for (const [key, tableName] of TABLES) {
-    validateRowsAgainstSchema(tableName, normalized.data[key]);
+    const primaryKey = validateRowsAgainstSchema(tableName, normalized.data[key]);
+    primaryKeyColumns.set(key, primaryKey);
   }
+  validateRequiredRelationships(normalized.data);
 
-  await sqlite.withExclusiveTransactionAsync(async (txn) => {
-    await deleteAllData(txn);
+  const previousSettings = await AsyncStorage.multiGet(SETTING_KEYS);
+  let settingsWriteAttempted = false;
 
-    for (const [key, tableName] of TABLES) {
-      const rows = normalized.data[key];
-      for (const row of rows) {
-        if (!isObject(row)) throw new Error('INVALID_STRUCTURE');
-        const entries = Object.entries(row).map(
-          ([field, value]) => [camelToSnake(field), value] as const,
-        );
-        if (!entries.length) continue;
+  try {
+    await sqlite.withExclusiveTransactionAsync(async (txn) => {
+      await deleteAllData(txn);
 
-        const columns = entries.map(([column]) => column);
-        const placeholders = columns.map(() => '?').join(', ');
-        const columnSql = columns.map((c) => `"${c.replace(/"/g, '""')}"`).join(', ');
-        const values = entries.map(([, value]) => (value === undefined ? null : value));
+      for (const [key, tableName] of TABLES) {
+        await insertTableRows(txn, tableName, normalized.data[key]);
+      }
 
-        await txn.runAsync(
-          `INSERT INTO "${tableName}" (${columnSql}) VALUES (${placeholders})`,
-          ...(values as any[]),
+      await verifyRestoredRows(txn, normalized.data, primaryKeyColumns);
+
+      settingsWriteAttempted = true;
+      await writeAndVerifySettings(normalized.settings);
+    });
+  } catch (error) {
+    if (settingsWriteAttempted) {
+      try {
+        await restoreSettingsSnapshot(previousSettings);
+      } catch (rollbackError) {
+        throw new Error(
+          `IMPORT_FAILED_AND_SETTINGS_ROLLBACK_FAILED:${getErrorMessage(error)}:${getErrorMessage(rollbackError)}`,
         );
       }
     }
-  });
 
-  await AsyncStorage.multiSet([
-    [NAME_KEY, normalized.settings.name.trim()],
-    [SETTINGS_KEY, JSON.stringify(normalized.settings.notificationSettings)],
-    [GERAL_THEME_HIDDEN_KEY, normalized.settings.geralThemeHidden ? 'true' : 'false'],
-  ]);
+    throw error;
+  }
 }
