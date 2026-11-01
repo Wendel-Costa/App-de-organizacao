@@ -170,9 +170,9 @@ export function RewardsScreen() {
   const [conditionType, setConditionType] = useState<RewardConditionType>('focus_hours');
   const [target, setTarget] = useState(10);
   const [period, setPeriod] = useState<RewardPeriod>('anytime');
-  const [selectedThemeId, setSelectedThemeId] = useState<string | undefined>();
+  const [selectedThemeIds, setSelectedThemeIds] = useState<string[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-  const [selectedGoalId, setSelectedGoalId] = useState<string | undefined>();
+  const [selectedGoalIds, setSelectedGoalIds] = useState<string[]>([]);
   const [customStart, setCustomStart] = useState<string | undefined>();
   const [customEnd, setCustomEnd] = useState<string | undefined>();
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -205,10 +205,10 @@ export function RewardsScreen() {
   }, []);
 
   useEffect(() => {
-    if (rewards.length > 0 && (sessions.length > 0 || tasks.length > 0)) {
+    if (rewards.length > 0 && (sessions.length > 0 || tasks.length > 0 || goals.length > 0)) {
       checkAndUnlock(sessions, tasks, goals);
     }
-  }, [sessions, tasks, goals]);
+  }, [sessions, tasks, goals, rewards, checkAndUnlock]);
 
   useEffect(() => {
     return () => {
@@ -307,9 +307,9 @@ export function RewardsScreen() {
     setConditionType('focus_hours');
     setTarget(10);
     setPeriod('anytime');
-    setSelectedThemeId(undefined);
+    setSelectedThemeIds([]);
     setSelectedTaskIds([]);
-    setSelectedGoalId(undefined);
+    setSelectedGoalIds([]);
     setCustomStart(undefined);
     setCustomEnd(undefined);
     setEditingReward(null);
@@ -321,9 +321,13 @@ export function RewardsScreen() {
     setConditionType(reward.condition.type);
     setTarget(reward.condition.target);
     setPeriod(reward.condition.period);
-    setSelectedThemeId(reward.condition.themeId);
+    setSelectedThemeIds(
+      reward.condition.themeIds ?? (reward.condition.themeId ? [reward.condition.themeId] : []),
+    );
     setSelectedTaskIds(reward.condition.taskIds ?? []);
-    setSelectedGoalId(reward.condition.goalId);
+    setSelectedGoalIds(
+      reward.condition.goalIds ?? (reward.condition.goalId ? [reward.condition.goalId] : []),
+    );
     setCustomStart(reward.condition.customStartDate);
     setCustomEnd(reward.condition.customEndDate);
     setEditingReward(reward);
@@ -339,8 +343,8 @@ export function RewardsScreen() {
       Alert.alert('Atenção', 'Selecione pelo menos uma tarefa.');
       return;
     }
-    if (conditionType === 'goal_completed' && !selectedGoalId) {
-      Alert.alert('Atenção', 'Selecione uma meta.');
+    if (conditionType === 'goal_completed' && selectedGoalIds.length === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos uma meta.');
       return;
     }
     if (conditionType === 'focus_hours' && target <= 0) {
@@ -354,9 +358,9 @@ export function RewardsScreen() {
         type: conditionType,
         target,
         period,
-        themeId: selectedThemeId,
+        themeIds: selectedThemeIds.length > 0 ? selectedThemeIds : undefined,
         taskIds: selectedTaskIds.length > 0 ? selectedTaskIds : undefined,
-        goalId: selectedGoalId,
+        goalIds: selectedGoalIds.length > 0 ? selectedGoalIds : undefined,
         customStartDate: period === 'custom' ? customStart : undefined,
         customEndDate: period === 'custom' ? customEnd : undefined,
       };
@@ -397,6 +401,7 @@ export function RewardsScreen() {
       <RewardDetailScreen
         reward={rewards.find((r) => r.id === selectedReward.id) ?? selectedReward}
         sessions={sessions}
+        themes={themes}
         tasks={tasks}
         goals={goals}
         onBack={() => setScreen('list')}
@@ -508,38 +513,51 @@ export function RewardsScreen() {
 
           {conditionType === 'focus_hours' && (
             <>
-              <Text style={styles.label}>Tema de foco (opcional)</Text>
+              <Text style={styles.label}>Temas de foco (opcional)</Text>
+              <Text style={styles.helperText}>Sem seleção, todos os temas serão considerados.</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.themeRow}
               >
                 <TouchableOpacity
-                  style={[styles.themeChip, !selectedThemeId && styles.themeChipActive]}
-                  onPress={() => setSelectedThemeId(undefined)}
+                  style={[
+                    styles.themeChip,
+                    selectedThemeIds.length === 0 && styles.themeChipActive,
+                  ]}
+                  onPress={() => setSelectedThemeIds([])}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.themeLabel, !selectedThemeId && styles.themeLabelActive]}>
+                  <Text
+                    style={[
+                      styles.themeLabel,
+                      selectedThemeIds.length === 0 && styles.themeLabelActive,
+                    ]}
+                  >
                     Todos
                   </Text>
                 </TouchableOpacity>
-                {themes.map((t) => (
-                  <TouchableOpacity
-                    key={t.id}
-                    style={[styles.themeChip, selectedThemeId === t.id && styles.themeChipActive]}
-                    onPress={() => setSelectedThemeId(t.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.themeLabel,
-                        selectedThemeId === t.id && styles.themeLabelActive,
-                      ]}
+                {themes.map((t) => {
+                  const selected = selectedThemeIds.includes(t.id);
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.themeChip, selected && styles.themeChipActive]}
+                      onPress={() =>
+                        setSelectedThemeIds((current) =>
+                          current.includes(t.id)
+                            ? current.filter((id) => id !== t.id)
+                            : [...current, t.id],
+                        )
+                      }
+                      activeOpacity={0.7}
                     >
-                      {t.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text style={[styles.themeLabel, selected && styles.themeLabelActive]}>
+                        {t.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </>
           )}
@@ -596,33 +614,44 @@ export function RewardsScreen() {
 
           {conditionType === 'goal_completed' && (
             <>
-              <Text style={styles.label}>Meta *</Text>
+              <Text style={styles.label}>Metas *</Text>
+              <Text style={styles.helperText}>
+                Todas as metas selecionadas precisam ser concluídas.
+              </Text>
               {goals.length === 0 ? (
                 <Text style={styles.emptyNote}>Nenhuma meta criada ainda.</Text>
               ) : (
-                goals.map((g) => (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={[styles.goalItem, selectedGoalId === g.id && styles.goalItemActive]}
-                    onPress={() => setSelectedGoalId(g.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[styles.goalDot, { backgroundColor: g.color ?? colors.primary }]}
-                    />
-                    <Text
-                      style={[
-                        styles.goalItemTitle,
-                        selectedGoalId === g.id && styles.goalItemTitleActive,
-                      ]}
+                goals.map((g) => {
+                  const selected = selectedGoalIds.includes(g.id);
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      style={[styles.goalItem, selected && styles.goalItemActive]}
+                      onPress={() =>
+                        setSelectedGoalIds((current) =>
+                          current.includes(g.id)
+                            ? current.filter((id) => id !== g.id)
+                            : [...current, g.id],
+                        )
+                      }
+                      activeOpacity={0.7}
                     >
-                      {g.title}
-                    </Text>
-                    {selectedGoalId === g.id && (
-                      <MaterialCommunityIcons name="check" size={16} color={colors.textOnPrimary} />
-                    )}
-                  </TouchableOpacity>
-                ))
+                      <View
+                        style={[styles.goalDot, { backgroundColor: g.color ?? colors.primary }]}
+                      />
+                      <Text style={[styles.goalItemTitle, selected && styles.goalItemTitleActive]}>
+                        {g.title}
+                      </Text>
+                      {selected && (
+                        <MaterialCommunityIcons
+                          name="check"
+                          size={16}
+                          color={colors.textOnPrimary}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </>
           )}
@@ -855,6 +884,7 @@ export function RewardsScreen() {
                   <RewardCard
                     reward={r}
                     sessions={sessions}
+                    themes={themes}
                     tasks={tasks}
                     goals={goals}
                     onDelete={handleDelete}
@@ -892,6 +922,7 @@ export function RewardsScreen() {
                     <RewardCard
                       reward={r}
                       sessions={sessions}
+                      themes={themes}
                       tasks={tasks}
                       goals={goals}
                       onDelete={handleDelete}
@@ -1387,6 +1418,12 @@ const styles = StyleSheet.create({
   goalItemTitleActive: {
     color: colors.textOnPrimary,
     fontWeight: '600',
+  },
+  helperText: {
+    ...typography.xs,
+    color: colors.textSecondary,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
   },
   emptyNote: {
     ...typography.sm,

@@ -8,8 +8,10 @@ export interface RewardCondition {
   target: number;
   period: RewardPeriod;
   themeId?: string;
+  themeIds?: string[];
   taskIds?: string[];
   goalId?: string;
+  goalIds?: string[];
   customStartDate?: string;
   customEndDate?: string;
 }

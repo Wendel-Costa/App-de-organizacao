@@ -93,24 +93,8 @@ export const useRewardStore = create<RewardState>((set, get) => ({
     const pending = get().rewards.filter((reward) => !reward.unlocked);
     if (pending.length === 0) return newlyUnlocked;
 
-    const taskById = new Map(tasks.map((task) => [task.id, task]));
-    const goalById = new Map(goals.map((goal) => [goal.id, goal]));
-
     for (const reward of pending) {
-      let satisfied = false;
-      const condition = reward.condition;
-
-      if (condition.type === 'tasks_specific') {
-        const ids = condition.taskIds ?? [];
-        satisfied = ids.length > 0 && ids.every((id) => taskById.get(id)?.completed === true);
-      } else if (condition.type === 'goal_completed') {
-        const goal = goalById.get(condition.goalId ?? '');
-        satisfied = !!goal && checkRewardCondition(reward, sessions, tasks, goals);
-      } else {
-        satisfied = checkRewardCondition(reward, sessions, tasks, goals);
-      }
-
-      if (satisfied) {
+      if (checkRewardCondition(reward, sessions, tasks, goals)) {
         await unlockReward(reward.id);
         newlyUnlocked.push(reward);
       }

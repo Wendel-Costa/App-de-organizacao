@@ -12,6 +12,18 @@ import {
   localMonthEnd,
 } from '@/utils/date';
 
+function getSelectedThemeIds(reward: Reward): string[] {
+  const ids = reward.condition.themeIds?.filter(Boolean) ?? [];
+  const source = ids.length > 0 ? ids : reward.condition.themeId ? [reward.condition.themeId] : [];
+  return Array.from(new Set(source));
+}
+
+function getSelectedGoalIds(reward: Reward): string[] {
+  const ids = reward.condition.goalIds?.filter(Boolean) ?? [];
+  const source = ids.length > 0 ? ids : reward.condition.goalId ? [reward.condition.goalId] : [];
+  return Array.from(new Set(source));
+}
+
 function getDateRange(reward: Reward): { start: string; end: string } {
   const today = localDateStr();
   const { period } = reward.condition;
@@ -53,18 +65,23 @@ export function checkRewardCondition(
   }
 
   if (type === 'goal_completed') {
-    const goal = goals.find((g) => g.id === reward.condition.goalId);
-    if (!goal) return false;
-    return calcGoalProgress(goal) >= 1;
+    const ids = getSelectedGoalIds(reward);
+    if (ids.length === 0) return false;
+    const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+    return ids.every((id) => {
+      const goal = goalById.get(id);
+      return !!goal && calcGoalProgress(goal) >= 1;
+    });
   }
 
   const { start, end } = getDateRange(reward);
 
   if (type === 'focus_hours') {
+    const themeIds = getSelectedThemeIds(reward);
     const filtered = sessions.filter((s) => {
       const date = dateOf(s.startTime);
       const inRange = date >= start && date <= end;
-      const inTheme = reward.condition.themeId ? s.themeId === reward.condition.themeId : true;
+      const inTheme = themeIds.length === 0 || themeIds.includes(s.themeId ?? '');
       return inRange && inTheme;
     });
     const totalHours = filtered.reduce((acc, s) => acc + s.duration, 0) / 60;
@@ -103,17 +120,24 @@ export function calcRewardProgress(
   }
 
   if (type === 'goal_completed') {
-    const goal = goals.find((g) => g.id === reward.condition.goalId);
-    return goal ? calcGoalProgress(goal) : 0;
+    const ids = getSelectedGoalIds(reward);
+    if (ids.length === 0) return 0;
+    const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+    const totalProgress = ids.reduce((total, id) => {
+      const goal = goalById.get(id);
+      return total + (goal ? Math.min(1, Math.max(0, calcGoalProgress(goal))) : 0);
+    }, 0);
+    return totalProgress / ids.length;
   }
 
   const { start, end } = getDateRange(reward);
 
   if (type === 'focus_hours') {
+    const themeIds = getSelectedThemeIds(reward);
     const filtered = sessions.filter((s) => {
       const date = dateOf(s.startTime);
       const inRange = date >= start && date <= end;
-      const inTheme = reward.condition.themeId ? s.themeId === reward.condition.themeId : true;
+      const inTheme = themeIds.length === 0 || themeIds.includes(s.themeId ?? '');
       return inRange && inTheme;
     });
     const totalHours = filtered.reduce((acc, s) => acc + s.duration, 0) / 60;
@@ -134,9 +158,9 @@ export function calcRewardProgress(
 
 export function formatCondition(
   reward: Reward,
-  themeName?: string,
+  themeNames: string[] = [],
   taskTitles?: string[],
-  goalTitle?: string,
+  goalTitles: string[] = [],
 ): string {
   const { type, target, period } = reward.condition;
 
@@ -153,11 +177,22 @@ export function formatCondition(
     return `Concluir ${reward.condition.taskIds?.length ?? 0} tarefa(s) específica(s)`;
   }
 
-  if (type === 'goal_completed') return `Completar meta: ${goalTitle ?? '—'}`;
+  if (type === 'goal_completed') {
+    const ids = getSelectedGoalIds(reward);
+    if (goalTitles.length === 1) return `Completar meta: ${goalTitles[0]}`;
+    if (goalTitles.length > 1) return `Completar metas: ${goalTitles.join(', ')}`;
+    return ids.length === 1 ? 'Completar 1 meta' : `Completar ${ids.length} metas`;
+  }
 
   if (type === 'focus_hours') {
-    const themeStr = themeName ? ` (${themeName})` : '';
-    return `Estudar ${target}h${themeStr} ${periodLabel[period] ?? ''}`;
+    const ids = getSelectedThemeIds(reward);
+    let themeStr = '';
+    if (ids.length === 1) {
+      themeStr = ` no tema ${themeNames[0] ?? 'selecionado'}`;
+    } else if (ids.length > 1) {
+      themeStr = ` nos temas ${themeNames.length > 0 ? themeNames.join(', ') : 'selecionados'}`;
+    }
+    return `Acumular ${target}h de foco${themeStr} ${periodLabel[period] ?? ''}`.trim();
   }
 
   return `Concluir ${target} tarefas ${periodLabel[period] ?? ''}`;

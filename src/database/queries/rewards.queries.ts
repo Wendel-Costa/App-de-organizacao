@@ -11,6 +11,37 @@ function now() {
   return new Date().toISOString();
 }
 
+function normalizeIds(ids: string[] | undefined, legacyId: string | undefined): string[] {
+  const source = ids && ids.length > 0 ? ids : legacyId ? [legacyId] : [];
+  return Array.from(
+    new Set(
+      source
+        .filter((id) => typeof id === 'string')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function parseIds(serialized: string | null, legacyId: string | null): string[] {
+  if (serialized) {
+    try {
+      const parsed: unknown = JSON.parse(serialized);
+      if (Array.isArray(parsed)) {
+        const ids = normalizeIds(
+          parsed.filter((value): value is string => typeof value === 'string'),
+          undefined,
+        );
+        if (ids.length > 0 || !legacyId) return ids;
+      }
+    } catch {
+      // Dados antigos ou inválidos continuam podendo usar o identificador singular.
+    }
+  }
+
+  return normalizeIds(undefined, legacyId ?? undefined);
+}
+
 export async function getAllRewards(): Promise<Reward[]> {
   const rows = await db.select().from(rewards);
   return rows
@@ -23,6 +54,8 @@ export async function createReward(
 ): Promise<Reward> {
   const id = generateId();
   const createdAt = now();
+  const themeIds = normalizeIds(data.condition.themeIds, data.condition.themeId);
+  const goalIds = normalizeIds(data.condition.goalIds, data.condition.goalId);
 
   const existing = await db.select().from(rewards);
   const maxOrder = existing.reduce((m, r) => Math.max(m, r.sortOrder ?? 0), 0);
@@ -35,9 +68,11 @@ export async function createReward(
     conditionType: data.condition.type,
     conditionTarget: data.condition.target,
     conditionPeriod: data.condition.period,
-    conditionThemeId: data.condition.themeId,
+    conditionThemeId: themeIds.length === 1 ? themeIds[0] : null,
+    conditionThemeIds: JSON.stringify(themeIds),
     conditionTaskIds: data.condition.taskIds ? JSON.stringify(data.condition.taskIds) : null,
-    conditionGoalId: data.condition.goalId,
+    conditionGoalId: goalIds.length === 1 ? goalIds[0] : null,
+    conditionGoalIds: JSON.stringify(goalIds),
     conditionCustomStart: data.condition.customStartDate,
     conditionCustomEnd: data.condition.customEndDate,
     unlocked: 0,
@@ -69,6 +104,9 @@ export async function updateReward(
   id: string,
   data: Omit<Reward, 'id' | 'unlocked' | 'unlockedAt' | 'createdAt' | 'archived' | 'order'>,
 ): Promise<void> {
+  const themeIds = normalizeIds(data.condition.themeIds, data.condition.themeId);
+  const goalIds = normalizeIds(data.condition.goalIds, data.condition.goalId);
+
   await db
     .update(rewards)
     .set({
@@ -77,9 +115,11 @@ export async function updateReward(
       conditionType: data.condition.type,
       conditionTarget: data.condition.target,
       conditionPeriod: data.condition.period,
-      conditionThemeId: data.condition.themeId,
+      conditionThemeId: themeIds.length === 1 ? themeIds[0] : null,
+      conditionThemeIds: JSON.stringify(themeIds),
       conditionTaskIds: data.condition.taskIds ? JSON.stringify(data.condition.taskIds) : null,
-      conditionGoalId: data.condition.goalId,
+      conditionGoalId: goalIds.length === 1 ? goalIds[0] : null,
+      conditionGoalIds: JSON.stringify(goalIds),
       conditionCustomStart: data.condition.customStartDate,
       conditionCustomEnd: data.condition.customEndDate,
     })
@@ -102,8 +142,10 @@ function rowToReward(row: typeof rewards.$inferSelect): Reward {
       target: row.conditionTarget ?? 0,
       period: (row.conditionPeriod ?? 'anytime') as Reward['condition']['period'],
       themeId: row.conditionThemeId ?? undefined,
+      themeIds: parseIds(row.conditionThemeIds, row.conditionThemeId),
       taskIds: row.conditionTaskIds ? JSON.parse(row.conditionTaskIds) : undefined,
       goalId: row.conditionGoalId ?? undefined,
+      goalIds: parseIds(row.conditionGoalIds, row.conditionGoalId),
       customStartDate: row.conditionCustomStart ?? undefined,
       customEndDate: row.conditionCustomEnd ?? undefined,
     },

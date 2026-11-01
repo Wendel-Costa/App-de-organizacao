@@ -1,6 +1,6 @@
 import { sqlite } from '../index';
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 4;
 
 export async function runMigrations() {
   const versionRow = sqlite.getFirstSync<{ user_version: number }>('PRAGMA user_version');
@@ -132,8 +132,10 @@ export async function runMigrations() {
         condition_target REAL NOT NULL DEFAULT 0,
         condition_period TEXT NOT NULL DEFAULT 'anytime',
         condition_theme_id TEXT,
+        condition_theme_ids TEXT,
         condition_task_ids TEXT,
         condition_goal_id TEXT,
+        condition_goal_ids TEXT,
         condition_custom_start TEXT,
         condition_custom_end TEXT,
         unlocked INTEGER NOT NULL DEFAULT 0,
@@ -161,7 +163,10 @@ export async function runMigrations() {
         description TEXT,
         type TEXT NOT NULL,
         score_level INTEGER,
+        scheduled_date TEXT,
+        due_date TEXT,
         recurrence_days TEXT,
+        recurrence_interval INTEGER,
         goal_id TEXT,
         theme_id TEXT,
         subtasks_snapshot TEXT,
@@ -300,6 +305,11 @@ export async function runMigrations() {
     sqlite.runSync(`
       CREATE INDEX IF NOT EXISTS idx_subtasks_task
       ON subtasks(task_id)
+    `);
+
+    sqlite.runSync(`
+      CREATE INDEX IF NOT EXISTS idx_task_completions_task_date
+      ON task_completions(original_task_id, completed_at)
     `);
 
     sqlite.runSync(`

@@ -8,13 +8,14 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { formatCondition, calcRewardProgress } from '@/services/rewards.service';
 import type { Reward } from '@/types/reward.types';
-import type { FocusSession } from '@/types/focus.types';
+import type { FocusSession, FocusTheme } from '@/types/focus.types';
 import type { Task } from '@/types/task.types';
 import type { Goal } from '@/types/goal.types';
 
 interface RewardDetailScreenProps {
   reward: Reward;
   sessions: FocusSession[];
+  themes: FocusTheme[];
   tasks: Task[];
   goals: Goal[];
   onBack: () => void;
@@ -25,6 +26,7 @@ interface RewardDetailScreenProps {
 export function RewardDetailScreen({
   reward,
   sessions,
+  themes,
   tasks,
   goals,
   onBack,
@@ -35,15 +37,25 @@ export function RewardDetailScreen({
 
   const progress = reward.unlocked ? 1 : calcRewardProgress(reward, sessions, tasks, goals);
   const percent = Math.round(progress * 100);
-  const theme = reward.condition.themeId
-    ? sessions.find((s) => s.themeId === reward.condition.themeId)?.themeName
-    : undefined;
+  const themeIds = reward.condition.themeIds?.length
+    ? reward.condition.themeIds
+    : reward.condition.themeId
+      ? [reward.condition.themeId]
+      : [];
+  const themeNames = themeIds
+    .map((id) => themes.find((item) => item.id === id)?.name)
+    .filter((name): name is string => !!name);
   const taskTitles = reward.condition.taskIds
     ?.map((id) => tasks.find((t) => t.id === id)?.title)
     .filter(Boolean) as string[] | undefined;
-  const goalTitle = reward.condition.goalId
-    ? goals.find((g) => g.id === reward.condition.goalId)?.title
-    : undefined;
+  const goalIds = reward.condition.goalIds?.length
+    ? reward.condition.goalIds
+    : reward.condition.goalId
+      ? [reward.condition.goalId]
+      : [];
+  const goalTitles = goalIds
+    .map((id) => goals.find((goal) => goal.id === id)?.title)
+    .filter((title): title is string => !!title);
 
   function handleDelete() {
     Alert.alert('Excluir', 'Deseja excluir esta recompensa?', [
@@ -132,7 +144,7 @@ export function RewardDetailScreen({
           <View style={styles.infoRow}>
             <MaterialCommunityIcons name="flag-outline" size={18} color={colors.textSecondary} />
             <Text style={styles.infoText}>
-              {formatCondition(reward, theme, taskTitles, goalTitle)}
+              {formatCondition(reward, themeNames, taskTitles, goalTitles)}
             </Text>
           </View>
 

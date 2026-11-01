@@ -4,10 +4,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { sqlite } from '@/database';
 
-export const EXPORT_VERSION = 3 as const;
+export const EXPORT_VERSION = 4 as const;
 
 type ExportPayload = {
-  exportVersion: 3;
+  exportVersion: 4;
   exportedAt: string;
   settings: {
     name: string;
@@ -167,7 +167,7 @@ function normalizeBackup(value: unknown): ExportPayload {
   if (!isObject(value)) throw new Error('INVALID_JSON');
 
   const version = value.exportVersion;
-  if (version !== 1 && version !== 2 && version !== EXPORT_VERSION) {
+  if (version !== 1 && version !== 2 && version !== 3 && version !== EXPORT_VERSION) {
     throw new Error('UNSUPPORTED_VERSION');
   }
   if (
