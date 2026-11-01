@@ -297,8 +297,12 @@ export function RewardsScreen() {
     }, [screen, title, description, editingReward]),
   );
 
-  const activeUnlocked = rewards.filter((r) => r.unlocked && !r.archived);
-  const locked = rewards.filter((r) => !r.unlocked && !r.archived);
+  const activeRewards = rewards
+    .filter((reward) => !reward.archived)
+    .sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || a.order - b.order);
+  const selectableTasks = tasks.filter(
+    (task) => !task.completed && (task.type === 'anytime' || task.type === 'scheduled'),
+  );
   const archivedRewards = rewards.filter((r) => r.archived);
 
   function resetForm() {
@@ -422,35 +426,52 @@ export function RewardsScreen() {
           onBack={handleBack}
         />
 
-        <Modal visible={showTaskModal} transparent animationType="slide">
+        <Modal
+          visible={showTaskModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowTaskModal(false)}
+        >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <View
+              style={[
+                styles.modalContainer,
+                {
+                  maxHeight: '80%',
+                  paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm),
+                },
+              ]}
+            >
               <Text style={styles.modalTitle}>Selecionar tarefas</Text>
               <ScrollView style={styles.modalScroll}>
-                {tasks.map((task) => {
-                  const selected = selectedTaskIds.includes(task.id);
-                  return (
-                    <TouchableOpacity
-                      key={task.id}
-                      style={styles.modalItem}
-                      onPress={() =>
-                        setSelectedTaskIds((prev) =>
-                          selected ? prev.filter((id) => id !== task.id) : [...prev, task.id],
-                        )
-                      }
-                      activeOpacity={0.7}
-                    >
-                      <MaterialCommunityIcons
-                        name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                        size={22}
-                        color={selected ? colors.primary : colors.textDisabled}
-                      />
-                      <Text style={styles.modalItemText} numberOfLines={2}>
-                        {task.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                {selectableTasks.length === 0 ? (
+                  <Text style={styles.emptyNote}>Nenhuma tarefa livre ou agendada pendente.</Text>
+                ) : (
+                  selectableTasks.map((task) => {
+                    const selected = selectedTaskIds.includes(task.id);
+                    return (
+                      <TouchableOpacity
+                        key={task.id}
+                        style={styles.modalItem}
+                        onPress={() =>
+                          setSelectedTaskIds((prev) =>
+                            selected ? prev.filter((id) => id !== task.id) : [...prev, task.id],
+                          )
+                        }
+                        activeOpacity={0.7}
+                      >
+                        <MaterialCommunityIcons
+                          name={selected ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                          size={22}
+                          color={selected ? colors.primary : colors.textDisabled}
+                        />
+                        <Text style={styles.modalItemText} numberOfLines={2}>
+                          {task.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
               </ScrollView>
               <Button
                 label={`Confirmar (${selectedTaskIds.length} selecionadas)`}
@@ -595,15 +616,6 @@ export function RewardsScreen() {
                         <Text style={styles.selectedTaskTitle} numberOfLines={1}>
                           {task.title}
                         </Text>
-                        <TouchableOpacity
-                          onPress={() => setSelectedTaskIds((p) => p.filter((i) => i !== id))}
-                        >
-                          <MaterialCommunityIcons
-                            name="close"
-                            size={14}
-                            color={colors.textSecondary}
-                          />
-                        </TouchableOpacity>
                       </View>
                     ) : null;
                   })}
@@ -871,12 +883,11 @@ export function RewardsScreen() {
                 <Text style={styles.sectionTitle}>Conquistas</Text>
               </View>
             </View>
-            {activeUnlocked.length === 0 ? (
+            {activeRewards.length === 0 ? (
               <Text style={styles.emptyNote}>Nenhuma conquista</Text>
-            ) : null}
-            {activeUnlocked.length > 0 && (
+            ) : (
               <DraggableList
-                data={activeUnlocked}
+                data={activeRewards}
                 keyExtractor={(r) => r.id}
                 gap={spacing.sm}
                 onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
@@ -888,7 +899,7 @@ export function RewardsScreen() {
                     tasks={tasks}
                     goals={goals}
                     onDelete={handleDelete}
-                    draggable={activeUnlocked.length > 1}
+                    draggable={activeRewards.length > 1}
                     onPress={(reward) => {
                       setSelectedReward(reward);
                       setScreen('detail');
@@ -896,45 +907,6 @@ export function RewardsScreen() {
                   />
                 )}
               />
-            )}
-
-            {locked.length > 0 && (
-              <>
-                <View
-                  style={[
-                    styles.sectionHeader,
-                    { marginTop: activeUnlocked.length > 0 ? spacing.lg : 0 },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="lock-outline"
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={styles.sectionTitle}>Em progresso ({locked.length})</Text>
-                </View>
-                <DraggableList
-                  data={locked}
-                  keyExtractor={(r) => r.id}
-                  gap={spacing.sm}
-                  onReorder={(newOrder) => reorderRewards(newOrder.map((r) => r.id))}
-                  renderItem={(r) => (
-                    <RewardCard
-                      reward={r}
-                      sessions={sessions}
-                      themes={themes}
-                      tasks={tasks}
-                      goals={goals}
-                      onDelete={handleDelete}
-                      draggable={locked.length > 1}
-                      onPress={(reward) => {
-                        setSelectedReward(reward);
-                        setScreen('detail');
-                      }}
-                    />
-                  )}
-                />
-              </>
             )}
 
             {archivedRewards.length > 0 && (
@@ -1081,6 +1053,7 @@ export function RewardsScreen() {
                   placeholder="Nome"
                   value={shopTitle}
                   onChangeText={setShopTitle}
+                  maxLength={50}
                   placeholderTextColor={colors.textDisabled}
                 />
                 <TextInput
@@ -1089,6 +1062,7 @@ export function RewardsScreen() {
                   value={shopDescription}
                   onChangeText={setShopDescription}
                   multiline
+                  maxLength={200}
                   placeholderTextColor={colors.textDisabled}
                 />
                 <TextInput
@@ -1104,21 +1078,31 @@ export function RewardsScreen() {
                   fullWidth
                   onPress={async () => {
                     const cost = Number(shopCost);
-                    if (!shopTitle.trim() || cost <= 0) {
+                    const normalizedTitle = shopTitle.trim();
+                    const normalizedDescription = shopDescription.trim();
+                    if (!normalizedTitle || cost <= 0) {
                       Alert.alert('Atenção', 'Informe nome e custo válido.');
+                      return;
+                    }
+                    if (normalizedTitle.length > 50) {
+                      Alert.alert('Atenção', 'O nome deve ter no máximo 50 caracteres.');
+                      return;
+                    }
+                    if (normalizedDescription.length > 200) {
+                      Alert.alert('Atenção', 'A descrição deve ter no máximo 200 caracteres.');
                       return;
                     }
                     try {
                       if (editingShopReward) {
                         await editPurchasableReward(editingShopReward.id, {
-                          title: shopTitle.trim(),
-                          description: shopDescription.trim() || undefined,
+                          title: normalizedTitle,
+                          description: normalizedDescription || undefined,
                           cost,
                         });
                       } else {
                         await addPurchasableReward({
-                          title: shopTitle.trim(),
-                          description: shopDescription.trim() || undefined,
+                          title: normalizedTitle,
+                          description: normalizedDescription || undefined,
                           cost,
                         });
                       }
@@ -1127,8 +1111,13 @@ export function RewardsScreen() {
                       setShopCost('50');
                       setEditingShopReward(null);
                       setShopModal(false);
-                    } catch {
-                      Alert.alert('Erro', 'Não foi possível salvar o item da loja.');
+                    } catch (error) {
+                      Alert.alert(
+                        'Erro',
+                        error instanceof Error
+                          ? error.message
+                          : 'Não foi possível salvar o item da loja.',
+                      );
                     }
                   }}
                 />

@@ -174,26 +174,47 @@ export async function getAllPurchasableRewards(): Promise<
     .sort((a, b) => a.order - b.order || a.createdAt.localeCompare(b.createdAt));
 }
 
+function validatePurchasableRewardData(data: {
+  title: string;
+  description?: string;
+  cost: number;
+}): { title: string; description?: string } {
+  const title = data.title.trim();
+  const description = data.description?.trim() || undefined;
+
+  if (!title) throw new Error('O nome do item da loja é obrigatório.');
+  if (title.length > 50) throw new Error('O nome deve ter no máximo 50 caracteres.');
+  if (description && description.length > 200) {
+    throw new Error('A descrição deve ter no máximo 200 caracteres.');
+  }
+  if (!Number.isFinite(data.cost) || data.cost <= 0) {
+    throw new Error('O custo deve ser um número maior que zero.');
+  }
+
+  return { title, description };
+}
+
 export async function createPurchasableReward(
   data: Omit<
     import('@/types/reward.types').PurchasableReward,
     'id' | 'archived' | 'order' | 'createdAt'
   >,
 ) {
+  const normalized = validatePurchasableRewardData(data);
   const id = generateId();
   const createdAt = now();
   const rows = await db.select().from(purchasableRewards);
   const order = rows.length ? Math.max(...rows.map((r) => r.sortOrder)) + 1 : 0;
   await db.insert(purchasableRewards).values({
     id,
-    title: data.title.trim(),
-    description: data.description?.trim() || null,
-    cost: Math.max(0, data.cost),
+    title: normalized.title,
+    description: normalized.description ?? null,
+    cost: data.cost,
     archived: 0,
     sortOrder: order,
     createdAt,
   });
-  return { ...data, id, title: data.title.trim(), archived: false, order, createdAt };
+  return { ...data, ...normalized, id, cost: data.cost, archived: false, order, createdAt };
 }
 
 export async function updatePurchasableReward(
@@ -203,12 +224,13 @@ export async function updatePurchasableReward(
     'id' | 'archived' | 'order' | 'createdAt'
   >,
 ) {
+  const normalized = validatePurchasableRewardData(data);
   await db
     .update(purchasableRewards)
     .set({
-      title: data.title.trim(),
-      description: data.description?.trim() || null,
-      cost: Math.max(0, data.cost),
+      title: normalized.title,
+      description: normalized.description ?? null,
+      cost: data.cost,
     })
     .where(eq(purchasableRewards.id, id));
 }
