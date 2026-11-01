@@ -13,8 +13,17 @@ import { pointsForTaskLevel } from '@/services/gamification.service';
 import { formatWholeNumber } from '@/utils/number';
 import type { Task } from '@/types/task.types';
 
-const typeLabel = { anytime: 'Livre', scheduled: 'Agendada', recurring: 'Recorrente' };
-const typeIcon = { anytime: 'infinity', scheduled: 'calendar', recurring: 'repeat' };
+const typeLabel = {
+  anytime: 'Livre',
+  scheduled: 'Agendada',
+  recurring: 'Recorrente',
+};
+
+const typeIcon = {
+  anytime: 'infinity',
+  scheduled: 'calendar',
+  recurring: 'repeat',
+};
 
 const recurrenceLabel: Record<string, string> = {
   monday: 'Segunda',
@@ -32,12 +41,20 @@ interface TaskDetailScreenProps {
   onBack: () => void;
   onDeleted: () => void;
   onEdit: () => void;
+  readOnly?: boolean;
 }
 
-export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetailScreenProps) {
+export function TaskDetailScreen({
+  task,
+  onBack,
+  onDeleted,
+  onEdit,
+  readOnly = false,
+}: TaskDetailScreenProps) {
   const { config } = useGamificationStore();
   const { toggleComplete, toggleSubtask, removeTask } = useTaskStore();
   const { themes } = useFocusStore();
+
   const [localTask, setLocalTask] = useState<Task>(task);
 
   useEffect(() => {
@@ -56,6 +73,7 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
 
   async function handleToggleSubtask(subtaskId: string, completed: boolean) {
     await toggleSubtask(localTask.id, subtaskId, completed);
+
     setLocalTask((prev) => ({
       ...prev,
       subtasks: prev.subtasks?.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
@@ -92,7 +110,7 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
       <Header
         title="Detalhes"
         onBack={onBack}
-        rightAction={{ icon: 'pencil-outline', onPress: onEdit }}
+        rightAction={readOnly ? undefined : { icon: 'pencil-outline', onPress: onEdit }}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -100,7 +118,8 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
           <TouchableOpacity
             onPress={handleToggleComplete}
             style={styles.checkRow}
-            activeOpacity={0.7}
+            activeOpacity={readOnly ? 1 : 0.7}
+            disabled={readOnly}
           >
             <MaterialCommunityIcons
               name={localTask.completed ? 'check-circle' : 'circle-outline'}
@@ -113,9 +132,14 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
           </TouchableOpacity>
 
           {localTask.description && <Text style={styles.description}>{localTask.description}</Text>}
+
+          {readOnly && (
+            <Text style={styles.readOnlyNotice}>Registro histórico · somente leitura</Text>
+          )}
         </Card>
 
         <Text style={styles.sectionTitle}>Informações</Text>
+
         <Card style={styles.infoCard}>
           <InfoRow icon={typeIcon[localTask.type]} label="Tipo" value={typeLabel[localTask.type]} />
 
@@ -123,7 +147,11 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
             <InfoRow
               icon="star-four-points-outline"
               label="Pontuação"
-              value={`${formatWholeNumber(pointsForTaskLevel(localTask.scoreLevel, config))} ${Math.round(pointsForTaskLevel(localTask.scoreLevel, config)) === 1 ? 'ponto' : 'pontos'}`}
+              value={`${formatWholeNumber(pointsForTaskLevel(localTask.scoreLevel, config))} ${
+                Math.round(pointsForTaskLevel(localTask.scoreLevel, config)) === 1
+                  ? 'ponto'
+                  : 'pontos'
+              }`}
             />
           )}
 
@@ -173,16 +201,19 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
             <Text style={styles.sectionTitle}>
               Subtarefas ({completedSubtasks}/{totalSubtasks})
             </Text>
+
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
+
             <Card style={styles.subtasksCard}>
               {localTask.subtasks?.map((sub) => (
                 <TouchableOpacity
                   key={sub.id}
                   style={styles.subtaskRow}
                   onPress={() => handleToggleSubtask(sub.id, !sub.completed)}
-                  activeOpacity={0.7}
+                  activeOpacity={readOnly ? 1 : 0.7}
+                  disabled={readOnly}
                 >
                   <MaterialCommunityIcons
                     name={sub.completed ? 'check-circle' : 'circle-outline'}
@@ -198,29 +229,33 @@ export function TaskDetailScreen({ task, onBack, onDeleted, onEdit }: TaskDetail
           </>
         )}
 
-        <Button
-          label={localTask.completed ? 'Marcar como pendente' : 'Marcar como concluída'}
-          onPress={handleToggleComplete}
-          variant={localTask.completed ? 'secondary' : 'primary'}
-          fullWidth
-          style={styles.actionButton}
-        />
+        {!readOnly && (
+          <>
+            <Button
+              label={localTask.completed ? 'Marcar como pendente' : 'Marcar como concluída'}
+              onPress={handleToggleComplete}
+              variant={localTask.completed ? 'secondary' : 'primary'}
+              fullWidth
+              style={styles.actionButton}
+            />
 
-        <Button
-          label="Editar tarefa"
-          onPress={onEdit}
-          variant="secondary"
-          fullWidth
-          style={styles.actionButton}
-        />
+            <Button
+              label="Editar tarefa"
+              onPress={onEdit}
+              variant="secondary"
+              fullWidth
+              style={styles.actionButton}
+            />
 
-        <Button
-          label="Excluir tarefa"
-          onPress={handleDelete}
-          variant="danger"
-          fullWidth
-          style={styles.actionButton}
-        />
+            <Button
+              label="Excluir tarefa"
+              onPress={handleDelete}
+              variant="danger"
+              fullWidth
+              style={styles.actionButton}
+            />
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -262,6 +297,11 @@ const styles = StyleSheet.create({
   titleCompleted: {
     textDecorationLine: 'line-through',
     color: colors.textSecondary,
+  },
+  readOnlyNotice: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    marginTop: spacing.sm,
   },
   description: {
     ...typography.body,

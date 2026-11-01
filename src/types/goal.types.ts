@@ -24,6 +24,14 @@ export interface GoalTask {
   notebookId?: string;
 }
 
+export interface GoalTaskForToday {
+  task: GoalTask;
+  goalId: string;
+  goalTitle: string;
+  goalColor?: string;
+  isDue: boolean;
+}
+
 export interface Goal {
   id: string;
   title: string;

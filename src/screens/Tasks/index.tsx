@@ -22,7 +22,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { CreateTaskScreen } from './CreateTask';
 import { TaskDetailScreen } from './TaskDetail';
 import type { Task } from '@/types/task.types';
-import type { GoalTaskForToday } from '@/database/queries/goals.queries';
+import type { GoalTaskForToday } from '@/types/goal.types';
 import {
   getTodayString,
   getTodayWeekday,

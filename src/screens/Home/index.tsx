@@ -31,6 +31,7 @@ import { TaskDetailScreen } from '@/screens/Tasks/TaskDetail';
 import { CreateTaskScreen } from '@/screens/Tasks/CreateTask';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { Task } from '@/types/task.types';
+import type { CompletedTaskRecord } from '@/types/taskHistory.types';
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -53,17 +54,22 @@ export function HomeScreen() {
   const toggleComplete = useTaskStore((state) => state.toggleComplete);
   const removeTask = useTaskStore((state) => state.removeTask);
   const skipRecurringOccurrence = useTaskStore((state) => state.skipRecurringOccurrence);
+
   const sessions = useFocusStore((state) => state.todaySessions);
   const fetchTodaySessions = useFocusStore((state) => state.fetchTodaySessions);
   const setMode = useFocusStore((state) => state.setMode);
+
   const activeGoalCount = useGoalStore((state) => state.activeGoalCount);
   const fetchActiveGoalCount = useGoalStore((state) => state.fetchActiveGoalCount);
+
   const name = useSettingsStore((state) => state.name);
   const navigation = useNavigation<any>();
+
   const [showReports, setShowReports] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActiveFocus, setShowActiveFocus] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskReadOnly, setSelectedTaskReadOnly] = useState(false);
   const [homeScreen, setHomeScreen] = useState<'home' | 'detail' | 'edit'>('home');
 
   const hasOverlayRef = useRef(false);
@@ -78,8 +84,10 @@ export function HomeScreen() {
         setShowActiveFocus(false);
         setHomeScreen('home');
         setSelectedTask(null);
+        setSelectedTaskReadOnly(false);
       }
     });
+
     return unsubscribe;
   }, [navigation]);
 
@@ -98,32 +106,40 @@ export function HomeScreen() {
           setHomeScreen('detail');
           return true;
         }
+
         if (homeScreen === 'detail') {
           setHomeScreen('home');
           return true;
         }
+
         if (showReports) {
           setShowReports(false);
           return true;
         }
+
         if (showSettings) {
           setShowSettings(false);
           return true;
         }
+
         if (showActiveFocus) {
           return true;
         }
+
         return false;
       };
+
       const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
       return () => sub.remove();
     }, [showReports, showSettings, showActiveFocus, homeScreen]),
   );
 
   const todayStr = getTodayString();
+
   const { todayTasks, pending, completed, todayMinutes } = useMemo(() => {
     const rawTodayTasks = filterTasksForHome(tasks);
     const effectiveTodayTasks = applyRecurringReset(rawTodayTasks, todayStr);
+
     let completedCount = 0;
     let minutes = 0;
 
@@ -164,7 +180,47 @@ export function HomeScreen() {
         : `${(todayMinutes / 60).toFixed(1)}h`;
 
   if (showActiveFocus) return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
-  if (showReports) return <ReportsScreen onBack={() => setShowReports(false)} />;
+
+  if (showReports) {
+    return (
+      <ReportsScreen
+        onBack={() => setShowReports(false)}
+        onOpenTask={(record: CompletedTaskRecord) => {
+          const activeTask = tasks.find((task) => task.id === record.originalTaskId);
+
+          if (activeTask) {
+            setSelectedTask(activeTask);
+            setSelectedTaskReadOnly(false);
+          } else {
+            setSelectedTask({
+              id: record.originalTaskId,
+              title: record.title,
+              description: record.description,
+              type: record.type,
+              scoreLevel: record.scoreLevel,
+              completed: true,
+              scheduledDate: record.scheduledDate,
+              dueDate: record.dueDate,
+              recurrenceDays: record.recurrenceDays,
+              recurrenceInterval: record.recurrenceInterval,
+              goalId: record.goalId,
+              themeId: record.themeId,
+              subtasks: record.subtasks,
+              createdAt: record.createdAt,
+              updatedAt: record.completedAt,
+              completedAt: record.completedAt,
+            });
+
+            setSelectedTaskReadOnly(true);
+          }
+
+          setShowReports(false);
+          setHomeScreen('detail');
+        }}
+      />
+    );
+  }
+
   if (showSettings) return <SettingsScreen onBack={() => setShowSettings(false)} />;
 
   if (homeScreen === 'edit' && selectedTask) {
@@ -183,9 +239,11 @@ export function HomeScreen() {
   if (homeScreen === 'detail' && selectedTask) {
     const rawTask = tasks.find((t) => t.id === selectedTask.id) ?? selectedTask;
     const effectiveTask = applyRecurringReset([rawTask], getTodayString())[0];
+
     return (
       <TaskDetailScreen
         task={effectiveTask}
+        readOnly={selectedTaskReadOnly}
         onBack={() => setHomeScreen('home')}
         onDeleted={() => setHomeScreen('home')}
         onEdit={() => setHomeScreen('edit')}
@@ -232,6 +290,7 @@ export function HomeScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>Iniciar foco</Text>
+
         <Card elevated style={styles.focusCard}>
           <View style={globalStyles.rowBetween}>
             <View>
@@ -290,6 +349,7 @@ export function HomeScreen() {
                 onToggle={toggleComplete}
                 onPress={(t) => {
                   setSelectedTask(t);
+                  setSelectedTaskReadOnly(false);
                   setHomeScreen('detail');
                 }}
                 onDelete={() => handleDeleteTask(task)}

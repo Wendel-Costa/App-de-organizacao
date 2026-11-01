@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useGamificationStore } from '@/store/gamificationStore';
-import type { Goal, LocalGoalTask } from '@/types/goal.types';
+import type { Goal, GoalTaskForToday, LocalGoalTask } from '@/types/goal.types';
 import {
   getAllGoals,
   getActiveGoalCount,
@@ -17,7 +17,6 @@ import {
   setAllowBeyond100,
   reorderGoals,
   deleteGoalTaskCompletion,
-  type GoalTaskForToday,
 } from '@/database/queries/goals.queries';
 
 import { calcGoalProgress } from '@/services/goals.service';

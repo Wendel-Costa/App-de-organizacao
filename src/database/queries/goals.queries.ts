@@ -7,6 +7,7 @@ import type {
   GoalTask,
   GoalTaskRecurrenceType,
   GoalTaskType,
+  GoalTaskForToday,
   LocalGoalTask,
 } from '@/types/goal.types';
 import type { RecurrenceDay } from '@/types/task.types';
@@ -895,14 +896,6 @@ export async function uncompleteGoalTaskForToday(taskId: string): Promise<{
   };
 }
 
-export interface GoalTaskForToday {
-  task: GoalTask;
-  goalId: string;
-  goalTitle: string;
-  goalColor?: string;
-  isDue: boolean;
-}
-
 export async function getGoalTasksForToday(allGoals: Goal[]): Promise<GoalTaskForToday[]> {
   const todayStr = today();
   const WEEKDAYS = [
@@ -972,4 +965,41 @@ export async function getGoalTasksForToday(allGoals: Goal[]): Promise<GoalTaskFo
   }
 
   return result;
+}
+
+export interface GoalTaskCompletionHistoryRecord {
+  id: string;
+  goalTaskId: string;
+  taskTitle: string;
+  taskType: GoalTaskType;
+  goalId: string;
+  goalTitle: string;
+  goalColor?: string;
+  completedDate: string;
+  createdAt: string;
+}
+
+export async function getAllGoalTaskCompletions(): Promise<GoalTaskCompletionHistoryRecord[]> {
+  const rows = await db
+    .select({
+      id: goalTaskCompletions.id,
+      goalTaskId: goalTasks.id,
+      taskTitle: goalTasks.title,
+      taskType: goalTasks.type,
+      goalId: goals.id,
+      goalTitle: goals.title,
+      goalColor: goals.color,
+      completedDate: goalTaskCompletions.completedDate,
+      createdAt: goalTaskCompletions.createdAt,
+    })
+    .from(goalTaskCompletions)
+    .innerJoin(goalTasks, eq(goalTaskCompletions.goalTaskId, goalTasks.id))
+    .innerJoin(goals, eq(goalTasks.goalId, goals.id))
+    .orderBy(desc(goalTaskCompletions.completedDate), desc(goalTaskCompletions.createdAt));
+
+  return rows.map((row) => ({
+    ...row,
+    taskType: (row.taskType ?? 'habit') as GoalTaskType,
+    goalColor: row.goalColor ?? undefined,
+  }));
 }
