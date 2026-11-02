@@ -11,7 +11,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as FileSystem from 'expo-file-system/legacy';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
@@ -416,11 +416,9 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                             e instanceof Error
                               ? e.message === 'INVALID_JSON'
                                 ? 'O arquivo selecionado não contém um JSON válido.'
-                                : e.message === 'UNSUPPORTED_VERSION'
-                                  ? 'A versão deste arquivo de backup não é compatível com esta versão do aplicativo.'
-                                  : e.message === 'INVALID_STRUCTURE'
-                                    ? 'O arquivo possui uma estrutura inválida.'
-                                    : e.message
+                                : e.message === 'INVALID_STRUCTURE'
+                                  ? 'O arquivo possui uma estrutura inválida ou não corresponde ao formato atual dos dados do FocoMais.'
+                                  : e.message
                               : 'Não foi possível importar os dados.',
                           );
                         } finally {
@@ -526,26 +524,108 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
         </View>
       </Modal>
 
-      <Modal visible={showAbout} transparent animationType="fade">
+      <Modal
+        visible={showAbout}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowAbout(false)}
+      >
         <View style={styles.aboutOverlay}>
           <View style={styles.aboutContainer}>
-            <Image
-              source={require('../../../assets/icon.png')}
-              style={styles.logo}
-              resizeMode="cover"
-            />
-            <Text style={styles.aboutAppName}>FocoMais</Text>
-            <Text style={styles.aboutVersion}>Versão 1.0.0</Text>
-            <Text style={styles.aboutDesc}>
-              App de organização pessoal com foco em produtividade, hábitos e metas.
-            </Text>
-            <View style={styles.aboutDivider} />
+            <ScrollView
+              style={styles.aboutScroll}
+              contentContainerStyle={styles.aboutContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.aboutHero}>
+                <View style={styles.aboutLogoFrame}>
+                  <Image source={require('../../../assets/icon.png')} style={styles.logo} />
+                </View>
+                <Text style={styles.aboutAppName}>FocoMais</Text>
+                <View style={styles.aboutVersionPill}>
+                  <Text style={styles.aboutVersion}>VERSÃO 1.0.0</Text>
+                </View>
+              </View>
 
-            <Text style={styles.aboutCredit}>Feito por Wendel Costa © 2026</Text>
+              <Text style={styles.aboutDesc}>
+                Organize sua rotina, transforme intenção em constância e acompanhe sua evolução.
+              </Text>
+
+              <View style={styles.aboutDivider} />
+              <Text style={styles.aboutSectionTitle}>Tudo para manter o ritmo</Text>
+
+              <View style={styles.aboutFeatures}>
+                {[
+                  {
+                    icon: 'checkbox-marked-circle-outline',
+                    title: 'Tarefas',
+                  },
+                  {
+                    icon: 'timer-outline',
+                    title: 'Foco e Pomodoro',
+                  },
+                  {
+                    icon: 'flag-outline',
+                    title: 'Metas e hábitos',
+                  },
+                  {
+                    icon: 'notebook-outline',
+                    title: 'Cadernos',
+                  },
+                  {
+                    icon: 'chart-box-outline',
+                    title: 'Histórico e relatórios',
+                  },
+                  {
+                    icon: 'trophy-outline',
+                    title: 'Conquistas',
+                  },
+                  {
+                    icon: 'gift-outline',
+                    title: 'Recompensas',
+                  },
+                  {
+                    icon: 'bell-outline',
+                    title: 'Lembretes',
+                  },
+                ].map((feature) => (
+                  <View key={feature.title} style={styles.aboutFeature}>
+                    <View style={styles.aboutFeatureIcon}>
+                      <MaterialCommunityIcons
+                        name={feature.icon as any}
+                        size={19}
+                        color={colors.primaryDark}
+                      />
+                    </View>
+                    <View style={styles.aboutFeatureText}>
+                      <Text style={styles.aboutFeatureTitle}>{feature.title}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.aboutLocalCard}>
+                <View style={styles.aboutLocalText}>
+                  <Text style={styles.aboutLocalTitle}>Seus dados no dispositivo</Text>
+                  <Text style={styles.aboutLocalDescription}>
+                    Tarefas, sessões, metas e demais registros são armazenados localmente. Você não
+                    precisa criar uma conta para usar o aplicativo.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.aboutCreditBlock}>
+                <Text style={styles.aboutCreditLabel}>DESENVOLVIDO POR</Text>
+                <Text style={styles.aboutCredit}>Wendel Costa</Text>
+                <Text style={styles.aboutCopyright}>FocoMais © 2026</Text>
+              </View>
+            </ScrollView>
+
             <TouchableOpacity
               style={styles.aboutCloseBtn}
               onPress={() => setShowAbout(false)}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
               <Text style={styles.aboutCloseText}>Fechar</Text>
             </TouchableOpacity>
@@ -766,61 +846,175 @@ const styles = StyleSheet.create({
   },
   aboutOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(31, 27, 20, 0.52)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
   },
   aboutContainer: {
     width: '100%',
-    backgroundColor: colors.surface,
+    maxWidth: 460,
+    maxHeight: '92%',
+    backgroundColor: colors.background,
     borderRadius: radius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.sm,
+    padding: spacing.md,
+    overflow: 'hidden',
+    ...{
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 20,
+      elevation: 12,
+    },
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
+  aboutScroll: {
+    flexShrink: 1,
+  },
+  aboutContent: {
+    padding: spacing.xs,
+    paddingBottom: spacing.md,
+    gap: spacing.md,
+  },
+  aboutHero: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
+  },
+  aboutLogoFrame: {
+    width: 92,
+    height: 92,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  logo: {
+    width: 76,
+    height: 76,
+    borderRadius: 18,
   },
   aboutAppName: {
-    ...typography.h2,
+    ...typography.h1,
     color: colors.textPrimary,
+    letterSpacing: 0.2,
+  },
+  aboutVersionPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
   },
   aboutVersion: {
-    ...typography.sm,
-    color: colors.textSecondary,
+    ...typography.xs,
+    color: colors.primaryDark,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   aboutDesc: {
     ...typography.body,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 23,
+    paddingHorizontal: spacing.xs,
   },
   aboutDivider: {
     width: '100%',
     height: 1,
     backgroundColor: colors.divider,
-    marginVertical: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  aboutSectionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  aboutFeatures: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
+  },
+  aboutFeature: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  aboutFeatureIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aboutFeatureText: {
+    flex: 1,
+    gap: 3,
+  },
+  aboutFeatureTitle: {
+    ...typography.label,
+    color: colors.textPrimary,
+  },
+  aboutLocalCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryLight,
+  },
+  aboutLocalText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  aboutLocalTitle: {
+    ...typography.label,
+    color: colors.textPrimary,
+  },
+  aboutLocalDescription: {
+    ...typography.sm,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
+  aboutCreditBlock: {
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: spacing.sm,
+  },
+  aboutCreditLabel: {
+    ...typography.xs,
+    color: colors.textDisabled,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   aboutCredit: {
-    ...typography.sm,
+    ...typography.label,
+    color: colors.textPrimary,
+  },
+  aboutCopyright: {
+    ...typography.xs,
     color: colors.textDisabled,
   },
   aboutCloseBtn: {
-    marginTop: spacing.sm,
+    minHeight: 46,
+    marginTop: spacing.xs,
     backgroundColor: colors.primary,
     borderRadius: radius.md,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   aboutCloseText: {
     ...typography.label,
     color: colors.textOnPrimary,
+    fontWeight: '700',
   },
 
   watermark: {

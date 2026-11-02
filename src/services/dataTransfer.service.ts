@@ -4,10 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { sqlite } from '@/database';
 
-export const EXPORT_VERSION = 4 as const;
-
 type ExportPayload = {
-  exportVersion: 4;
   exportedAt: string;
   settings: {
     name: string;
@@ -48,8 +45,6 @@ const TABLES: readonly TableDefinition[] = [
   ['purchasableRewardPurchases', 'purchasable_reward_purchases'],
 ] as const;
 
-const LEGACY_OPTIONAL_TABLES = new Set(['taskSkips', 'purchasableRewardPurchases']);
-
 const REQUIRED_RELATIONSHIPS = [
   { childTable: 'notebookTopics', childColumn: 'notebookId', parentTable: 'notebooks' },
   { childTable: 'goalTasks', childColumn: 'goalId', parentTable: 'goals' },
@@ -65,31 +60,6 @@ const BOOLEAN_FIELDS = new Set([
   'archived',
   'unlocked',
   'task_scoring_enabled',
-]);
-
-const INTEGER_FIELDS = new Set([
-  'duration',
-  'pomodoro_rounds',
-  'recurrence_interval',
-  'recurrence_count',
-]);
-
-const REAL_FIELDS = new Set([
-  'points_per_focus_hour',
-  'task_level_1_points',
-  'task_level_2_points',
-  'task_level_3_points',
-  'topic_points',
-  'notebook_completion_points',
-  'goal_completion_points',
-  'points',
-  'coins',
-  'amount',
-  'tolerance',
-  'sort_order',
-  'target_count',
-  'condition_target',
-  'cost',
 ]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -108,48 +78,6 @@ function snakeToCamel(value: string): string {
   return value.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
 }
 
-function normalizeBoolean(value: unknown, column: string): 0 | 1 {
-  if (typeof value === 'boolean') return value ? 1 : 0;
-  if (value === 1 || value === '1') return 1;
-  if (value === 0 || value === '0') return 0;
-
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (['true', 'yes', 'on'].includes(normalized)) return 1;
-    if (['false', 'no', 'off'].includes(normalized)) return 0;
-  }
-
-  throw new Error(`INVALID_FIELD_TYPE:${column}`);
-}
-
-function normalizeInteger(value: unknown, column: string): number {
-  if (typeof value === 'string' && value.trim() === '') {
-    throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  }
-  const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  }
-  return parsed;
-}
-
-function normalizeReal(value: unknown, column: string): number {
-  if (typeof value === 'string' && value.trim() === '') {
-    throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  }
-  const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed)) throw new Error(`INVALID_FIELD_TYPE:${column}`);
-  return parsed;
-}
-
-function normalizeScalar(value: unknown, column: string): unknown {
-  if (value === undefined || value === null) return null;
-  if (BOOLEAN_FIELDS.has(column)) return normalizeBoolean(value, column);
-  if (INTEGER_FIELDS.has(column)) return normalizeInteger(value, column);
-  if (REAL_FIELDS.has(column)) return normalizeReal(value, column);
-  return value;
-}
-
 function validateSettings(settings: unknown): ExportPayload['settings'] {
   if (!isObject(settings)) throw new Error('INVALID_STRUCTURE');
   if (typeof settings.name !== 'string') throw new Error('INVALID_STRUCTURE');
@@ -166,10 +94,6 @@ function validateSettings(settings: unknown): ExportPayload['settings'] {
 function normalizeBackup(value: unknown): ExportPayload {
   if (!isObject(value)) throw new Error('INVALID_JSON');
 
-  const version = value.exportVersion;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== EXPORT_VERSION) {
-    throw new Error('UNSUPPORTED_VERSION');
-  }
   if (
     typeof value.exportedAt !== 'string' ||
     value.exportedAt.trim() === '' ||
@@ -187,10 +111,6 @@ function normalizeBackup(value: unknown): ExportPayload {
 
   for (const [key] of TABLES) {
     const tableData = value.data[key];
-    if (tableData === undefined && version === 1 && LEGACY_OPTIONAL_TABLES.has(key)) {
-      normalizedData[key] = [];
-      continue;
-    }
     if (!Array.isArray(tableData)) throw new Error(`INVALID_TABLE_DATA:${key}`);
 
     normalizedData[key] = tableData.map((row) => {
@@ -198,14 +118,17 @@ function normalizeBackup(value: unknown): ExportPayload {
 
       const normalizedRow: Record<string, unknown> = {};
       for (const [field, fieldValue] of Object.entries(row)) {
-        normalizedRow[field] = normalizeScalar(fieldValue, camelToSnake(field));
+        const dbColumn = camelToSnake(field);
+        if (snakeToCamel(dbColumn) !== field) {
+          throw new Error(`INVALID_FIELD_NAME:${key}.${field}`);
+        }
+        normalizedRow[field] = fieldValue;
       }
       return normalizedRow;
     });
   }
 
   return {
-    exportVersion: EXPORT_VERSION,
     exportedAt: value.exportedAt,
     settings: validateSettings(value.settings),
     data: normalizedData,
@@ -253,7 +176,6 @@ export async function buildExportPayload(): Promise<ExportPayload> {
   const settings = await getSettingsSnapshot();
 
   return {
-    exportVersion: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     settings,
     data: tableData,
@@ -265,7 +187,7 @@ export async function exportData(format: 'json' | 'txt' = 'json'): Promise<strin
   const extension = format === 'txt' ? 'txt' : 'json';
   const mimeType = format === 'txt' ? 'text/plain' : 'application/json';
   const uti = format === 'txt' ? 'public.plain-text' : 'public.json';
-  const uri = `${FileSystem.cacheDirectory}focomais-export-v${EXPORT_VERSION}-${Date.now()}.${extension}`;
+  const uri = `${FileSystem.cacheDirectory}focomais-export-${Date.now()}.${extension}`;
   await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2));
 
   if (await Sharing.isAvailableAsync()) {
@@ -341,7 +263,11 @@ function validateRowsAgainstSchema(tableName: string, rows: unknown[]): string {
       }
 
       const columnType = metadata.type.toUpperCase();
-      if (columnType.includes('INT') && !BOOLEAN_FIELDS.has(dbColumn)) {
+      if (BOOLEAN_FIELDS.has(dbColumn)) {
+        if (rawValue !== 0 && rawValue !== 1) {
+          throw new Error(`INVALID_FIELD_TYPE:${tableName}.${field}`);
+        }
+      } else if (columnType.includes('INT')) {
         if (typeof rawValue !== 'number' || !Number.isInteger(rawValue)) {
           throw new Error(`INVALID_FIELD_TYPE:${tableName}.${field}`);
         }
