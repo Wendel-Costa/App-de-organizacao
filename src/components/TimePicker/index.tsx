@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { adjustTimePart, formatTimeValue, parseTimeValue } from '@/utils/time';
 

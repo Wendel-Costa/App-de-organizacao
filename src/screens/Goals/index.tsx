@@ -9,7 +9,7 @@ import {
   RefreshControl,
   BackHandler,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography, shadow } from '@/styles/theme';

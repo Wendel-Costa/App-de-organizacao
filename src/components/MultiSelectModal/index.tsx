@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { colors, radius, spacing, typography } from '@/styles/theme';
 
 export interface MultiSelectItem {

@@ -5,15 +5,9 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.d.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.d.ts"],
+  "extends": "expo/tsconfig.base.json"
 }

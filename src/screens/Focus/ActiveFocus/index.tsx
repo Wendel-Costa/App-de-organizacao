@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useTimer } from '@/hooks/useTimer';

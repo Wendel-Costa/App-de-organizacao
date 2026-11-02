@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { formatCondition, calcRewardProgress } from '@/services/rewards.service';
 import type { Reward } from '@/types/reward.types';

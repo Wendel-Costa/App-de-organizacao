@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { useRef } from 'react';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import type { Task } from '@/types/task.types';

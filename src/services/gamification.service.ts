@@ -5,6 +5,7 @@ import {
   gamificationSettings,
   pointEvents,
   achievements,
+  purchasableRewardPurchases,
 } from '@/database/schema';
 import type {
   GamificationConfig,
@@ -365,6 +366,15 @@ export async function purchaseReward(
       entityType: 'purchasable_reward',
       entityId: rewardId,
       description: `Compra: ${title}`,
+    });
+
+    await tx.insert(purchasableRewardPurchases).values({
+      id: purchaseId,
+      rewardId,
+      title,
+      cost,
+      purchasedAt: occurredAt,
+      archived: 0,
     });
   });
 

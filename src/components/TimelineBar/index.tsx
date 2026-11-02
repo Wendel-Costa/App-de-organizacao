@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { DatePicker } from '@/components/DatePicker';
 import type { FocusSession, FocusTheme } from '@/types/focus.types';

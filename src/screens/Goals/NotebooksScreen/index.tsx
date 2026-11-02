@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { Card } from '@/components/Card';
 import { Header } from '@/components/Header';

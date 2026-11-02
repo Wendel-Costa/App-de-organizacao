@@ -8,7 +8,7 @@ import {
   Alert,
   BackHandler,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { globalStyles } from '@/styles/global';
 import { colors, spacing, radius, typography } from '@/styles/theme';
 import { useFocusStore } from '@/store/focusStore';
