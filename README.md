@@ -1,450 +1,361 @@
 # FocoMais
 
-Aplicativo mobile de organização pessoal focado em produtividade, hábitos e metas. Reúne gerenciamento de tarefas, sessões de foco cronometradas, acompanhamento de metas com hábitos recorrentes e um sistema de recompensas para manter a motivação, tudo funcionando 100% offline, sem necessidade de conta ou internet.
+Aplicativo Android de organização pessoal que reúne tarefas, sessões de foco, metas, hábitos, cadernos de estudo e acompanhamento da produtividade. A proposta é ajudar o usuário a planejar a rotina, manter consistência e visualizar o próprio progresso em uma experiência local, sem exigir criação de conta.
 
----
+> **Plataforma documentada:** Android. A configuração Expo do projeto declara `platforms: ["android"]`.
 
-## Funcionalidades
+## Visão geral
 
-### Tarefas
-- Criação de tarefas com três tipos: **Livre** (sem data), **Agendada** (data específica) e **Recorrente** (dias da semana)
-- Definição de **prioridade** (alta, média, baixa) e **data limite**
-- **Subtarefas** com barra de progresso individual
-- Associação de tarefas a um **tema de foco**
-- Registro automático de data e hora de conclusão
-- Filtros por tipo (todas, hoje, livre, rotina)
-- Tarefas concluídas ordenadas pelas mais recentes, com botão "Mostrar mais" a partir de 10 itens
-- Edição e exclusão com confirmação
-- Pull-to-refresh para atualizar a lista
+O FocoMais organiza o trabalho diário em cinco áreas principais: **Início**, **Tarefas**, **Foco**, **Metas** e **Conquistas**. Relatórios e configurações são acessados a partir da experiência da tela inicial.
 
-### Foco
-- **Modo Livre:** cronômetro sem tempo definido
-- **Modo Pomodoro:** ciclos de foco e pausa configuráveis (5 a 90 min de foco, 1 a 30 min de pausa)
-- **Temas de foco** personalizados para categorizar sessões (ex: Matemática, Leitura)
-- Visualização das tarefas do tema ativo durante a sessão, com marcação direta na tela
-- Adição rápida de tarefas durante o foco
-- Timer continua contando mesmo com o app em background
-- **Histórico de sessões** com filtro por dia, linha do tempo visual e resumo semanal
-- Edição do tema de sessões já registradas
-- Registro manual de sessões com horário de início e fim
-- Exclusão de sessões
+### Funcionalidades
 
-### Metas
-- Criação de metas com título, descrição, período (início e fim) e cor de destaque
-- **Hábitos e tarefas vinculados** a cada meta com cinco tipos de recorrência:
-  - Diário
-  - N vezes por semana
-  - N vezes por mês
-  - Dias específicos da semana
-  - Total no período
-- **Margem de tolerância** configurável (0% a 50%) para calcular progresso de forma justa
-- Anel de progresso por meta e barra de progresso por hábito/tarefa
-- Seção "Hoje" com os hábitos devidos no dia, botão de conclusão e desfazer
-- Edição de metas (título, descrição, datas, cor, tolerância)
-- Exclusão de metas e de hábitos/tarefas individuais
-- Pull-to-refresh
+#### Tarefas
 
-### Recompensas
-- Criação de recompensas vinculadas a condições mensuráveis:
-  - **Horas de foco** acumuladas (com filtro por tema)
-  - **N tarefas concluídas** em um período
-  - **Tarefas específicas** todas concluídas
-  - **Meta completada**
-- Períodos configuráveis: dia, semana, mês, desde a criação ou intervalo personalizado
-- Barra de progresso em tempo real para cada recompensa
-- Desbloqueio automático ao atingir a condição
-- Tela de detalhe com informações, progresso e data de desbloqueio
-- Edição e exclusão de recompensas
-- Pull-to-refresh com re-verificação de conquistas
+- Cadastro de tarefas livres, agendadas e recorrentes.
+- Título, descrição, nível de pontuação, data agendada, prazo e associação a tema de foco ou meta, conforme o tipo de tarefa.
+- Recorrência por dias da semana ou intervalo de dias (`A cada X dias`), incluindo opções diárias e dias específicos.
+- Subtarefas, acompanhamento de conclusão e filtros na lista.
+- Registro de conclusões em um histórico próprio, com cópia dos dados relevantes da tarefa no momento da conclusão. Isso permite consultar o registro mesmo quando a tarefa original não está mais cadastrada.
+- Opção para pular uma ocorrência de tarefa recorrente, com registro da data ignorada.
 
-### Relatórios
-- **Visão semanal:** horas de foco e tarefas concluídas por dia (gráfico de barras), streak de dias ativos e melhor dia da semana
-- **Visão mensal:** total de foco, tarefas e sessões; média diária; foco por tema (barras horizontais); progresso das metas ativas (anéis)
+#### Foco e Pomodoro
 
-### Configurações e Perfil
-- Nome do usuário persistido e exibido na saudação da Home
-- Notificações configuráveis:
-  - Lembrete de tarefas agendadas (horário customizável)
-  - Aviso de data limite (um dia antes)
-  - Lembrete diário de hábitos (horário customizável)
-  - Lembrete diário de foco (horário customizável)
-- Configurações salvas localmente e restauradas entre sessões
-- Tela "Sobre" com informações do app
+- Sessão em modo **Livre**, sem duração pré-definida.
+- Sessão em modo **Pomodoro**, com duração de foco ajustável entre 5 e 90 minutos e pausa entre 1 e 30 minutos.
+- Temas de foco personalizados, com possibilidade de selecionar um tema para categorizar sessões.
+- Sessões cronometradas, restauração do estado de uma sessão ativa na inicialização e registro manual de sessões anteriores.
+- Histórico de sessões com duração, tema, modo e opção de edição/exclusão conforme a interface.
 
-### Home
-- Saudação personalizada com nome do usuário e horário do dia
-- Cards de resumo: tarefas do dia, tempo de foco e metas ativas
-- Atalhos para iniciar foco (livre ou Pomodoro) diretamente da home
-- Lista de tarefas do dia com tarefas recorrentes resetando automaticamente no dia seguinte
-- Acesso rápido a Relatórios e Configurações
+#### Metas e hábitos
 
-### Onboarding
-- Tela de boas-vindas exibida apenas na primeira abertura
-- Captura do nome do usuário para personalização
+- Metas com título, descrição, período, cor, arquivamento e opções de cálculo de progresso.
+- Fatores de meta de diferentes tipos: hábito, horas de foco, item curinga e caderno.
+- Recorrência dos fatores: diária, quantidade de vezes por semana ou mês, dias específicos e intervalo de dias.
+- Associação de fatores a um ou mais temas de foco ou a um caderno, conforme o tipo.
+- Registro de conclusões por data, acompanhamento diário e cálculo do progresso agregado da meta.
+- Margem de tolerância configurável no cálculo de progresso. A configuração também permite controlar extrapolação do progresso, quando habilitada.
 
----
+#### Cadernos de estudo
+
+- Criação, edição e exclusão de cadernos.
+- Inclusão de vários tópicos a partir de uma lista colada, com um tópico por linha.
+- Edição, exclusão, reordenação e marcação de tópicos como concluídos.
+- Progresso calculado a partir da quantidade de tópicos concluídos.
+- Associação de cadernos a fatores de meta do tipo `notebook`.
+
+#### Conquistas, pontos, moedas e loja
+
+- Pontos e moedas registrados em eventos e transações locais.
+- Pontuação por tempo de foco e por atividades como conclusão de tarefas (quando a pontuação de tarefas está habilitada), tópicos, cadernos e metas.
+- Configuração dos valores de pontuação na tela de Configurações.
+- Níveis calculados a partir do total de pontos. Os primeiros limiares são 0, 100, 250, 500, 850, 1.300, 1.850, 2.500, 3.250 e 4.100 pontos; os níveis seguintes usam uma progressão crescente definida no serviço de gamificação.
+- Recompensas configuráveis com condições relacionadas a horas de foco, quantidade de tarefas concluídas, tarefas específicas ou conclusão de metas. As condições podem considerar dia, semana, mês, período desde a criação ou intervalo personalizado, conforme o tipo.
+- Loja de recompensas pessoais: o usuário cadastra itens com custo em moedas e pode registrar compras quando possui saldo suficiente. Compras ficam disponíveis no histórico e podem ser arquivadas.
+- Reversões de eventos de pontuação quando determinadas ações são desfeitas, respeitando o saldo de moedas disponível.
+
+#### Relatórios
+
+- Resumos semanal e mensal com totais de foco, tarefas e sessões, além de gráficos e indicadores calculados a partir dos registros locais.
+- Histórico em duas visualizações: **Visão geral**, com filtros para tudo, foco ou tarefas; e **Calendário**, que permite selecionar um dia e consultar os registros daquela data.
+- A visão de histórico reúne conclusões de tarefas, sessões de foco e fatores de metas no calendário.
+
+#### Notificações e lembretes
+
+- Permissão de notificações solicitada no dispositivo físico.
+- Lembrete de tarefa agendada no horário configurado (o serviço usa 08:00 como valor padrão quando não é informado outro horário).
+- Aviso de prazo no dia anterior, às 20:00.
+- Lembretes diários de hábitos e de foco com horário configurável.
+- Cancelamento de lembretes individuais e de todas as notificações agendadas.
+- No Android, o serviço configura um canal de notificações chamado **FocoMais**, com importância alta, vibração e luz de notificação amarela.
+
+#### Configurações e transferência de dados
+
+- Nome do usuário salvo localmente e utilizado na saudação.
+- Preferências para notificações e parâmetros da gamificação.
+- Exportação de dados para um arquivo TXT com conteúdo JSON; o serviço de transferência também aceita JSON na importação.
+- Importação com validação da estrutura atual e dos relacionamentos básicos entre registros. A restauração substitui os dados locais existentes.
+- Dados de tabelas e preferências locais são incluídos no backup.
 
 ## Tecnologias
 
-### Core
-| Tecnologia | Versão | Uso |
-|---|---|---|
-| React Native | — | Framework mobile |
-| Expo SDK | 54 | Plataforma e ferramentas |
-| TypeScript | — | Tipagem estática |
+Versões abaixo obtidas dos manifests e versões efetivamente resolvidas no `package-lock.json` incluído no projeto. As versões declaradas com `^` ou `~` em `package.json` são faixas; a versão da coluna **Resolvida** é a registrada no lockfile.
 
-### Navegação
-| Tecnologia | Uso |
-|---|---|
-| React Navigation v6 | Navegação por abas (Bottom Tabs) |
+| Tecnologia / pacote          | Versão declarada | Versão resolvida | Finalidade                                          |
+| ---------------------------- | ---------------: | ---------------: | --------------------------------------------------- |
+| Expo SDK (`expo`)            |       `^57.0.20` |        `57.0.20` | Plataforma, ferramentas e integração nativa         |
+| React                        |         `19.2.3` |         `19.2.3` | Interface                                           |
+| React Native                 |         `0.86.3` |         `0.86.3` | Aplicativo mobile                                   |
+| TypeScript                   |         `~6.0.3` |          `6.0.3` | Tipagem estática                                    |
+| React Navigation Native      |         `^7.2.2` |          `7.3.4` | Navegação                                           |
+| React Navigation Bottom Tabs |        `^7.15.9` |         `7.18.3` | Navegação por abas                                  |
+| Zustand                      |        `^5.0.12` |         `5.0.14` | Estado compartilhado                                |
+| Expo SQLite                  |        `~57.0.2` |         `57.0.2` | Persistência SQLite local                           |
+| Drizzle ORM                  |        `^0.45.2` |         `0.45.2` | Schema e consultas tipadas                          |
+| React Native Reanimated      |          `4.5.1` |          `4.5.1` | Animações                                           |
+| React Native Worklets        |         `0.10.1` |         `0.10.1` | Runtime utilizado pelo Reanimated                   |
+| Expo Notifications           |       `~57.0.17` |        `57.0.17` | Notificações locais                                 |
+| Expo Font                    |        `~57.0.3` |         `57.0.3` | Carregamento de fontes e ícones                     |
+| Expo Build Properties        |       `~57.0.22` |        `57.0.22` | Configuração Android persistente durante o Prebuild |
+| Expo Dev Client              |       `~57.0.18` |        `57.0.18` | Cliente de desenvolvimento                          |
+| EAS CLI                      |        `^23.2.0` |         `23.2.0` | Builds remotos; versão também fixada em `eas.json`  |
 
-### Estado e Dados
-| Tecnologia | Uso |
-|---|---|
-| Zustand | Gerenciamento de estado global |
-| expo-sqlite | Banco de dados SQLite local |
-| Drizzle ORM | Queries e schema tipado sobre SQLite |
+Outros pacotes nativos e de interface utilizados incluem `@expo/vector-icons` (MaterialCommunityIcons), `@react-native-async-storage/async-storage`, `@react-native-community/datetimepicker`, `expo-device`, `expo-document-picker`, `expo-file-system`, `expo-haptics`, `expo-sharing`, `expo-splash-screen`, `expo-status-bar`, `react-native-gesture-handler`, `react-native-safe-area-context` e `react-native-screens`.
 
-### UI e UX
-| Tecnologia | Uso |
-|---|---|
-| @expo/vector-icons (MaterialCommunityIcons) | Ícones |
-| expo-haptics | Feedback tátil |
-| react-native-gesture-handler | Gestos |
-| react-native-safe-area-context | Áreas seguras |
+Os componentes de ícones importam diretamente `@expo/vector-icons/MaterialCommunityIcons`, em vez do barrel de todas as famílias. `@expo/ngrok` é mantido para iniciar o Expo em modo tunnel (`npx expo start --tunnel`) e `expo-dev-client` atende ao perfil `development`; ambos são ferramentas de desenvolvimento, não funcionalidades que devam ser removidas da configuração de desenvolvimento.
 
-### Recursos Nativos
-| Tecnologia | Uso |
-|---|---|
-| expo-notifications | Notificações locais agendadas |
-| @react-native-community/datetimepicker | Seletor de data/hora nativo Android |
-| @react-native-async-storage/async-storage | Persistência de preferências do usuário |
-| date-fns | Manipulação de datas |
+O Android está configurado explicitamente com **Hermes** (`jsEngine: "hermes"`) e **Nova Arquitetura** (`newArchEnabled: true`) em `app.json`. Essas opções são mantidas; não foram desabilitadas como tentativa de reduzir o tamanho do APK.
 
-### Build e Deploy
-| Tecnologia | Uso |
-|---|---|
-| EAS Build (Expo Application Services) | Build de APK e AAB na nuvem |
+## Arquitetura da aplicação
 
----
+A implementação está organizada em camadas, sem backend remoto identificado no código:
 
-## Estrutura do Projeto
+1. **Telas (`src/screens`)** apresentam os fluxos e interações.
+2. **Componentes (`src/components`)** concentram elementos reutilizáveis de interface.
+3. **Stores (`src/store`)** mantêm o estado compartilhado com Zustand e coordenam atualizações das telas.
+4. **Queries (`src/database/queries`)** realizam operações de leitura e escrita por meio do Drizzle ORM.
+5. **Serviços (`src/services`)** concentram regras de domínio, recorrência, relatórios, notificações, gamificação, metas e transferência de dados.
+6. **Tipos (`src/types`)** descrevem as entidades e contratos utilizados pelo TypeScript.
 
-```
+Na inicialização, `App.tsx` executa `runMigrations()`, restaura uma sessão de foco ativa e só então renderiza a navegação. A tela de navegação carrega o nome e as preferências locais antes de mostrar as abas; quando não há nome cadastrado, apresenta o onboarding.
+
+## Estrutura do projeto
+
+Árvore reconstruída a partir dos diretórios e arquivos existentes no projeto:
+
+```text
 FocoMais/
-├── assets/                     # Ícones, splash screen e imagens
+├── assets/
+│   ├── adaptive-icon.png
+│   ├── favicon.png
+│   ├── icon.png
+│   └── splash.png
 ├── src/
-│   ├── components/             # Componentes reutilizáveis
-│   │   ├── BarChart/           # Gráfico de barras nativo
-│   │   ├── Button/             # Botão com variantes e loading
-│   │   ├── Card/               # Container com sombra
-│   │   ├── DatePicker/         # Seletor de data nativo Android
-│   │   ├── EmptyState/         # Tela vazia com ação opcional
-│   │   ├── GoalCard/           # Card de meta com progresso
-│   │   ├── Header/             # Cabeçalho com ações
-│   │   ├── PriorityBadge/      # Badge de prioridade colorido
-│   │   ├── ProgressRing/       # Anel de progresso SVG
-│   │   ├── RewardCard/         # Card de recompensa com progresso
-│   │   ├── TaskItem/           # Item de tarefa com swipe e badge
-│   │   ├── TextInputModal/     # Modal com campo de texto (substitui Alert.prompt)
-│   │   ├── TimePicker/         # Seletor de hora nativo Android
-│   │   └── TimelineBar/        # Linha do tempo de sessões por dia
+│   ├── components/
+│   │   ├── BarChart/index.tsx
+│   │   ├── Button/index.tsx
+│   │   ├── Card/index.tsx
+│   │   ├── DatePicker/index.tsx
+│   │   ├── DraggableList/index.tsx
+│   │   ├── EmptyState/index.tsx
+│   │   ├── GoalCard/index.tsx
+│   │   ├── Header/index.tsx
+│   │   ├── MultiSelectModal/index.tsx
+│   │   ├── ProgressRing/index.tsx
+│   │   ├── RewardCard/index.tsx
+│   │   ├── TaskItem/index.tsx
+│   │   ├── TextInputModal/index.tsx
+│   │   ├── TimePicker/index.tsx
+│   │   └── TimelineBar/index.tsx
 │   ├── database/
-│   │   ├── index.ts            # Inicialização do SQLite + Drizzle
-│   │   ├── schema.ts           # Definição de todas as tabelas
-│   │   ├── migrations/
-│   │   │   └── index.ts        # runMigrations() com criação e upgrades
-│   │   └── queries/
-│   │       ├── tasks.queries.ts
-│   │       ├── focus.queries.ts
-│   │       ├── goals.queries.ts
-│   │       └── rewards.queries.ts
-│   ├── hooks/
-│   │   └── useTimer.ts         # Hook do cronômetro com suporte a background
+│   │   ├── migrations/index.ts
+│   │   ├── queries/
+│   │   │   ├── focus.queries.ts
+│   │   │   ├── goals.queries.ts
+│   │   │   ├── notebooks.queries.ts
+│   │   │   ├── rewards.queries.ts
+│   │   │   ├── taskHistory.queries.ts
+│   │   │   └── tasks.queries.ts
+│   │   ├── index.ts
+│   │   └── schema.ts
+│   ├── hooks/useTimer.ts
 │   ├── navigation/
-│   │   ├── index.tsx           # NavigationContainer + onboarding
-│   │   └── BottomTabNavigator.tsx
+│   │   ├── BottomTabNavigator.tsx
+│   │   └── index.tsx
 │   ├── screens/
 │   │   ├── Focus/
-│   │   │   ├── index.tsx           # Seleção de modo e tema
-│   │   │   ├── ActiveFocus/        # Timer ativo + tarefas do tema
-│   │   │   │   ├── index.tsx
-│   │   │   │   └── ManualRegister/ # Registro manual de sessão
-│   │   │   └── FocusHistory/       # Histórico com timeline
+│   │   │   ├── ActiveFocus/
+│   │   │   │   ├── ManualRegister/index.tsx
+│   │   │   │   └── index.tsx
+│   │   │   ├── FocusHistory/index.tsx
+│   │   │   └── index.tsx
 │   │   ├── Goals/
-│   │   │   ├── index.tsx           # Lista + hábitos do dia
-│   │   │   ├── CreateGoal/
-│   │   │   ├── GoalDetail/         # Detalhe com progresso por hábito
-│   │   │   └── EditGoal/
-│   │   ├── Home/
-│   │   ├── Onboarding/
-│   │   ├── Reports/
+│   │   │   ├── CreateGoal/index.tsx
+│   │   │   ├── GoalDetail/index.tsx
+│   │   │   ├── NotebooksScreen/index.tsx
+│   │   │   └── index.tsx
+│   │   ├── Home/index.tsx
+│   │   ├── Onboarding/index.tsx
+│   │   ├── Reports/index.tsx
 │   │   ├── Rewards/
-│   │   │   └── RewardDetail/
-│   │   ├── Settings/
+│   │   │   ├── RewardDetail/index.tsx
+│   │   │   └── index.tsx
+│   │   ├── Settings/index.tsx
 │   │   └── Tasks/
-│   │       ├── index.tsx           # Lista com filtros
-│   │       ├── CreateTask/
-│   │       └── TaskDetail/
+│   │       ├── CreateTask/index.tsx
+│   │       ├── TaskDetail/index.tsx
+│   │       └── index.tsx
 │   ├── services/
-│   │   ├── focus.service.ts        # Lógica de sessões de foco
-│   │   ├── goals.service.ts        # Cálculo de progresso com tolerância
+│   │   ├── dataSync.service.ts
+│   │   ├── dataTransfer.service.ts
+│   │   ├── gamification.service.ts
+│   │   ├── goals.service.ts
 │   │   ├── notifications.service.ts
-│   │   ├── recurrence.service.ts   # Filtros de tarefas por data/recorrência
-│   │   ├── reports.service.ts      # Agregações para relatórios
-│   │   └── rewards.service.ts      # Verificação e progresso de condições
+│   │   ├── recurrence.service.ts
+│   │   ├── reports.service.ts
+│   │   └── rewards.service.ts
 │   ├── store/
 │   │   ├── focusStore.ts
+│   │   ├── gamificationStore.ts
 │   │   ├── goalStore.ts
+│   │   ├── notebookStore.ts
 │   │   ├── rewardStore.ts
-│   │   ├── settingsStore.ts        # Nome + preferências de notificação
+│   │   ├── settingsStore.ts
 │   │   └── taskStore.ts
 │   ├── styles/
-│   │   ├── global.ts               # Estilos compartilhados
-│   │   └── theme.ts                # Paleta de cores e tipografia
-│   └── types/
-│       ├── focus.types.ts
-│       ├── goal.types.ts
-│       ├── reward.types.ts
-│       └── task.types.ts
-├── App.tsx                     # Entry point
-├── app.json                    # Configuração Expo
-├── eas.json                    # Perfis de build EAS
+│   │   ├── global.ts
+│   │   └── theme.ts
+│   ├── types/
+│   │   ├── focus.types.ts
+│   │   ├── gamification.types.ts
+│   │   ├── goal.types.ts
+│   │   ├── notebook.types.ts
+│   │   ├── reward.types.ts
+│   │   ├── task.types.ts
+│   │   └── taskHistory.types.ts
+│   └── utils/
+│       ├── date.ts
+│       ├── number.ts
+│       └── time.ts
+├── .gitignore
+├── .prettierignore
+├── .prettierrc
+├── App.tsx
+├── README.md
+├── app.json
+├── babel.config.js
+├── drizzle.config.ts
+├── eas.json
+├── index.ts
+├── package-lock.json
+├── package.json
 └── tsconfig.json
 ```
 
----
+## Banco de dados e armazenamento local
 
-## Design
+### SQLite
 
-O app utiliza uma paleta de cores coesa baseada em amarelo dourado como cor primária, com pastéis análogos para categorias, sobre um fundo off-white.
+O banco é aberto em `src/database/index.ts` por `expo-sqlite` com o arquivo `focomais.db`. O Drizzle ORM utiliza o schema tipado de `src/database/schema.ts`. A inicialização ativa `journal_mode=WAL` e `synchronous=NORMAL`.
 
-| Token | Cor | Uso |
-|---|---|---|
-| `primary` | `#F5C518` | Ações principais, destaques |
-| `primaryDark` | `#C49A00` | Bordas e textos sobre primário |
-| `mint` | `#A8DABD` | Tarefas concluídas, metas |
-| `sky` | `#A8C8E8` | Sessões de foco |
-| `peach` | `#F4C5A0` | Metas, alertas suaves |
-| `rose` | `#F4A0B0` | Sessões, destaques secundários |
-| `background` | `#FAFAF5` | Fundo geral do app |
+O schema SQLite atual contém as seguintes tabelas. O `PRAGMA user_version = 4` é apenas um marcador interno para verificar a estrutura do banco instalado; ele não é incluído nos arquivos de backup nem define versões de importação/exportação:
 
----
+| Tabela                         | Conteúdo                                     |
+| ------------------------------ | -------------------------------------------- |
+| `tasks`                        | Tarefas atuais                               |
+| `subtasks`                     | Subtarefas                                   |
+| `focus_themes`                 | Temas de foco                                |
+| `focus_sessions`               | Sessões de foco registradas                  |
+| `goals`                        | Metas                                        |
+| `goal_tasks`                   | Hábitos e fatores de meta                    |
+| `goal_task_completions`        | Conclusões datadas dos fatores de meta       |
+| `rewards`                      | Recompensas por condição                     |
+| `task_skips`                   | Ocorrências de tarefas recorrentes ignoradas |
+| `task_completions`             | Histórico/snapshot de tarefas concluídas     |
+| `gamification_settings`        | Configuração de pontuação                    |
+| `point_events`                 | Eventos de pontos e reversões                |
+| `coin_transactions`            | Créditos, gastos e reversões de moedas       |
+| `achievements`                 | Conquistas únicas já concedidas              |
+| `notebooks`                    | Cadernos de estudo                           |
+| `notebook_topics`              | Tópicos dos cadernos                         |
+| `purchasable_rewards`          | Itens cadastrados na loja                    |
+| `purchasable_reward_purchases` | Compras realizadas na loja                   |
 
-## Banco de Dados
+As preferências e o nome do usuário também são persistidos no `AsyncStorage`; não são tabelas SQLite. O estado de interface é mantido em stores Zustand e sincronizado com as consultas locais.
 
-O app usa SQLite local via `expo-sqlite` com Drizzle ORM. Todas as tabelas são criadas na primeira execução pelo `runMigrations()`.
+### Inicialização e compatibilidade do schema
 
-```
-tasks                    # Tarefas (livre, agendada, recorrente)
-subtasks                 # Subtarefas vinculadas a tasks
-focus_themes             # Temas de foco personalizados
-focus_sessions           # Histórico de sessões de foco
-goals                    # Metas com período e cor
-goal_tasks               # Hábitos/tarefas vinculados a metas
-goal_task_completions    # Registro de conclusões por data (SRS de hábitos)
-rewards                  # Recompensas com condições configuráveis
-```
+`runMigrations()` cria o conjunto atual de tabelas e índices em um banco novo (`user_version = 0`). Quando encontra o marcador atual (`user_version = 4`), executa `PRAGMA optimize`. O código não contém uma sequência de migrações incrementais: um banco com outro marcador é considerado incompatível e a inicialização é interrompida. Esse controle é independente dos arquivos de backup. Faça uma cópia dos dados antes de trocar entre builds que possam ter schemas incompatíveis.
 
----
+## Exportação e importação
 
-## Rodando Localmente (Expo Go)
+A transferência é implementada em `src/services/dataTransfer.service.ts`:
 
-### Pré-requisitos
-- Node.js 18+
-- Expo Go instalado no celular ([Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
-- PC e celular na mesma rede Wi-Fi
+- O arquivo exportado contém a data da exportação, os dados das tabelas SQLite e as preferências locais selecionadas. Não há campo nem identificação de versão no arquivo de backup.
+- A exportação gera JSON em arquivo `.txt` ou `.json`. Na interface Android, o usuário escolhe a pasta de destino e o arquivo é salvo com extensão `.txt`.
+- A importação usa o seletor de documentos e aceita arquivos de texto/JSON.
+- O serviço valida a estrutura, as colunas, os tipos dos campos e os relacionamentos essenciais antes da restauração.
+- A gravação das tabelas é feita em uma transação SQLite exclusiva. A importação substitui os registros locais atuais pelos registros do backup.
+- A importação valida diretamente a estrutura e os tipos dos dados esperados pelo schema atual do aplicativo. Não há seleção de versão nem conversão entre formatos antigos; arquivos que não correspondam à estrutura atual são rejeitados.
 
-### Instalação
+**Atenção:** a importação substitui os dados existentes no aparelho. Exporte os dados atuais antes de restaurar outro backup.
 
-```bash
-# Clone o repositório
-git clone https://github.com/Wendel-Costa/focomais.git
-cd focomais
+## Executar o projeto
 
-# Instale as dependências
-npm install
+### Requisitos
 
-# Inicie o servidor de desenvolvimento
-npx expo start --lan
-```
+- Node.js e npm compatíveis com as ferramentas Expo utilizadas pelo projeto.
+- Acesso ao repositório e às dependências listadas no `package-lock.json`.
+- Para executar no Android localmente: Android Studio/Android SDK, ferramentas de plataforma e um emulador ou dispositivo configurado.
+- Para builds EAS: conta Expo, EAS CLI autenticado e acesso à internet.
 
-Escaneie o QR Code com o Expo Go para abrir o app.
-
-> **Dica:** Prefira `--lan` a `--tunnel` para maior estabilidade. Com `--tunnel`, a conexão passa por um servidor externo e pode ser instável.
-
----
-
-## Build para Instalação (APK)
-
-O app usa **EAS Build** (Expo Application Services) para gerar APKs instaláveis sem precisar do Android Studio.
-
-### Pré-requisitos
-- Conta gratuita em [expo.dev](https://expo.dev)
+### Instalação e desenvolvimento
 
 ```bash
-# Instale o EAS CLI globalmente
-npm install -g eas-cli
-
-# Faça login na sua conta Expo
-eas login
-
-# Gere o APK (build de preview)
-eas build --platform android --profile preview
+npm ci
+npx expo install --check
+npx tsc --noEmit
+npx expo start
 ```
 
-Após alguns minutos, você receberá um link para baixar o `.apk`. Transfira para o celular e instale.
+Para iniciar o app em um emulador/dispositivo Android com ambiente nativo local configurado:
 
-### Perfis de Build
-
-| Perfil | Comando | Saída | Uso |
-|---|---|---|---|
-| `preview` | `eas build --profile preview` | `.apk` | Testes e uso pessoal |
-| `production` | `eas build --profile production` | `.aab` | Publicação na Play Store |
-
-> **Nota:** APKs instalados fora da Play Store exibem um aviso de segurança do Android. Toque em "Instalar mesmo assim" para prosseguir. Isso é esperado para apps distribuídos diretamente.
-
----
-
-## Notificações
-
-O app agenda notificações locais (sem servidor) para:
-
-| Tipo | Descrição | Configurável |
-|---|---|---|
-| Lembrete de tarefa agendada | Avisa no horário definido no dia da tarefa | ✅ Horário |
-| Aviso de data limite | Notifica um dia antes do prazo | ✅ On/Off |
-| Lembrete de hábitos | Notificação diária para marcar os hábitos | ✅ Horário |
-| Lembrete de foco | Notificação diária para iniciar uma sessão | ✅ Horário |
-
-As configurações são salvas localmente com AsyncStorage e restauradas a cada abertura do app.
-
----
-
-## Como Funciona o Progresso de Metas
-
-Cada hábito/tarefa vinculado a uma meta tem seu progresso calculado individualmente com base no tipo de recorrência:
-
-| Tipo | Cálculo do target |
-|---|---|
-| Diário | Dias entre início e fim |
-| N vezes/semana | Semanas no período × N |
-| N vezes/mês | Meses no período × N |
-| Dias específicos | Ocorrências desses dias no período |
-| Total no período | N direto |
-
-O progresso da meta é a **média do progresso de todos os hábitos**, com suporte a uma **margem de tolerância** (0% a 50%) que permite atingir 100% sem cumprir absolutamente tudo.
-
----
-
-## Tipos de Recompensa
-
-| Condição | Exemplo |
-|---|---|
-| Horas de foco | "Estudar 10h de Matemática na semana" |
-| N tarefas concluídas | "Concluir 20 tarefas no mês" |
-| Tarefas específicas | "Terminar o projeto X e o projeto Y" |
-| Meta completada | "Completar a meta de Janeiro" |
-
-O desbloqueio é verificado automaticamente sempre que uma tarefa é concluída ou ao puxar para atualizar a tela de recompensas.
-
----
-
-## Estrutura de Dados Principais
-
-### Task
-```ts
-{
-  id:             string;
-  title:          string;
-  description?:   string;
-  type:           'anytime' | 'scheduled' | 'recurring';
-  priority?:      'high' | 'medium' | 'low';
-  completed:      boolean;
-  scheduledDate?: string;       // YYYY-MM-DD
-  dueDate?:       string;       // YYYY-MM-DD
-  recurrenceDays?: RecurrenceDay[];
-  themeId?:       string;
-  subtasks?:      SubTask[];
-  completedAt?:   string;       // ISO timestamp
-  createdAt:      string;
-  updatedAt:      string;
-}
+```bash
+npm run android
 ```
 
-### FocusSession
-```ts
-{
-  id:             string;
-  themeId?:       string;
-  themeName?:     string;
-  mode:           'free' | 'pomodoro';
-  startTime:      string;       // ISO timestamp
-  endTime:        string;       // ISO timestamp
-  duration:       number;       // em minutos
-  isManual:       boolean;
-  pomodoroRounds?: number;
-  createdAt:      string;
-}
+O projeto utiliza aliases `@/*` para `src/*`, definidos em `tsconfig.json` e `babel.config.js`.
+
+## Builds Android com EAS
+
+O `eas.json` fixa a versão da CLI em `23.2.0` e utiliza `appVersionSource: "remote"`. Autentique-se antes da primeira compilação:
+
+```bash
+npx eas-cli@23.2.0 login
 ```
 
-### Goal
-```ts
-{
-  id:          string;
-  title:       string;
-  description?: string;
-  startDate:   string;          // YYYY-MM-DD
-  endDate:     string;          // YYYY-MM-DD
-  color?:      string;          // hex
-  tolerance:   number;          // 0 a 0.5
-  tasks:       GoalTask[];
-  createdAt:   string;
-  updatedAt:   string;
-}
+### Development — APK para desenvolvimento
+
+```bash
+npx eas-cli@23.2.0 build --platform android --profile development
 ```
 
-### Reward
-```ts
-{
-  id:          string;
-  title:       string;
-  description?: string;
-  condition: {
-    type:             'focus_hours' | 'tasks_completed' | 'tasks_specific' | 'goal_completed';
-    target:           number;
-    period:           'day' | 'week' | 'month' | 'anytime' | 'custom';
-    themeId?:         string;
-    taskIds?:         string[];
-    goalId?:          string;
-    customStartDate?: string;
-    customEndDate?:   string;
-  };
-  unlocked:    boolean;
-  unlockedAt?: string;
-  createdAt:   string;
-}
+Gera APK de distribuição interna com `developmentClient: true`. Esse perfil mantém a lista global de arquiteturas Android configurada no Gradle: `armeabi-v7a`, `arm64-v8a`, `x86` e `x86_64`, permitindo atender aparelhos ARM e emuladores x86.
+
+### Preview — APK de instalação em celulares
+
+```bash
+npx eas-cli@23.2.0 build --platform android --profile preview
 ```
 
----
+Gera APK de release. O perfil `preview` define o comando Gradle `:app:assembleRelease` com a propriedade `reactNativeArchitectures=armeabi-v7a,arm64-v8a`, incluindo ARM de 32 e 64 bits e omitindo as arquiteturas x86 usadas principalmente em emuladores. O perfil de desenvolvimento continua com as quatro arquiteturas.
 
-## Privacidade
+### Production — Android App Bundle
 
-O FocoMais é **100% offline**. Todos os dados são armazenados exclusivamente no dispositivo do usuário via SQLite. Não há servidor, não há conta, não há envio de dados para nenhum serviço externo. Desinstalar o app remove todos os dados.
+```bash
+npx eas-cli@23.2.0 build --platform android --profile production
+```
 
----
+Gera um **AAB** (`app-bundle`). O bundle contém os recursos/arquiteturas necessários para o processo de distribuição. Quando publicado no Google Play, a loja gera e entrega os APKs de configuração adequados ao dispositivo, em vez de distribuir necessariamente um APK universal com todas as arquiteturas. Um AAB não é instalado diretamente como um APK comum; para instalação fora da Play Store é necessário gerar APKs com uma ferramenta como `bundletool`.
 
-## Possíveis adições (no futuro)
+### Configuração nativa de release
 
-- [ ] Exportação e importação de dados (backup JSON)
-- [ ] Temas de cores (modo escuro)
-- [ ] Widget Android com tarefas do dia
-- [ ] Estatísticas de streak por hábito
-- [ ] Publicação na Google Play Store
+- Hermes e Nova Arquitetura permanecem habilitados.
+- As opções nativas são declaradas em `app.json` pelo plugin `expo-build-properties` (`~57.0.22`). Isso é importante porque `/android` está no `.gitignore` e o EAS pode gerar novamente o projeto nativo durante o Prebuild.
+- O plugin também mantém o Network Inspector habilitado e o empacotamento moderno de bibliotecas nativas (`useLegacyPackaging: false`). Hermes e Nova Arquitetura estão declarados explicitamente em `app.json`.
+- R8/minificação e remoção de recursos Android são habilitados em release pelo plugin e usam o `proguard-android-optimize.txt`, além das regras de retenção para Reanimated e TurboModules. O comportamento ainda precisa ser validado em um APK release real.
+- GIF e WebP de conteúdo foram desabilitados no Fresco porque o código e os assets de conteúdo do app não utilizam esses formatos. Os WebP gerados pelo Android para ícones do launcher são recursos Android estáticos e não dependem dos decoders GIF/WebP do Fresco.
+- `buildArchs` no plugin preserva globalmente `armeabi-v7a`, `arm64-v8a`, `x86` e `x86_64`. O perfil Preview substitui a propriedade Gradle somente naquele build e inclui apenas `armeabi-v7a` e `arm64-v8a`; Development e Production mantêm os quatro ABIs.
 
----
+## Manutenção e validações
 
-## Autor
+Após alterar dependências ou configuração nativa, valide o projeto antes de gerar um novo artefato:
 
-**Wendel Costa**
-- GitHub: [@Wendel-Costa](https://github.com/Wendel-Costa)
+```bash
+npm ci
+npx expo install --check
+npx tsc --noEmit
+npx eas-cli@23.2.0 build --platform android --profile preview
+```
+
+Depois do build, instale o APK em pelo menos um aparelho ARM64 e, quando a compatibilidade ARM de 32 bits fizer parte dos dispositivos-alvo, em um aparelho `armeabi-v7a`. Verifique os fluxos de tarefas, foco/Pomodoro, metas, cadernos, recompensas, notificações, backup/restauração e relatórios. Uma compilação concluída, por si só, não substitui os testes de execução.
