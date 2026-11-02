@@ -113,8 +113,7 @@ export function HomeScreen() {
         }
 
         if (showReports) {
-          setShowReports(false);
-          return true;
+          return false;
         }
 
         if (showSettings) {
@@ -182,42 +181,72 @@ export function HomeScreen() {
   if (showActiveFocus) return <ActiveFocusScreen onStop={() => setShowActiveFocus(false)} />;
 
   if (showReports) {
+    const reportsVisible = homeScreen === 'home';
+    const taskForDetail = selectedTask
+      ? applyRecurringReset(
+          [tasks.find((task) => task.id === selectedTask.id) ?? selectedTask],
+          getTodayString(),
+        )[0]
+      : null;
+
     return (
-      <ReportsScreen
-        onBack={() => setShowReports(false)}
-        onOpenTask={(record: CompletedTaskRecord) => {
-          const activeTask = tasks.find((task) => task.id === record.originalTaskId);
+      <View style={globalStyles.screen}>
+        <View style={{ flex: 1, display: reportsVisible ? 'flex' : 'none' }}>
+          <ReportsScreen
+            isVisible={reportsVisible}
+            onBack={() => setShowReports(false)}
+            onOpenTask={(record: CompletedTaskRecord) => {
+              const activeTask = tasks.find((task) => task.id === record.originalTaskId);
+              if (activeTask) {
+                setSelectedTask(activeTask);
+                setSelectedTaskReadOnly(false);
+              } else {
+                setSelectedTask({
+                  id: record.originalTaskId,
+                  title: record.title,
+                  description: record.description,
+                  type: record.type,
+                  scoreLevel: record.scoreLevel,
+                  completed: true,
+                  scheduledDate: record.scheduledDate,
+                  dueDate: record.dueDate,
+                  recurrenceDays: record.recurrenceDays,
+                  recurrenceInterval: record.recurrenceInterval,
+                  goalId: record.goalId,
+                  themeId: record.themeId,
+                  subtasks: record.subtasks,
+                  createdAt: record.createdAt,
+                  updatedAt: record.completedAt,
+                  completedAt: record.completedAt,
+                });
+                setSelectedTaskReadOnly(true);
+              }
+              setHomeScreen('detail');
+            }}
+          />
+        </View>
 
-          if (activeTask) {
-            setSelectedTask(activeTask);
-            setSelectedTaskReadOnly(false);
-          } else {
-            setSelectedTask({
-              id: record.originalTaskId,
-              title: record.title,
-              description: record.description,
-              type: record.type,
-              scoreLevel: record.scoreLevel,
-              completed: true,
-              scheduledDate: record.scheduledDate,
-              dueDate: record.dueDate,
-              recurrenceDays: record.recurrenceDays,
-              recurrenceInterval: record.recurrenceInterval,
-              goalId: record.goalId,
-              themeId: record.themeId,
-              subtasks: record.subtasks,
-              createdAt: record.createdAt,
-              updatedAt: record.completedAt,
-              completedAt: record.completedAt,
-            });
+        {homeScreen === 'edit' && selectedTask && (
+          <CreateTaskScreen
+            initialTask={selectedTask}
+            onBack={() => setHomeScreen('detail')}
+            onSuccess={() => {
+              fetchTasks();
+              setHomeScreen('detail');
+            }}
+          />
+        )}
 
-            setSelectedTaskReadOnly(true);
-          }
-
-          setShowReports(false);
-          setHomeScreen('detail');
-        }}
-      />
+        {homeScreen === 'detail' && taskForDetail && (
+          <TaskDetailScreen
+            task={taskForDetail}
+            readOnly={selectedTaskReadOnly}
+            onBack={() => setHomeScreen('home')}
+            onDeleted={() => setHomeScreen('home')}
+            onEdit={() => setHomeScreen('edit')}
+          />
+        )}
+      </View>
     );
   }
 

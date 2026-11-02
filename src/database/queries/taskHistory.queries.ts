@@ -112,8 +112,6 @@ export async function updateTaskCompletionWithHistory(
           );
 
         if (matchingRows.length === 0) {
-          // Older releases generated the task timestamp and history timestamp separately.
-          // Match only a nearby event for this exact task, never an arbitrary older occurrence.
           const candidates = await tx
             .select()
             .from(taskCompletions)
@@ -163,8 +161,6 @@ export async function updateTaskCompletionWithHistory(
       };
     }
 
-    // If another action already completed the task, reuse its original event timestamp.
-    // A completed legacy task without completedAt is not assigned an invented historical date.
     if (taskRecord.completed === 1 && !taskRecord.completedAt) {
       return {
         changed: false,
@@ -200,8 +196,6 @@ export async function updateTaskCompletionWithHistory(
 
     let existingRecord = exactExistingRecord;
     if (!existingRecord && !changed) {
-      // Make repeated completion requests idempotent for legacy records whose timestamps
-      // were generated separately by the previous taskStore and history query.
       const candidates = await tx
         .select()
         .from(taskCompletions)

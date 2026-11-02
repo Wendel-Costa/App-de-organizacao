@@ -193,7 +193,6 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       try {
         const sessions = await getAllSessions();
 
-        // Discard reads that started before a newer request or session mutation.
         if (
           requestId !== sessionsFetchRequestId ||
           requestMutationVersion !== sessionsMutationVersion
@@ -253,7 +252,6 @@ export const useFocusStore = create<FocusState>((set, get) => ({
       try {
         const todaySessions = await getSessionsForDate(date);
 
-        // A late response for another day or an older database snapshot is ignored.
         if (
           requestId !== todaySessionsFetchRequestId ||
           latestTodaySessionsRequestedDate !== date ||
@@ -298,14 +296,12 @@ export const useFocusStore = create<FocusState>((set, get) => ({
   },
 
   addSession: async (data) => {
-    // Invalidate reads both before and after the write so a query cannot race the insert.
     sessionsMutationVersion += 1;
     const session = await createSession(data);
     sessionsMutationVersion += 1;
     const sessionDate = dateOf(session.startTime);
 
     set((state) => ({
-      // Never expose a partial history as if it were the complete session list.
       sessions: state.sessionsLoaded ? mergeSessions(state.sessions, [session]) : state.sessions,
       todaySessions:
         state.todaySessionsDate === sessionDate

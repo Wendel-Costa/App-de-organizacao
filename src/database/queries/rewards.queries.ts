@@ -34,9 +34,7 @@ function parseIds(serialized: string | null, legacyId: string | null): string[] 
         );
         if (ids.length > 0 || !legacyId) return ids;
       }
-    } catch {
-      // Dados antigos ou inválidos continuam podendo usar o identificador singular.
-    }
+    } catch {}
   }
 
   return normalizeIds(undefined, legacyId ?? undefined);

@@ -81,7 +81,6 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           }
         }
 
-        // A fetch that started before a successful mutation must not replace newer Zustand data.
         if (fetchMutationVersion !== taskMutationVersion) {
           set({ loading: false });
           return;

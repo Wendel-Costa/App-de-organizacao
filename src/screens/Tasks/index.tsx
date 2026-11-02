@@ -307,10 +307,6 @@ export function TasksScreen() {
             filter === 'recurring' ? (
               <View style={styles.recurringPanelHeader}>
                 <Text style={styles.sectionLabel}>Gerenciamento de recorrências</Text>
-                <Text style={styles.recurringPanelDescription}>
-                  Todas as tarefas recorrentes cadastradas, com frequência e próxima ocorrência.
-                  Toque em uma tarefa para ver os detalhes ou editar.
-                </Text>
                 <Text style={styles.recurringPanelCount}>
                   {recurringPanelTasks.length}{' '}
                   {recurringPanelTasks.length === 1 ? 'tarefa recorrente' : 'tarefas recorrentes'}
@@ -568,11 +564,6 @@ const styles = StyleSheet.create({
   recurringPanelHeader: {
     gap: spacing.xs,
     marginBottom: spacing.md,
-  },
-  recurringPanelDescription: {
-    ...typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 19,
   },
   recurringPanelCount: {
     ...typography.xs,
