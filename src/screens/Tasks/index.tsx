@@ -25,10 +25,8 @@ import type { Task } from '@/types/task.types';
 import type { GoalTaskForToday } from '@/types/goal.types';
 import {
   getTodayString,
-  getTodayWeekday,
   applyRecurringReset,
-  isEveryXDaysTask,
-  isEveryXDaysDue,
+  isRecurringOccurrenceVisibleOn,
   getNextRecurringOccurrenceDate,
   getRecurringTaskFrequencyLabel,
   getRecurringTaskStatus,
@@ -165,18 +163,16 @@ export function TasksScreen() {
   const filtered = tasks.filter((task) => {
     if (filter === 'today') {
       if (task.type === 'scheduled') return task.scheduledDate === todayStr;
-      if (task.type === 'recurring') {
-        if (isEveryXDaysTask(task)) return isEveryXDaysDue(task, todayStr);
-        const todayWeekday = getTodayWeekday();
-        return (
-          task.recurrenceDays?.includes('daily') ||
-          task.recurrenceDays?.includes(todayWeekday) ||
-          false
-        );
-      }
+      if (task.type === 'recurring') return isRecurringOccurrenceVisibleOn(task, todayStr);
       return false;
     }
     if (filter === 'anytime') return task.type === 'anytime';
+    if (filter === 'all' && task.type === 'recurring') {
+      return (
+        isRecurringOccurrenceVisibleOn(task, todayStr) ||
+        (task.completed && isWithinLastSevenDays(task.completedAt, todayStr))
+      );
+    }
     if (filter === 'recurring') return task.type === 'recurring';
     return true;
   });

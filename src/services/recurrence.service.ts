@@ -78,6 +78,10 @@ export function isEveryXDaysTask(task: Task): boolean {
   );
 }
 
+/**
+ * The interval calendar is anchored to the task's original creation date.
+ * Completing, skipping, or missing an occurrence does not move that calendar.
+ */
 export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolean {
   if (!isEveryXDaysTask(task)) return false;
   if (task.skippedDate === todayStr) return false;
@@ -87,6 +91,20 @@ export function isEveryXDaysDue(task: Task, todayStr = getTodayString()): boolea
   const daysSinceCreation = differenceInCalendarDays(todayStr, anchorDate);
 
   return daysSinceCreation >= 0 && daysSinceCreation % interval === 0;
+}
+
+/**
+ * Determines whether a recurring task has an occurrence to show on a given day.
+ * Upcoming occurrences stay in the Recorrentes management panel, not in daily task lists.
+ * A completion remains visible for the rest of its completion day.
+ */
+export function isRecurringOccurrenceVisibleOn(task: Task, dateString = getTodayString()): boolean {
+  if (task.type !== 'recurring' || task.skippedDate === dateString) return false;
+  if (wasCompletedOn(task, dateString)) return true;
+
+  return isEveryXDaysTask(task)
+    ? isEveryXDaysDue(task, dateString)
+    : isRecurringScheduledToday(task, dateString);
 }
 
 export function getRecurringTaskFrequencyLabel(task: Task): string {
@@ -104,6 +122,10 @@ export function getRecurringTaskFrequencyLabel(task: Task): string {
   return selectedDays.map((day) => WEEKDAY_LABELS[day]).join(', ');
 }
 
+/**
+ * Returns the next calendar date on which a recurring task is scheduled.
+ * Today is skipped when its occurrence has already been completed or skipped.
+ */
 export function getNextRecurringOccurrenceDate(
   task: Task,
   todayStr = getTodayString(),
@@ -160,7 +182,7 @@ export function getRecurringTaskStatus(
 
 export function filterTasksForHome(tasks: Task[], today = getTodayString()): Task[] {
   return tasks.filter((task) => {
-    if (task.type === 'recurring' && task.skippedDate === today) return false;
+    if (task.type === 'recurring') return isRecurringOccurrenceVisibleOn(task, today);
 
     if (task.type === 'anytime') {
       if (task.completed) return dateOf(task.updatedAt) === today;
@@ -168,14 +190,6 @@ export function filterTasksForHome(tasks: Task[], today = getTodayString()): Tas
     }
 
     if (task.type === 'scheduled') return task.scheduledDate === today;
-
-    if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) {
-        return wasCompletedOn(task, today) || isEveryXDaysDue(task, today);
-      }
-
-      return isRecurringScheduledToday(task, today) || wasCompletedOn(task, today);
-    }
 
     return false;
   });
@@ -203,6 +217,10 @@ export function applyRecurringReset(tasks: Task[], todayStr: string): Task[] {
   });
 }
 
+/**
+ * Returns completed occurrences only when their next scheduled occurrence arrives.
+ * A missed or skipped occurrence never moves the recurrence calendar.
+ */
 export function getRecurringTasksToReset(tasks: Task[], todayStr = getTodayString()): Task[] {
   return tasks.filter((task) => {
     if (task.type !== 'recurring' || !task.completed) return false;
@@ -224,7 +242,9 @@ export function filterTasksForThemeToday(
   today = getTodayString(),
 ): Task[] {
   return tasks.filter((task) => {
-    if (task.type === 'recurring' && task.skippedDate === today) return false;
+    if (task.type === 'recurring' && !isRecurringOccurrenceVisibleOn(task, today)) {
+      return false;
+    }
 
     if (themeId) {
       if (task.themeId !== themeId) return false;
@@ -238,14 +258,6 @@ export function filterTasksForThemeToday(
     }
 
     if (task.type === 'scheduled') return task.scheduledDate === today;
-
-    if (task.type === 'recurring') {
-      if (isEveryXDaysTask(task)) {
-        return wasCompletedOn(task, today) || isEveryXDaysDue(task, today);
-      }
-
-      return isRecurringScheduledToday(task, today) || wasCompletedOn(task, today);
-    }
 
     return false;
   });

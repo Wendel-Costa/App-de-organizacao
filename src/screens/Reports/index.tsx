@@ -287,7 +287,7 @@ export function ReportsScreen({ onBack, onOpenTask }: ReportsScreenProps) {
       <View style={styles.periodSelector}>
         {(
           [
-            { key: 'week', label: 'Semana' },
+            { key: 'week', label: 'Semanal' },
             { key: 'month', label: 'Mensal' },
             { key: 'history', label: 'Histórico' },
           ] as { key: Period; label: string }[]
